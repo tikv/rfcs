@@ -12,7 +12,7 @@ The "RFC" (request for comments) process is intended to provide a consistent and
 2. Write the document and fill in the blanks.
 3. Submit a pull request.
 
-### Timeline of a RFC
+### Timeline of an RFC
 
 1. A RFC is submitted as a PR.
 2. Discussion takes place, and the text is revised in response.
