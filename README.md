@@ -14,7 +14,7 @@ The "RFC" (request for comments) process is intended to provide a consistent and
 
 ### Timeline of an RFC
 
-1. A RFC is submitted as a PR.
+1. An RFC is submitted as a PR.
 2. Discussion takes place, and the text is revised in response.
 3. The PR is merged or closed when at least two project maintainers reach consensus.
 
