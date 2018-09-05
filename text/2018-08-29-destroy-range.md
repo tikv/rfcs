@@ -22,8 +22,29 @@ This issue has troubled some of our users. It should be fixed as soon as possibl
     ```
     The `context` in the request body does not indicate which Region to work. Fields about Region, Peer, etc. are ignored.
 
+    We keep the `context` here, one of the reasons is to make it uniform with other request. Another reason is that, there are other parameters (like `fill_cache`) in `Context`. Though we don't need to use anything in it currently, it's possible that there will be more parameters added to `Context`, which is also possibly needed by `DestroyRange`.
+
 2. When TiKV receives `DestroyRangeRequest`, it immediately runs `delete_files_in_range` on the whole range on RocksDB, bypassing the Raft layer. Then it will scan and delete all remaining keys in the range.
-    > TODO: Describe more detailed implementation here
+    
+    * Due to that `DestroyRange` only helps TiDB's GC, so we put the logic of handling `DestroyRange` request to `storage/gc_worker`.
+    * `GCWorker` needs a reference to raftstore's underlying RocksDB now. However it's a component of `Storage` that knows nothing about the implementation of the `Engine`. Either, we cannot specialize it for `RaftKv` to get the RocksDB, since it's just a router. The simplest way is to pass the RocksDB's Arc pointer explicitly in `tikv-server.rs`.
+    * We regard `DestroyRange` as a special type of GCTask, which will be executed in TiKV's GCWorker's thread:
+        ```rust
+        enum GCTask {
+            GC {
+                ctx: Context,
+                safe_point: u64,
+                // ...
+            },
+            DestroyRange {
+                ctx: Context,
+                start_key: Key,
+                end_key: Key,
+                // ...
+            },
+        }
+        ```
+    * The logic of `DestroyRange` is quite similar to `DeleteRange` in apply worker.
 
     The story of TiKV is ended here. But to show why this thing is useful, let's continue to see what we will do on TiDB:
 
