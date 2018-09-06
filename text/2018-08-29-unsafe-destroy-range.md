@@ -10,6 +10,8 @@ Currently, when TiDB drops/truncates a table/index, after GC lifetime it will in
 
 This issue has troubled some of our users. It should be fixed as soon as possible.
 
+In our tests, this can finish deleting data of a hundreds-of-GB table in seconds, while the old implementation may cost hours to finish. Also the disk space is released very fast.
+
 # Detailed design
 
 1. Add related protobuf for `UnsafeDestroyRange` to kvrpcpb.
