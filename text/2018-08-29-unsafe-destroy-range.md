@@ -1,6 +1,6 @@
 # Summary
 
-Support RPC `DestroyRange`. This call is on the whole TiKV rather than a certain Region. When it is invoked, TiKV will use `delete_files_in_range` to quickly free a large amount of space, and then scan and delete all remaining keys in the range. Raft layer will be bypassed, and the range can cover across multiple Regions. The invoker should promise that after invoking `DestroyRange`, the range will never be accessed again. That is to say, the range is permanently scrapped.
+Support RPC `UnsafeDestroyRange`. This call is on the whole TiKV rather than a certain Region. When it is invoked, TiKV will use `delete_files_in_range` to quickly free a large amount of space, and then scan and delete all remaining keys in the range. Raft layer will be bypassed, and the range can cover multiple Regions. The invoker should promise that after invoking `UnsafeDestroyRange`, the range will never be accessed again. That is to say, the range is permanently scrapped.
 
 This interface is only designed for TiDB. It's used to clean up data after dropping/truncating a huge table/index.
 
@@ -12,9 +12,9 @@ This issue has troubled some of our users. It should be fixed as soon as possibl
 
 # Detailed design
 
-1. Add related protobuf for `DestroyRange` to kvrpcpb.
+1. Add related protobuf for `UnsafeDestroyRange` to kvrpcpb.
     ```protobuf
-    message DestroyRangeRequest {
+    message UnsafeDestroyRangeRequest {
         Context context = 1;
         bytes start_key = 2;
         bytes end_key = 3;
@@ -22,13 +22,13 @@ This issue has troubled some of our users. It should be fixed as soon as possibl
     ```
     The `context` in the request body does not indicate which Region to work. Fields about Region, Peer, etc. are ignored.
 
-    We keep the `context` here, one of the reasons is to make it uniform with other request. Another reason is that, there are other parameters (like `fill_cache`) in `Context`. Though we don't need to use anything in it currently, it's possible that there will be more parameters added to `Context`, which is also possibly needed by `DestroyRange`.
+    We keep the `context` here, one of the reasons is to make it uniform with other request. Another reason is that, there are other parameters (like `fill_cache`) in `Context`. Though we don't need to use anything in it currently, it's possible that there will be more parameters added to `Context`, which is also possibly needed by `UnsafeDestroyRange`.
 
-2. When TiKV receives `DestroyRangeRequest`, it immediately runs `delete_files_in_range` on the whole range on RocksDB, bypassing the Raft layer. Then it will scan and delete all remaining keys in the range.
+2. When TiKV receives `UnsafeDestroyRangeRequest`, it immediately runs `delete_files_in_range` on the whole range on RocksDB, bypassing the Raft layer. Then it will scan and delete all remaining keys in the range.
     
-    * Due to that `DestroyRange` only helps TiDB's GC, so we put the logic of handling `DestroyRange` request to `storage/gc_worker`.
+    * Due to that `UnsafeDestroyRange` only helps TiDB's GC, so we put the logic of handling `UnsafeDestroyRange` request to `storage/gc_worker`.
     * `GCWorker` needs a reference to raftstore's underlying RocksDB now. However it's a component of `Storage` that knows nothing about the implementation of the `Engine`. Either, we cannot specialize it for `RaftKv` to get the RocksDB, since it's just a router. The simplest way is to pass the RocksDB's Arc pointer explicitly in `tikv-server.rs`.
-    * We regard `DestroyRange` as a special type of GCTask, which will be executed in TiKV's GCWorker's thread:
+    * We regard `UnsafeDestroyRange` as a special type of GCTask, which will be executed in TiKV's GCWorker's thread:
         ```rust
         enum GCTask {
             GC {
@@ -36,7 +36,7 @@ This issue has troubled some of our users. It should be fixed as soon as possibl
                 safe_point: u64,
                 // ...
             },
-            DestroyRange {
+            UnsafeDestroyRange {
                 ctx: Context,
                 start_key: Key,
                 end_key: Key,
@@ -44,14 +44,14 @@ This issue has troubled some of our users. It should be fixed as soon as possibl
             },
         }
         ```
-    * The logic of `DestroyRange` is quite similar to `DeleteRange` in apply worker.
+    * The logic of `UnsafeDestroyRange` is quite similar to `DeleteRange` in apply worker.
 
     The story of TiKV is ended here. But to show why this thing is useful, let's continue to see what we will do on TiDB:
 
 3. In TiDB, when you execute `TRUNCATE/DROP TABLE/INDEX`, the meta data of the related table will be modified at first, and then the range covered by the truncated/dropped table/index will be recorded in the system table `gc_delete_range` with timestamp when the `TRUNCATE/DROP` query is executed. TiDB GC worker will check this table every time it does GC. In the current implementation, if there are records in `gc_delete_range` with its timestamp smaller than the safe point, TiDB will delete ranges indicated by these records by invoking `DeleteRange`, and also move these records from `gc_delete_range` to `gc_delete_range_done`. So in the new implementation:
 
-    * When doing `DeleteRanges` (the second step of GC), invoke the new `DestroyRange` on each TiKV, instead of running the old `DeleteRange` on each Region. Also we need to add an interface to PD so that TiDB can get a list of all TiKVs.
-    * Check the record again from `gc_delete_range_done` after 24 hours (24 hours since it was moved to table `gc_delete_range_done`), and invoke `DestroyRange` again. Then this record can be removed from table `gc_delete_range_done`.
+    * When doing `DeleteRanges` (the second step of GC), invoke the new `UnsafeDestroyRange` on each TiKV, instead of running the old `DeleteRange` on each Region. Also we need to add an interface to PD so that TiDB can get a list of all TiKVs.
+    * Check the record again from `gc_delete_range_done` after 24 hours (24 hours since it was moved to table `gc_delete_range_done`), and invoke `UnsafeDestroyRange` again. Then this record can be removed from table `gc_delete_range_done`.
     
     And why do we need to check it one more time after 24 hours? After deleting the range the first time, if coincidentally PD is trying to move a Region or something, some data may still appear in the range. So check it one more time after a proper time to greatly reduce the possibility.
 
