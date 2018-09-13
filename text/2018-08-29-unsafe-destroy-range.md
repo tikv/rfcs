@@ -1,6 +1,6 @@
 # Summary
 
-Support RPC `UnsafeDestroyRange`. This call is on the whole TiKV rather than a certain Region. When it is invoked, TiKV will use `delete_files_in_range` to quickly free a large amount of space, and then scan and delete all remaining keys in the range. Raft layer will be bypassed, and the range can cover multiple Regions. The invoker should promise that after invoking `UnsafeDestroyRange`, the range will never be accessed again. That is to say, the range is permanently scrapped.
+Support RPC `UnsafeDestroyRange`. This call is on the whole TiKV rather than a certain Region. When it is invoked, TiKV will use `delete_files_in_range` to quickly free a large amount of space, and then scan and delete all remaining keys in the range. Raft layer will be bypassed, and the range can cover multiple Regions. The invoker should promise that after invoking `UnsafeDestroyRange`, the range will **never** be accessed again. That is to say, the range is permanently scrapped.
 
 This interface is only designed for TiDB. It's used to clean up data after dropping/truncating a huge table/index.
 
@@ -13,6 +13,8 @@ This issue has troubled some of our users. It should be fixed as soon as possibl
 In our tests, this can finish deleting data of a hundreds-of-GB table in seconds, while the old implementation may cost hours to finish. Also the disk space is released very fast.
 
 # Detailed design
+
+There are several steps to implement it.
 
 1. Add related protobuf for `UnsafeDestroyRange` to kvrpcpb.
     ```protobuf
@@ -46,7 +48,9 @@ In our tests, this can finish deleting data of a hundreds-of-GB table in seconds
             },
         }
         ```
-    * The logic of `UnsafeDestroyRange` is quite similar to `DeleteRange` in apply worker.
+    * The logic of `UnsafeDestroyRange` is quite similar to `DeleteRange` in apply worker: First, call `delete_files_in_range` to quickly drop most of the data and also quickly release the space; Then, scan and delete all remaining keys in the range.
+
+        We should choose a proper batch size for the second step (scan and delete). Currently raftstore uses 4MB as the max batch size when doing scan-deleting. In our tests, we found that if we use 4MB, as the write batch size in the second step (scan and delete), running it will reduce OLTP QPS by 30% ~ 60%. However if we set batch size smaller such as 32KB, then QLTP QPS is not affected any more.
 
     The story of TiKV is ended here. But to show why this thing is useful, let's continue to see what we will do on TiDB:
 
@@ -63,6 +67,7 @@ In our tests, this can finish deleting data of a hundreds-of-GB table in seconds
     * But fortunately, in TiDB, when `DeleteRanges` happens, the deleted range will never be accessed again.
 * To bypass the Raft layer, the code might violate the layered architecture of TiKV.
 * Sending requests to each TiKV server never occurs in TiDB before. This pattern is introduced to TiDB's code the first time.
+* After deleting all files in a very-large range, it may trigger RocksDB's compaction (even it is not really needed) and even cause stalling.
 
 # Alternatives
 
@@ -71,3 +76,5 @@ We've considered several different ideas. But in order to solve the problem quic
 For example, we tried to keep the consistency of Raft replicas. But in a scenario where TiKV is only used by TiDB, deleted range will never be accessed again. So in fact, if we add an interface that is specific for TiDB, we just needn't keep this kind of consistency. It's safe enough.
 
 # Unresolved questions
+
+* A huge amount of empty regions will be left after invoking `UnsafeDestroyRange`. They will be slowly merging then. If possible, it should be merged faster.
