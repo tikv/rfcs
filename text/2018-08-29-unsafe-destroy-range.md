@@ -26,12 +26,12 @@ There are several steps to implement it.
     ```
     The `context` in the request body does not indicate which Region to work. Fields about Region, Peer, etc. are ignored.
 
-    We keep the `context` here, one of the reasons is to make it uniform with other request. Another reason is that, there are other parameters (like `fill_cache`) in `Context`. Though we don't need to use anything in it currently, it's possible that there will be more parameters added to `Context`, which is also possibly needed by `UnsafeDestroyRange`.
+    We keep the `context` here. One of the reasons is to make it uniform with other requests. Another reason is that, there are other parameters (like `fill_cache`) in `Context`. Though we don't need to use anything in it currently, it's possible that there will be more parameters added to `Context`, which is also possibly needed by `UnsafeDestroyRange`.
 
 2. When TiKV receives `UnsafeDestroyRangeRequest`, it immediately runs `delete_files_in_range` on the whole range on RocksDB, bypassing the Raft layer. Then it will scan and delete all remaining keys in the range.
     
-    * Due to that `UnsafeDestroyRange` only helps TiDB's GC, so we put the logic of handling `UnsafeDestroyRange` request to `storage/gc_worker`.
-    * `GCWorker` needs a reference to raftstore's underlying RocksDB now. However it's a component of `Storage` that knows nothing about the implementation of the `Engine`. Either, we cannot specialize it for `RaftKv` to get the RocksDB, since it's just a router. The simplest way is to pass the RocksDB's Arc pointer explicitly in `tikv-server.rs`.
+    * Due to that `UnsafeDestroyRange` only helps TiDB's GC, we put the logic of handling `UnsafeDestroyRange` request to `storage/gc_worker`.
+    * `GCWorker` needs a reference to raftstore's underlying RocksDB now. However, it's a component of `Storage` that knows nothing about the implementation of the `Engine`. Either, we cannot specialize it for `RaftKv` to get the RocksDB, since it's just a router. The simplest way is to pass the RocksDB's Arc pointer explicitly in `tikv-server.rs`.
     * We regard `UnsafeDestroyRange` as a special type of GCTask, which will be executed in TiKV's GCWorker's thread:
         ```rust
         enum GCTask {
@@ -50,7 +50,7 @@ There are several steps to implement it.
         ```
     * The logic of `UnsafeDestroyRange` is quite similar to `DeleteRange` in apply worker: First, call `delete_files_in_range` to quickly drop most of the data and also quickly release the space; Then, scan and delete all remaining keys in the range.
 
-        We should choose a proper batch size for the second step (scan and delete). Currently raftstore uses 4MB as the max batch size when doing scan-deleting. In our tests, we found that if we use 4MB, as the write batch size in the second step (scan and delete), running it will reduce OLTP QPS by 30% ~ 60%. However if we set batch size smaller such as 32KB, then QLTP QPS is not affected any more.
+        We should choose a proper batch size for the second step (scan and delete). Currently raftstore uses 4MB as the max batch size when doing scan-deleting. In our tests, we found that if we use 4MB, as the write batch size in the second step (scan and delete), running it will reduce OLTP QPS by 30% ~ 60%. However, if we set batch size smaller such as 32KB, then QLTP QPS is not affected any more.
 
     The story of TiKV is ended here. But to show why this thing is useful, let's continue to see what we will do on TiDB:
 
@@ -77,4 +77,4 @@ For example, we tried to keep the consistency of Raft replicas. But in a scenari
 
 # Unresolved questions
 
-* A huge amount of empty regions will be left after invoking `UnsafeDestroyRange`. They will be slowly merging then. If possible, it should be merged faster.
+* A huge amount of empty regions will be left after invoking `UnsafeDestroyRange`. It may take a long time to merge them all. If possible, they should be merged faster.
