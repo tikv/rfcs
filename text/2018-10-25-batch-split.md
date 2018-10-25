@@ -1,6 +1,6 @@
 # Summary
 
-Support `BatchSplit` feature that split one Region into multiple Regions at a time if the size is large enough. This includes modifications of both TiKV and PD. For TiKV, every round of split-check produces not only one split key but multiple split keys and change inner split related interface into batch style. For PD, add RPC `AskBatchSplit` and `ReportBatchSplit`  to permit TiKV asking for `region_id` and `peer_id` in batch.
+Support `BatchSplit` feature that split one Region into multiple Regions at a time if the size is large enough. This includes modifications of both TiKV and PD. For TiKV, every round of split-check produces multiple split keys instead of one and change inner split related interface into batch style. For PD, add RPC `AskBatchSplit` and `ReportBatchSplit`  to permit TiKV asking for `region_id` and `peer_id` in batch.
 
 # Motivation
 
@@ -54,7 +54,7 @@ message ReportBatchSplitResponse {
 }
 ```
 
-Add  `AskBatchSplit`  to replace `AskSplit` , it is called when TiKV produces some split keys for one Region and asks PD to allocate new `region_id` and `peer_id` for that Region. `split_count`  in `AskBatchSplitRequest` indicates the number of Region to be generated, and `AskBatchSplitResponse` returns all new allocated ids to TiKV.
+Add  `AskBatchSplit`  to replace `AskSplit` , it is called when TiKV produces some split keys for one Region and asks PD to allocate new `region_id` and `peer_id` for that Region. `split_count`  in `AskBatchSplitRequest` indicates the number of Region to be generated, and `AskBatchSplitResponse` returns all new allocated IDs to TiKV.
 
 Add  `ReportBatchSplit` to replace `ReportBatchSplit`, it is called when TiKV finish splitting Region. `ReportBatchSplitRequest` takes all metas of new generated Region for PD to update PD's related information.
 
