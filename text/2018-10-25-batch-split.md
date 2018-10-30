@@ -1,6 +1,6 @@
 # Summary
 
-Support `BatchSplit` feature that split one Region into multiple Regions at a time if the size is large enough. This includes modifications of both TiKV and PD. For TiKV, every round of split-check produces multiple split keys instead of one and change inner split related interface into batch style. For PD, add RPC `AskBatchSplit` and `ReportBatchSplit`  to permit TiKV asking for `region_id` and `peer_id` in batch.
+Support `BatchSplit` feature that split one Region into multiple Regions at a time if the size or the number of keys exceeds a threshold. This includes modifications of both TiKV and PD. For TiKV, every round of split-check produces multiple split keys instead of one and change inner split related interface into batch style. For PD, add RPC `AskBatchSplit` and `ReportBatchSplit`  to permit TiKV asking for `region_id` and `peer_id` in batch.
 
 # Motivation
 
@@ -14,7 +14,7 @@ Current split only split one Region at a time. It may be very slow when sequenti
 
 ```protobuf
 service PD {
-	// ...
+    // ...
 	
     rpc AskSplit(AskSplitRequest) returns (AskSplitResponse) {
         // Use AskBatchSplit instead.
@@ -36,7 +36,7 @@ message AskBatchSplitRequest {
 
 message SplitID {
     uint64 new_region_id = 1;
-	repeated uint64 new_peer_ids = 2;
+    repeated uint64 new_peer_ids = 2;
 }
 
 message AskBatchSplitResponse {
@@ -46,11 +46,11 @@ message AskBatchSplitResponse {
 
 message ReportBatchSplitRequest {
     RequestHeader header = 1;
-	repeated metapb.Region regions = 2;
+    repeated metapb.Region regions = 2;
 }
 
 message ReportBatchSplitResponse {
-	ResponseHeader header = 1;
+    ResponseHeader header = 1;
 }
 ```
 
@@ -158,7 +158,7 @@ So if the size of Region is larger than `region_max_size * batch_split_limit * 2
 
 # Drawbacks
 
-- When use approximate way, Region may split into several disproportion Regions due to size estimation.
+- When use approximate way, Region may split into several disproportional Regions due to size estimation.
 
 # Alternatives
 
