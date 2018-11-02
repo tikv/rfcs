@@ -37,7 +37,7 @@ To utilize the command line client, users will be able to install the binary via
 TiKV provides two types of APIs for developers:
 - The Raw Key-Value API
 
-    If your application scenario does not need distributed transactions or MVCC (Multi-Version Concurrency Control) and only need to guarantee the atomicity towards one key, you can use the Raw Key-Value API.
+    If your application scenario does not need distributed transactions or MVCC (Multi-Version Concurrency Control) and only needs to guarantee the atomicity towards one key, you can use the Raw Key-Value API.
 
 - The Transactional Key-Value API
 
@@ -55,7 +55,7 @@ The client provides two types of APIs in two separate modules for developers to 
 - KeyRange: Half-open interval of keys
 - Config: Configuration for client
 
-### Try the Raw Key-Value API
+### Raw Key-Value API Basic Usage
 
 To use the Raw Key-Value API, take the following steps:
 
@@ -191,7 +191,7 @@ The Transactional Key-Value API is more complicated than the Raw Key-Value API. 
 
 - Snapshot
 
-    A Snapshot is the state of a Client at a particular point of time, which provides some readonly methods. The multiple times read from a same Snapshot is guaranteed consistent.
+    A Snapshot is the state of a Client at a particular point of time, which provides some readonly methods. The multiple reads of the same Snapshot is guaranteed consistent.
 
 - Transaction
 
@@ -343,11 +343,11 @@ The result is like:
 
 ## Programming model
 
-The client instance is thread safe and all the interfaces return futures so users can use the client in either asynchronous or synchronous way. A dedicated event loop thread is created at per client instance basis to drive the reactor to make progress.
+The client instance is thread safe and all the interfaces return futures so users can use the client in either asynchronous or synchronous way. A dedicated event loop thread is created at a per client instance basis to drive the reactor to make progress.
 
 ## Tooling
 
-The `tikv_client` crate will be tested with Travis CI using Rust's standard testing framework. We will also include benchmarking with criterion in the future. For public functions which process user input, we will seek to use fuzz testing such as `quickcheck` to find subtle bugs.
+The `tikv_client` crate will be tested with Travis CI using Rust's standard testing framework. We will also include benchmark with criterion in the future. For public functions which process user input, we will seek to use fuzz testing such as `quickcheck` to find subtle bugs.
 
 The CI will validate all code is warning free, passes `rustfmt`, and passes a `clippy` check without lint warnings.
 
