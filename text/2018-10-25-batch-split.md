@@ -1,10 +1,10 @@
 # Summary
 
-Support `BatchSplit` feature that split one Region into multiple Regions at a time if the size or the number of keys exceeds a threshold. This includes modifications of both TiKV and PD. For TiKV, every round of split-check produces multiple split keys instead of one and change inner split related interface into batch style. For PD, add RPC `AskBatchSplit` and `ReportBatchSplit`  to permit TiKV asking for `region_id` and `peer_id` in batch.
+Support `BatchSplit` feature that splits one Region into multiple Regions at a time if the size or the number of keys exceeds a threshold. This includes modifications of both TiKV and PD. For TiKV, every round of split-check produces multiple split keys instead of one and changes inner split related interface into batch style. For PD, add RPC `AskBatchSplit` and `ReportBatchSplit` to allow TiKV to ask for `region_id` and `peer_id` in batch.
 
 # Motivation
 
-Current split only split one Region at a time. It may be very slow when sequential write is too fast, namely, split speed can not keep up with write speed. Slow split can lead to large region. In this case, if a snapshot is triggered, it will occupy a lot of IO and make everything slow. Also, large region is hard for scheduling hotspot, so it makes performance even worse.
+Current split only splits one Region at a time. It may be very slow when sequential write is too fast, namely, split speed can not keep up with write speed. Slow split can lead to large region. In this case, if a snapshot is triggered, it will occupy a lot of IO and make everything slow. Also, it is hard to schedule hotspots for a large Region, so it makes performance even worse.
 
 # Detailed design
 
@@ -54,9 +54,9 @@ message ReportBatchSplitResponse {
 }
 ```
 
-Add  `AskBatchSplit`  to replace `AskSplit` , it is called when TiKV produces some split keys for one Region and asks PD to allocate new `region_id` and `peer_id` for that Region. `split_count`  in `AskBatchSplitRequest` indicates the number of Region to be generated, and `AskBatchSplitResponse` returns all new allocated IDs to TiKV.
+Add `AskBatchSplit` to replace `AskSplit`. It is called when TiKV produces some split keys for one Region and asks PD to allocate new `region_id` and `peer_id` for that Region. `split_count` in `AskBatchSplitRequest` indicates the number of Regions to be generated, and `AskBatchSplitResponse` returns all new allocated IDs to TiKV.
 
-Add  `ReportBatchSplit` to replace `ReportBatchSplit`, it is called when TiKV finish splitting Region. `ReportBatchSplitRequest` takes all metas of new generated Region for PD to update PD's related information.
+Add `ReportBatchSplit` to replace `ReportBatchSplit`. It is called when TiKV finishes splitting a Region. `ReportBatchSplitRequest` takes all metas of a new generated Region for PD to update PD's related information.
 
 For compatibility issue, the old interface is not deleted but set to deprecated. 
 
@@ -65,7 +65,7 @@ For compatibility issue, the old interface is not deleted but set to deprecated.
 ```protobuf
 message SplitRequest {
     // ...
-    // Will be ignored in batch split, use `BatchSplitRequest::right_derive` instead.
+    // Will be ignored in batch split. Use `BatchSplitRequest::right_derive` instead.
     bool right_derive = 4 [deprecated=true];
 }
 
@@ -133,7 +133,7 @@ Now we have four split-checkers: half, keys, size and table. SizeChecker and Key
 The general logic of SizeChecker and KeysChecker are similiar, the only difference between them is one splits Region based on size and the other splits Region based on the number of keys. So here we mainly describe the logic of SizeChecker:
 
 - before: it scans key-value pairs in a Region's range sequentially to accumlate their size as `total_size` and stops once the size reachs to `region_max_size` or scans to the end of range. If  `total_size` is smaller than `region_max_size` at the end, checker wouldn't produce any split key; if not, it regards the very key at which `total_size`  reachs to `region_split_size` as split key.
-- after: it scans key-value pairs in a Region's range sequentially to accumlate their size as `total_size` and stops once the size reachs to `region_split_size * (batch_split_limit-1) + region_max_size` or scans to the end of range. During the scan process, it reocrds the key as split key every `region_split_size`, but after finishing scanning, it may discards the last split key if the size of rest Region doesn't over `region_max_size - region_split_size`. With this algorithm, if `batch_split_limit` is set to 1, TiKV can perfectly behave as before that split without batch.
+- after: it scans key-value pairs in a Region's range sequentially to accumulate their size as `total_size` and stops once the size reaches `region_split_size * (batch_split_limit-1) + region_max_size` or scans to the end of the range. During the scan process, it records the key as split key every `region_split_size`, but after finishing scanning, it may discard the last split key if the size of rest Region is not bigger than `region_max_size - region_split_size`. With this algorithm, if `batch_split_limit` is set to 1, TiKV can perfectly behave the same way as the split without batch.
 
 ### Compatibility concern
 
@@ -146,11 +146,11 @@ enum ErrorType {
 }
 ```
 
-So once TiKV gets `AskBatchSplitResponse` with `ErrorType::INCOMPATIBLE_VERSION`, it uses original `AskSplit` instead of `AskBatchSplit`, and all following processes will degrade to original way. So original code path is not deleted.
+So once TiKV gets `AskBatchSplitResponse` with `ErrorType::INCOMPATIBLE_VERSION`, it uses the original `AskSplit` instead of `AskBatchSplit`, and all the following processes will degrade to the original way. So the original code path is not deleted.
 
 ### Approximate split key
 
-What we said above can ease the problem, however scanning a large Region can also consume a lot of time and CPU. Test shows that large Region can still easily show up even with batch split implemented, although split is speeded up.
+What we said above can ease the problem. However, scanning a large Region can also consume a lot of time and CPU. The test shows that large Regions can still easily show up even with batch split implemented, although split is speeded up.
 
 When a Region becomes large enough, it's more practical to divide it into smaller chunks quickly. This can be achieved via size estimation, which can be calculated from SST properties. Although it may not be accurate enough, it's okay for a large Region.
 
@@ -158,7 +158,7 @@ So if the size of Region is larger than `region_max_size * batch_split_limit * 2
 
 # Drawbacks
 
-- When use approximate way, Region may split into several disproportional Regions due to size estimation.
+- When the approximate way is used, Region may split into several disproportional Regions due to size estimation.
 
 # Alternatives
 
@@ -167,4 +167,4 @@ None
 
 # Unresolved questions
 
-A large Region is usually more emergent to be split, so we can change the split check queue from a naive FIFO queue to a priority queue so that large Region can be split early and quickly.
+Generally, it is more urgent to split a large Region, so we can change the split check queue from a naive FIFO queue to a priority queue so that a large Region can be split early and quickly.
