@@ -43,7 +43,7 @@ TiKV provides two types of APIs for developers:
 
     If your application scenario requires distributed ACID transactions and the atomicity of multiple keys within a transaction, you can use the Transactional Key-Value API.
 
-Generally the Raw Key-Value API has higher throughput and lower latency compare to the Transactional Key-Value API. If distributed ACID transactions is not required, Raw Key-Value API is preferred over Transactional Key-Value API for better performance and ease of use.
+Generally, the Raw Key-Value API has higher throughput and lower latency compared to the Transactional Key-Value API. If distributed ACID transactions are not required, Raw Key-Value API is preferred over Transactional Key-Value API for better performance and ease of use.
 
 The client provides two types of APIs in two separate modules for developers to choose from.
 
@@ -61,122 +61,122 @@ To use the Raw Key-Value API, take the following steps:
 
 1. Create an instance of Config to specify endpoints of PD (Placement Driver) and optional security config
 
-```rust
-    let config = Config::new(vec!["127.0.0.1:2379"]);
-```
+    ```rust
+        let config = Config::new(vec!["127.0.0.1:2379"]);
+    ```
 
 2. Create a Raw Key-Value client.
 
-```rust
-    let client = RawClient::new(&config);
-```
+    ```rust
+        let client = RawClient::new(&config);
+    ```
 
 3. Call the Raw Key-Value client methods to access the data on TiKV. The Raw Key-Value API contains following methods
 
-```rust
-    fn get<K, C>(&self, key: K, cf: C) -> KvFuture<Value>
-    where
-        K: Into<Key>,
-        C: Into<Option<String>>;
+    ```rust
+        fn get<K, C>(&self, key: K, cf: C) -> KvFuture<Value>
+        where
+            K: Into<Key>,
+            C: Into<Option<String>>;
 
-    fn batch_get<I, K, C>(&self, keys: I, cf: C) -> KvFuture<Vec<KvPair>>
-    where
-        I: IntoIterator<Item = K>,
-        K: Into<Key>,
-        C: Into<Option<String>>;
+        fn batch_get<I, K, C>(&self, keys: I, cf: C) -> KvFuture<Vec<KvPair>>
+        where
+            I: IntoIterator<Item = K>,
+            K: Into<Key>,
+            C: Into<Option<String>>;
 
-    fn put<P, C>(&self, pair: P, cf: C) -> KvFuture<()>
-    where
-        P: Into<KvPair>,
-        C: Into<Option<String>>;
+        fn put<P, C>(&self, pair: P, cf: C) -> KvFuture<()>
+        where
+            P: Into<KvPair>,
+            C: Into<Option<String>>;
 
-    fn batch_put<I, P, C>(&self, pairs: I, cf: C) -> KvFuture<()>
-    where
-        I: IntoIterator<Item = P>,
-        P: Into<KvPair>,
-        C: Into<Option<String>>;
+        fn batch_put<I, P, C>(&self, pairs: I, cf: C) -> KvFuture<()>
+        where
+            I: IntoIterator<Item = P>,
+            P: Into<KvPair>,
+            C: Into<Option<String>>;
 
-    fn delete<K, C>(&self, key: K, cf: C) -> KvFuture<()>
-    where
-        K: Into<Key>,
-        C: Into<Option<String>>;
+        fn delete<K, C>(&self, key: K, cf: C) -> KvFuture<()>
+        where
+            K: Into<Key>,
+            C: Into<Option<String>>;
 
-    fn batch_delete<I, K, C>(&self, keys: I, cf: C) -> KvFuture<()>
-    where
-        I: IntoIterator<Item = K>,
-        K: Into<Key>,
-        C: Into<Option<String>>;
+        fn batch_delete<I, K, C>(&self, keys: I, cf: C) -> KvFuture<()>
+        where
+            I: IntoIterator<Item = K>,
+            K: Into<Key>,
+            C: Into<Option<String>>;
 
-    fn scan<R, C>(&self, range: R, limit: u32, key_only: bool, cf: C) -> KvFuture<Vec<KvPair>>
-    where
-        R: Into<KeyRange>,
-        C: Into<Option<String>>;
+        fn scan<R, C>(&self, range: R, limit: u32, key_only: bool, cf: C) -> KvFuture<Vec<KvPair>>
+        where
+            R: Into<KeyRange>,
+            C: Into<Option<String>>;
 
-    fn batch_scan<I, R, C>(
-        &self,
-        ranges: I,
-        each_limit: u32,
-        key_only: bool,
-        cf: C,
-    ) -> KvFuture<Vec<KvPair>>
-    where
-        I: IntoIterator<Item = R>,
-        R: Into<KeyRange>,
-        C: Into<Option<String>>;
+        fn batch_scan<I, R, C>(
+            &self,
+            ranges: I,
+            each_limit: u32,
+            key_only: bool,
+            cf: C,
+        ) -> KvFuture<Vec<KvPair>>
+        where
+            I: IntoIterator<Item = R>,
+            R: Into<KeyRange>,
+            C: Into<Option<String>>;
 
-    fn delete_range<R, C>(&self, range: R, cf: C) -> KvFuture<()>
-    where
-        R: Into<KeyRange>,
-        C: Into<Option<String>>;
-```
+        fn delete_range<R, C>(&self, range: R, cf: C) -> KvFuture<()>
+        where
+            R: Into<KeyRange>,
+            C: Into<Option<String>>;
+    ```
 
 #### Usage example of the Raw Key-Value API
 
 ```rust
-extern crate futures;
-extern crate tikv_client;
+    extern crate futures;
+    extern crate tikv_client;
 
-use futures::future::Future;
-use tikv_client::raw::Client;
-use tikv_client::*;
+    use futures::future::Future;
+    use tikv_client::raw::Client;
+    use tikv_client::*;
 
-fn main() {
-    let config = Config::new(vec!["127.0.0.1:3379"]);
-    let raw = raw::RawClient::new(&config)
-        .wait()
-        .expect("Could not connect to tikv");
+    fn main() {
+        let config = Config::new(vec!["127.0.0.1:3379"]);
+        let raw = raw::RawClient::new(&config)
+            .wait()
+            .expect("Could not connect to tikv");
 
-    let key: Key = b"Company".to_vec().into();
-    let value: Value = b"PingCAP".to_vec().into();
+        let key: Key = b"Company".to_vec().into();
+        let value: Value = b"PingCAP".to_vec().into();
 
-    raw.put((Clone::clone(&key), Clone::clone(&value)), None)
-        .wait()
-        .expect("Could not put kv pair to tikv");
-    println!("Successfully put {:?}:{:?} to tikv", key, value);
+        raw.put((Clone::clone(&key), Clone::clone(&value)), None)
+            .wait()
+            .expect("Could not put kv pair to tikv");
+        println!("Successfully put {:?}:{:?} to tikv", key, value);
 
-    let value = raw
-        .get(Clone::clone(&key), None)
-        .wait()
-        .expect("Could not get value");
-    println!("Found val: {:?} for key: {:?}", value, key);
+        let value = raw
+            .get(Clone::clone(&key), None)
+            .wait()
+            .expect("Could not get value");
+        println!("Found val: {:?} for key: {:?}", value, key);
 
-    raw.delete(Clone::clone(&key), None)
-        .wait()
-        .expect("Could not delete value");
-    println!("Key: {:?} deleted", key);
+        raw.delete(Clone::clone(&key), None)
+            .wait()
+            .expect("Could not delete value");
+        println!("Key: {:?} deleted", key);
 
-    raw.get(key, None)
-        .wait()
-        .expect_err("Get returned value for not existing key");
-}
+        raw.get(key, None)
+            .wait()
+            .expect_err("Get returned value for not existing key");
+    }
 ```
 
 The result is like:
 
 ```bash
-Successfully put Key([67, 111, 109, 112, 97, 110, 121]):Value([80, 105, 110, 103, 67, 65, 80]) to tikv
-Found val: Value([80, 105, 110, 103, 67, 65, 80]) for key: Key([67, 111, 109, 112, 97, 110, 121])
-Key: Key([67, 111, 109, 112, 97, 110, 121]) deleted
+    Successfully put Key([67, 111, 109, 112, 97, 110, 121]):Value([80, 105, 110, 103, 67, 65, 80]) to tikv
+    Found val: Value([80, 105, 110, 103, 67, 65, 80]) for key: Key([67, 111, 109, 112, 97, 110, 121])
+    Key: Key([67, 111, 109, 112, 97, 110, 121]) deleted
 ```
 
 Raw Key-Value client is a client of the TiKV server and only supports the GET/BATCH_GET/PUT/BATCH_PUT/DELETE/BATCH_DELETE/SCAN/BATCH_SCAN/DELETE_RANGE commands. The Raw Key-Value client can be safely and concurrently accessed by multiple threads. Therefore, for one process, one client is enough generally.
@@ -201,144 +201,144 @@ To use the Transactional Key-Value API, take the following steps:
 
 1. Create an instance of Config to specify endpoints of PD (Placement Driver) and optional security config
 
-```rust
-    let config = Config::new(vec!["127.0.0.1:2379"]);
-```
+    ```rust
+        let config = Config::new(vec!["127.0.0.1:2379"]);
+    ```
 
 2. Create a Transactional Key-Value client.
 
-```rust
-    let client = TxnClient::new(&config);
-```
+    ```rust
+        let client = TxnClient::new(&config);
+    ```
 
-4. (Optional) Modify data using a Transaction.
+3. (Optional) Modify data using a Transaction.
 
     The lifecycle of a Transaction is: _begin → {get, set, delete, scan} → {commit, rollback}_.
 
-5. Call the Transactional Key-Value API's methods to access the data on TiKV. The Transactional Key-Value API contains the following methods:
+4. Call the Transactional Key-Value API's methods to access the data on TiKV. The Transactional Key-Value API contains the following methods:
 
     ```rust
-    fn begin(&self) -> KvFuture<Transaction>;
+        fn begin(&self) -> KvFuture<Transaction>;
 
-    fn get<K>(&self, key: K) -> KvFuture<Value>
-    where
-        K: Into<Key>;
+        fn get<K>(&self, key: K) -> KvFuture<Value>
+        where
+            K: Into<Key>;
 
-    fn set<P>(&mut self, pair: P) -> KvFuture<()>
-    where
-        P: Into<KvPair>;
+        fn set<P>(&mut self, pair: P) -> KvFuture<()>
+        where
+            P: Into<KvPair>;
 
-    fn delete<K>(&mut self, key: K) -> KvFuture<()>
-    where
-        K: Into<Key>;
+        fn delete<K>(&mut self, key: K) -> KvFuture<()>
+        where
+            K: Into<Key>;
 
-    fn seek<K>(&self, key: K) -> KvFuture<Scanner>
-    where
-        K: Into<Key>;    Begin() -> Txn
+        fn seek<K>(&self, key: K) -> KvFuture<Scanner>
+        where
+            K: Into<Key>;    Begin() -> Txn
 
-    fn commit(self) -> KvFuture<()>;
+        fn commit(self) -> KvFuture<()>;
 
-    fn rollback(self) -> KvFuture<()>;
+        fn rollback(self) -> KvFuture<()>;
     ```
 
 ### Usage example of the Transactional Key-Value API
 
 ```rust
-extern crate futures;
-extern crate tikv_client;
+    extern crate futures;
+    extern crate tikv_client;
 
-use futures::{Async, Future, Stream};
-use tikv_client::transaction::{Client, Mutator, Retriever, TxnClient};
-use tikv_client::*;
+    use futures::{Async, Future, Stream};
+    use tikv_client::transaction::{Client, Mutator, Retriever, TxnClient};
+    use tikv_client::*;
 
-fn puts<P, I>(client: &TxnClient, pairs: P)
-where
-    P: IntoIterator<Item = I>,
-    I: Into<KvPair>,
-{
-    let mut txn = client.begin().wait().expect("Could not begin transaction");
-    let _: Vec<()> = pairs
-        .into_iter()
-        .map(Into::into)
-        .map(|p| {
-            txn.set(p).wait().expect("Could not set key value pair");
-        }).collect();
-    txn.commit().wait().expect("Could not commit transaction");
-}
+    fn puts<P, I>(client: &TxnClient, pairs: P)
+    where
+        P: IntoIterator<Item = I>,
+        I: Into<KvPair>,
+    {
+        let mut txn = client.begin().wait().expect("Could not begin transaction");
+        let _: Vec<()> = pairs
+            .into_iter()
+            .map(Into::into)
+            .map(|p| {
+                txn.set(p).wait().expect("Could not set key value pair");
+            }).collect();
+        txn.commit().wait().expect("Could not commit transaction");
+    }
 
-fn get(client: &TxnClient, key: Key) -> Value {
-    let txn = client.begin().wait().expect("Could not begin transaction");
-    txn.get(key).wait().expect("Could not get value")
-}
+    fn get(client: &TxnClient, key: Key) -> Value {
+        let txn = client.begin().wait().expect("Could not begin transaction");
+        txn.get(key).wait().expect("Could not get value")
+    }
 
-fn scan(client: &TxnClient, start: Key, limit: usize) {
-    let txn = client.begin().wait().expect("Could not begin transaction");
-    let mut scanner = txn.seek(start).wait().expect("Could not seek to start key");
-    let mut limit = limit;
-    loop {
-        if limit == 0 {
-            break;
-        }
-        match scanner.poll() {
-            Ok(Async::Ready(None)) => return,
-            Ok(Async::Ready(Some(pair))) => {
-                limit -= 1;
-                println!("{:?}", pair);
+    fn scan(client: &TxnClient, start: Key, limit: usize) {
+        let txn = client.begin().wait().expect("Could not begin transaction");
+        let mut scanner = txn.seek(start).wait().expect("Could not seek to start key");
+        let mut limit = limit;
+        loop {
+            if limit == 0 {
+                break;
             }
-            _ => break,
+            match scanner.poll() {
+                Ok(Async::Ready(None)) => return,
+                Ok(Async::Ready(Some(pair))) => {
+                    limit -= 1;
+                    println!("{:?}", pair);
+                }
+                _ => break,
+            }
         }
     }
-}
 
-fn dels<P>(client: &TxnClient, pairs: P)
-where
-    P: IntoIterator<Item = Key>,
-{
-    let mut txn = client.begin().wait().expect("Could not begin transaction");
-    let _: Vec<()> = pairs
-        .into_iter()
-        .map(|p| {
-            txn.delete(p).wait().expect("Could not delete key");
-        }).collect();
-    txn.commit().wait().expect("Could not commit transaction");
-}
+    fn dels<P>(client: &TxnClient, pairs: P)
+    where
+        P: IntoIterator<Item = Key>,
+    {
+        let mut txn = client.begin().wait().expect("Could not begin transaction");
+        let _: Vec<()> = pairs
+            .into_iter()
+            .map(|p| {
+                txn.delete(p).wait().expect("Could not delete key");
+            }).collect();
+        txn.commit().wait().expect("Could not commit transaction");
+    }
 
-fn main() {
-    let config = Config::new(vec!["127.0.0.1:3379"]);
-    let txn = TxnClient::new(&config)
-        .wait()
-        .expect("Could not connect to tikv");
+    fn main() {
+        let config = Config::new(vec!["127.0.0.1:3379"]);
+        let txn = TxnClient::new(&config)
+            .wait()
+            .expect("Could not connect to tikv");
 
-    // set
-    let key1: Key = b"key1".to_vec().into();
-    let value1: Value = b"value1".to_vec().into();
-    let key2: Key = b"key2".to_vec().into();
-    let value2: Value = b"value2".to_vec().into();
-    puts(&txn, vec![(key1, value1), (key2, value2)]);
+        // set
+        let key1: Key = b"key1".to_vec().into();
+        let value1: Value = b"value1".to_vec().into();
+        let key2: Key = b"key2".to_vec().into();
+        let value2: Value = b"value2".to_vec().into();
+        puts(&txn, vec![(key1, value1), (key2, value2)]);
 
-    // get
-    let key1: Key = b"key1".to_vec().into();
-    let value1 = get(&txn, Clone::clone(&key1));
-    println!("{:?}", (key1, value1));
+        // get
+        let key1: Key = b"key1".to_vec().into();
+        let value1 = get(&txn, Clone::clone(&key1));
+        println!("{:?}", (key1, value1));
 
 
-    // scan
-    let key1: Key = b"key1".to_vec().into();
-    scan(&txn, key1, 10);
+        // scan
+        let key1: Key = b"key1".to_vec().into();
+        scan(&txn, key1, 10);
 
-    // delete
-    let key1: Key = b"key1".to_vec().into();
-    let key2: Key = b"key2".to_vec().into();
-    dels(&txn, vec![key1, key2]);
-}
+        // delete
+        let key1: Key = b"key1".to_vec().into();
+        let key2: Key = b"key2".to_vec().into();
+        dels(&txn, vec![key1, key2]);
+    }
 ```
 
 The result is like:
 
 ```bash
-(Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
-(Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
-(Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
+    (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
+    (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
+    (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
 ```
 
 ## Programming model
@@ -354,10 +354,10 @@ The CI will validate all code is warning free, passes `rustfmt`, and passes a `c
 All code that reaches the `master` branch should not output errors when the following commands are run:
 
 ```shell
-cargo fmt --all -- --check
-cargo clippy --all -- -D clippy
-cargo test --all -- --nocapture
-cargo bench --all -- --test
+    cargo fmt --all -- --check
+    cargo clippy --all -- -D clippy
+    cargo test --all -- --nocapture
+    cargo bench --all -- --test
 ```
 
 # Drawbacks
