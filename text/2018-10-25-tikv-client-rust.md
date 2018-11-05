@@ -13,7 +13,7 @@ We think this would help encourage community participation in the TiKV project a
 
 We will target the `stable` channel of Rust starting in the Rust 2018 edition. We choose to begin with Rust 2018 so we do not need to concern ourselves with an upgrade path.
 
-We will also support the most recent `nightly` version of Rust, but users should not feel the need to reach for stable unless they are already using it.
+We will also support the most recent `nightly` version of Rust, but users should not feel the need to reach for nightly unless they are already using it.
 
 ## Naming
 
