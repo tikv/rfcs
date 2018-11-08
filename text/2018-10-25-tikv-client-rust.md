@@ -76,13 +76,12 @@ To use the Raw Key-Value API, take the following steps:
     ```rust
         fn get<K, C>(&self, key: K, cf: C) -> KvFuture<Value>
         where
-            K: Into<Key>,
+            K: AsRef<Key>,
             C: Into<Option<String>>;
 
-        fn batch_get<I, K, C>(&self, keys: I, cf: C) -> KvFuture<Vec<KvPair>>
+        fn batch_get<K, C>(&self, keys: K, cf: C) -> KvFuture<Vec<KvPair>>
         where
-            I: IntoIterator<Item = K>,
-            K: Into<Key>,
+            K: AsRef<[Key]>,
             C: Into<Option<String>>;
 
         fn put<P, C>(&self, pair: P, cf: C) -> KvFuture<()>
@@ -98,35 +97,33 @@ To use the Raw Key-Value API, take the following steps:
 
         fn delete<K, C>(&self, key: K, cf: C) -> KvFuture<()>
         where
-            K: Into<Key>,
+            K: AsRef<Key>,
             C: Into<Option<String>>;
 
-        fn batch_delete<I, K, C>(&self, keys: I, cf: C) -> KvFuture<()>
+        fn batch_delete<K, C>(&self, keys: K, cf: C) -> KvFuture<()>
         where
-            I: IntoIterator<Item = K>,
-            K: Into<Key>,
+            K: AsRef<[Key]>,
             C: Into<Option<String>>;
 
         fn scan<R, C>(&self, range: R, limit: u32, key_only: bool, cf: C) -> KvFuture<Vec<KvPair>>
         where
-            R: Into<KeyRange>,
+            R: AsRef<KeyRange>,
             C: Into<Option<String>>;
 
-        fn batch_scan<I, R, C>(
+        fn batch_scan<R, C>(
             &self,
-            ranges: I,
+            ranges: R,
             each_limit: u32,
             key_only: bool,
             cf: C,
         ) -> KvFuture<Vec<KvPair>>
         where
-            I: IntoIterator<Item = R>,
-            R: Into<KeyRange>,
+            R: AsRef<[KeyRange]>,
             C: Into<Option<String>>;
 
         fn delete_range<R, C>(&self, range: R, cf: C) -> KvFuture<()>
         where
-            R: Into<KeyRange>,
+            R: AsRef<KeyRange>,
             C: Into<Option<String>>;
     ```
 
@@ -154,20 +151,25 @@ To use the Raw Key-Value API, take the following steps:
             .expect("Could not put kv pair to tikv");
         println!("Successfully put {:?}:{:?} to tikv", key, value);
 
-        let value = raw
-            .get(Clone::clone(&key), None)
-            .wait()
-            .expect("Could not get value");
+        let value = raw.get(&key, None).wait().expect("Could not get value");
         println!("Found val: {:?} for key: {:?}", value, key);
 
-        raw.delete(Clone::clone(&key), None)
+        raw.delete(&key, None)
             .wait()
             .expect("Could not delete value");
         println!("Key: {:?} deleted", key);
 
-        raw.get(key, None)
+        raw.get(&key, None)
             .wait()
             .expect_err("Get returned value for not existing key");
+
+        let keys = vec![b"k1".to_vec().into(), b"k2".to_vec().into()];
+
+        let values = raw
+            .batch_get(&keys, None)
+            .wait()
+            .expect("Could not get values");
+        println!("Found values: {:?} for keys: {:?}", values, keys);
     }
 ```
 
@@ -222,7 +224,7 @@ To use the Transactional Key-Value API, take the following steps:
 
         fn get<K>(&self, key: K) -> KvFuture<Value>
         where
-            K: Into<Key>;
+            K: AsRef<Key>;
 
         fn set<P>(&mut self, pair: P) -> KvFuture<()>
         where
@@ -230,11 +232,11 @@ To use the Transactional Key-Value API, take the following steps:
 
         fn delete<K>(&mut self, key: K) -> KvFuture<()>
         where
-            K: Into<Key>;
+            K: AsRef<Key>;
 
         fn seek<K>(&self, key: K) -> KvFuture<Scanner>
         where
-            K: Into<Key>;    Begin() -> Txn
+            K: AsRef<Key>;
 
         fn commit(self) -> KvFuture<()>;
 
@@ -266,12 +268,12 @@ To use the Transactional Key-Value API, take the following steps:
         txn.commit().wait().expect("Could not commit transaction");
     }
 
-    fn get(client: &TxnClient, key: Key) -> Value {
+    fn get(client: &TxnClient, key: &Key) -> Value {
         let txn = client.begin().wait().expect("Could not begin transaction");
         txn.get(key).wait().expect("Could not get value")
     }
 
-    fn scan(client: &TxnClient, start: Key, limit: usize) {
+    fn scan(client: &TxnClient, start: &Key, limit: usize) {
         let txn = client.begin().wait().expect("Could not begin transaction");
         let mut scanner = txn.seek(start).wait().expect("Could not seek to start key");
         let mut limit = limit;
@@ -318,13 +320,12 @@ To use the Transactional Key-Value API, take the following steps:
 
         // get
         let key1: Key = b"key1".to_vec().into();
-        let value1 = get(&txn, Clone::clone(&key1));
+        let value1 = get(&txn, &key1);
         println!("{:?}", (key1, value1));
-
 
         // scan
         let key1: Key = b"key1".to_vec().into();
-        scan(&txn, key1, 10);
+        scan(&txn, &key1, 10);
 
         // delete
         let key1: Key = b"key1".to_vec().into();
