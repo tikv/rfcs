@@ -107,10 +107,10 @@ To use the Raw Key-Value API, take the following steps:
 
         fn scan<R, C>(&self, range: R, limit: u32, key_only: bool, cf: C) -> KvFuture<Vec<KvPair>>
         where
-            R: AsRef<KeyRange>,
+            R: RangeBounds<Key>,
             C: Into<Option<String>>;
 
-        fn batch_scan<R, C>(
+        fn batch_scan<R, B, C>(
             &self,
             ranges: R,
             each_limit: u32,
@@ -118,12 +118,13 @@ To use the Raw Key-Value API, take the following steps:
             cf: C,
         ) -> KvFuture<Vec<KvPair>>
         where
-            R: AsRef<[KeyRange]>,
+            R: AsRef<[B]>,
+            B: RangeBounds<Key>,
             C: Into<Option<String>>;
 
         fn delete_range<R, C>(&self, range: R, cf: C) -> KvFuture<()>
         where
-            R: AsRef<KeyRange>,
+            R: RangeBounds<Key>,
             C: Into<Option<String>>;
     ```
 
@@ -170,6 +171,13 @@ To use the Raw Key-Value API, take the following steps:
             .wait()
             .expect("Could not get values");
         println!("Found values: {:?} for keys: {:?}", values, keys);
+
+        let start: Key = b"k1".to_vec().into();
+        let end: Key = b"k2".to_vec().into();
+        raw.scan(&start..&end, 10, false, None);
+
+        let ranges = [&start..&end, &start..&end];
+        raw.batch_scan(&ranges, 10, false, None);
     }
 ```
 
