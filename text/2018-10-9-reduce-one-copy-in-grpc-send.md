@@ -5,21 +5,26 @@ This is not a new feature but an optimization.
 
 # Motivation
 
-In pingcap/grpc-rs (which is named [`grpcio`](https://docs.rs/crate/grpcio/) on crates.io), we can call gRPC's core API to send data.
+In pingcap/grpc-rs (which is named [`grpcio`](https://docs.rs/crate/grpcio/)
+on crates.io), we can call gRPC's core API to send data.
 In our old implementation, the whole process is:
 
-+ User code produces the data to be sent (particularly, the protobuf library's deserialization) -- a list of `&[u8]` in a call-back
-+ The data get copied into a `Vec<u8>`. For the protobuf library, this is done internally (**copy 0**)
+0. User code produces the data to be sent (particularly, the protobuf library's
+   deserialization) -- a list of `&[u8]` in a call-back
+0. The data get copied into a `Vec<u8>`. For the protobuf library, this is done
+   internally (**copy 0**)
   ```rust
   pub fn bin_ser(t: &Vec<u8>, buf: &mut Vec<u8>) {
     buf.extend_from_slice(t)
   }
   ```
-+ We create a `grpc_slice` (a ref-counted single string) by copying the `Vec<u8>` mentioned above (**copy 1**)
-+ We create a `grpc_byte_buffer` (a ref-counted list of strings) from only one `grpc_slice`
-+ Send data
+0. We create a `grpc_slice` (a ref-counted single string) by copying the
+   `Vec<u8>` mentioned above (**copy 1**)
+0. We create a `grpc_byte_buffer` (a ref-counted list of strings) from only
+   one `grpc_slice`
+0. Send data
 
-In total, we copy the data twice. The first copy is unnecesasry.
+In total, we copy the data twice. The first copy is unnecessary.
 
 # Detailed design
 
@@ -36,8 +41,10 @@ So don't be confused by the naming difference.
 
 After this refactoring,
 
-+ User code produces the data to be sent (particularly, the protobuf library's deserialization) -- a list of `&[u8]`
-+ We copy each produced `&[u8]` into `GrpcSlice`s collect them into a `GrpcByteBuffer` (**copy 0**)
+0. User code produces the data to be sent (particularly, the protobuf library's
+   deserialization) -- a list of `&[u8]`
+0. We copy each produced `&[u8]` into `GrpcSlice`s collect them into a
+   `GrpcByteBuffer` wrapper (**copy 0**)
     ```rust
     pub fn push(&mut self, slice: GrpcSlice) {
         unsafe {
@@ -45,7 +52,8 @@ After this refactoring,
         }
     }
     ```
-+ We take the raw C struct pointer in `GrpcByteBuffer` away and pass it directly into the send functions
+0. We take the raw C struct pointer in `GrpcByteBuffer` away and pass it
+   directly into the send functions
     ```rust
     pub unsafe fn take_raw(&mut self) -> *mut grpc_sys::GrpcByteBuffer {
         let ret = self.raw;
@@ -59,21 +67,28 @@ After this refactoring,
 This is purely an optimization, no drawbacks.
 The reason why still one copy:
 
-+ Rust manages its own allocated memory's lifetime, and we're not able to disable this
++ Rust manages its own allocated memory's lifetime, and we're not able
+  to disable this
 + C-side uses a ref-count mechanism to manage the lifetime of objects
-+ We either need to extend the Rust objects' lifetime or do a copy (see alternatives section)
++ We either need to extend the Rust objects' lifetime or do a copy (see
+  alternatives section)
 
 # Unresolved questions
 
-Actuallty I've tried to extend Rust objects' lifetime.
+Actuallty it's possible to extend Rust objects' lifetime.
 This can achieve real zero-copy.
 
 ## Zero copy
 
-The basic idea is, extend the data's lifetime by moving it into our context object which is destroyed automatically when one send is complete.
-Then we mark this data (which is stored in a `grpc_slice`) as static on C-side, so the ref-count system won't do the deallocation.
+The basic idea is, extend the data's lifetime by moving it into our context
+object which is destroyed automatically when one send is complete.
+Then we mark this data (which is stored in a `grpc_slice`) as static on
+C-side, so the ref-count system won't do the deallocation.
 
 ### Result
 
-A feature provided by gRPC called buffer-hint which requires the data to have a much longer lifetime has prevented me from accepting this idea.
-It's too hard to decide how to manage the lifetime in such case (since the time that the data is no longer needed on C-side is too hard to estimate, we'll have to do lots of thread-sync and `if`s).
+A feature provided by gRPC called buffer-hint which requires the data to have
+a much longer lifetime has prevented me from accepting this idea.
+It's too hard to decide how to manage the lifetime in such case (since the time
+that the data is no longer needed on C-side is too hard to estimate, we'll have
+to do lots of thread-sync and `if`s).
