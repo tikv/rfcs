@@ -224,21 +224,13 @@ To use the Transactional Key-Value API, take the following steps:
     ```rust
     fn begin(&self) -> KvFuture<Transaction>;
 
-    fn get<K>(&self, key: K) -> KvFuture<Value>
-    where
-        K: AsRef<Key>;
+    fn get(&self, key: impl AsRef<Key>) -> KvFuture<Value>;
 
-    fn set<P>(&mut self, pair: P) -> KvFuture<()>
-    where
-        P: Into<KvPair>;
+    fn set(&mut self, pair: impl Into<KvPair>) -> KvFuture<()>;
 
-    fn delete<K>(&mut self, key: K) -> KvFuture<()>
-    where
-        K: AsRef<Key>;
+    fn delete(&mut self, key: impl AsRef<Key>) -> KvFuture<()>;
 
-    fn seek<K>(&self, key: K) -> KvFuture<Scanner>
-    where
-        K: AsRef<Key>;
+    fn seek(&self, key: impl AsRef<Key>) -> KvFuture<Scanner> {
 
     fn commit(self) -> KvFuture<()>;
 
@@ -255,10 +247,7 @@ To use the Transactional Key-Value API, take the following steps:
     use tikv_client::transaction::{Client, Mutator, Retriever, TxnClient};
     use tikv_client::*;
 
-    fn puts<P, I>(client: &TxnClient, pairs: P)
-    where
-        P: IntoIterator<Item = I>,
-        I: Into<KvPair>,
+    fn puts(client: &TxnClient, pairs: impl IntoIterator<Item = impl Into<KvPair>>)
     {
         let mut txn = client.begin().wait().expect("Could not begin transaction");
         let _: Vec<()> = pairs
@@ -294,9 +283,7 @@ To use the Transactional Key-Value API, take the following steps:
         }
     }
 
-    fn dels<P>(client: &TxnClient, pairs: P)
-    where
-        P: IntoIterator<Item = Key>,
+    fn dels(client: &TxnClient, pairs: impl IntoIterator<Item = Key>)
     {
         let mut txn = client.begin().wait().expect("Could not begin transaction");
         let _: Vec<()> = pairs
