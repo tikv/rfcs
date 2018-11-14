@@ -62,75 +62,54 @@ To use the Raw Key-Value API, take the following steps:
 1. Create an instance of Config to specify endpoints of PD (Placement Driver) and optional security config
 
     ```rust
-        let config = Config::new(vec!["127.0.0.1:2379"]);
+    let config = Config::new(vec!["127.0.0.1:2379"]);
     ```
 
 2. Create a Raw Key-Value client.
 
     ```rust
-        let client = RawClient::new(&config);
+    let client = RawClient::new(&config);
     ```
 
 3. Call the Raw Key-Value client methods to access the data on TiKV. The Raw Key-Value API contains following methods
 
     ```rust
-        fn get<K, C>(&self, key: K, cf: C) -> KvFuture<Value>
-        where
-            K: AsRef<Key>,
-            C: Into<Option<String>>;
+    pub trait Client {
+        type AClient: Client;
 
-        fn batch_get<K, C>(&self, keys: K, cf: C) -> KvFuture<Vec<KvPair>>
-        where
-            K: AsRef<[Key]>,
-            C: Into<Option<String>>;
+        fn get(&self, key: impl AsRef<Key>) -> Get<Self::AClient>;
 
-        fn put<P, C>(&self, pair: P, cf: C) -> KvFuture<()>
-        where
-            P: Into<KvPair>,
-            C: Into<Option<String>>;
+        fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet<Self::AClient>;
 
-        fn batch_put<I, P, C>(&self, pairs: I, cf: C) -> KvFuture<()>
-        where
-            I: IntoIterator<Item = P>,
-            P: Into<KvPair>,
-            C: Into<Option<String>>;
+        fn put(&self, pair: impl Into<KvPair>) -> Put<Self::AClient>;
 
-        fn delete<K, C>(&self, key: K, cf: C) -> KvFuture<()>
-        where
-            K: AsRef<Key>,
-            C: Into<Option<String>>;
-
-        fn batch_delete<K, C>(&self, keys: K, cf: C) -> KvFuture<()>
-        where
-            K: AsRef<[Key]>,
-            C: Into<Option<String>>;
-
-        fn scan<R, C>(&self, range: R, limit: u32, key_only: bool, cf: C) -> KvFuture<Vec<KvPair>>
-        where
-            R: RangeBounds<Key>,
-            C: Into<Option<String>>;
-
-        fn batch_scan<R, B, C>(
+        fn batch_put(
             &self,
-            ranges: R,
-            each_limit: u32,
-            key_only: bool,
-            cf: C,
-        ) -> KvFuture<Vec<KvPair>>
-        where
-            R: AsRef<[B]>,
-            B: RangeBounds<Key>,
-            C: Into<Option<String>>;
+            pairs: impl IntoIterator<Item = impl Into<KvPair>>,
+        ) -> BatchPut<Self::AClient>;
 
-        fn delete_range<R, C>(&self, range: R, cf: C) -> KvFuture<()>
+        fn delete(&self, key: impl AsRef<Key>) -> Delete<Self::AClient>;
+
+        fn batch_delete(&self, keys: impl AsRef<[Key]>) -> BatchDelete<Self::AClient>;
+
+        fn scan(&self, range: impl RangeBounds<Key>, limit: u32) -> Scan<Self::AClient>;
+
+        fn batch_scan<Ranges, Bounds>(
+            &self,
+            ranges: Ranges,
+            each_limit: u32,
+        ) -> BatchScan<Self::AClient>
         where
-            R: RangeBounds<Key>,
-            C: Into<Option<String>>;
+            Ranges: AsRef<[Bounds]>,
+            Bounds: RangeBounds<Key>;
+
+        fn delete_range(&self, range: impl RangeBounds<Key>) -> DeleteRange<Self::AClient>;
+    }
     ```
 
 #### Usage example of the Raw Key-Value API
 
-```rust
+    ```rust
     extern crate futures;
     extern crate tikv_client;
 
@@ -147,47 +126,62 @@ To use the Raw Key-Value API, take the following steps:
         let key: Key = b"Company".to_vec().into();
         let value: Value = b"PingCAP".to_vec().into();
 
-        raw.put((Clone::clone(&key), Clone::clone(&value)), None)
+        raw.put((Clone::clone(&key), Clone::clone(&value)))
+            .cf("test_cf")
             .wait()
             .expect("Could not put kv pair to tikv");
         println!("Successfully put {:?}:{:?} to tikv", key, value);
 
-        let value = raw.get(&key, None).wait().expect("Could not get value");
+        let value = raw
+            .get(&key)
+            .cf("test_cf")
+            .wait()
+            .expect("Could not get value");
         println!("Found val: {:?} for key: {:?}", value, key);
 
-        raw.delete(&key, None)
+        raw.delete(&key)
+            .cf("test_cf")
             .wait()
             .expect("Could not delete value");
         println!("Key: {:?} deleted", key);
 
-        raw.get(&key, None)
+        raw.get(&key)
+            .cf("test_cf")
             .wait()
             .expect_err("Get returned value for not existing key");
 
         let keys = vec![b"k1".to_vec().into(), b"k2".to_vec().into()];
 
-        let values = raw
-            .batch_get(&keys, None)
+        let _values = raw
+            .batch_get(&keys)
+            .cf("test_cf")
             .wait()
             .expect("Could not get values");
-        println!("Found values: {:?} for keys: {:?}", values, keys);
 
         let start: Key = b"k1".to_vec().into();
         let end: Key = b"k2".to_vec().into();
-        raw.scan(&start..&end, 10, false, None);
+        raw.scan(&start..&end, 10)
+            .cf("test_cf")
+            .key_only()
+            .wait()
+            .expect("Could not scan");
 
         let ranges = [&start..&end, &start..&end];
-        raw.batch_scan(&ranges, 10, false, None);
+        raw.batch_scan(&ranges, 10)
+            .cf("test_cf")
+            .key_only()
+            .wait()
+            .expect("Could not batch scan");
     }
-```
+    ```
 
 The result is like:
 
-```bash
+    ```bash
     Successfully put Key([67, 111, 109, 112, 97, 110, 121]):Value([80, 105, 110, 103, 67, 65, 80]) to tikv
     Found val: Value([80, 105, 110, 103, 67, 65, 80]) for key: Key([67, 111, 109, 112, 97, 110, 121])
     Key: Key([67, 111, 109, 112, 97, 110, 121]) deleted
-```
+    ```
 
 Raw Key-Value client is a client of the TiKV server and only supports the GET/BATCH_GET/PUT/BATCH_PUT/DELETE/BATCH_DELETE/SCAN/BATCH_SCAN/DELETE_RANGE commands. The Raw Key-Value client can be safely and concurrently accessed by multiple threads. Therefore, for one process, one client is enough generally.
 
@@ -212,13 +206,13 @@ To use the Transactional Key-Value API, take the following steps:
 1. Create an instance of Config to specify endpoints of PD (Placement Driver) and optional security config
 
     ```rust
-        let config = Config::new(vec!["127.0.0.1:2379"]);
+    let config = Config::new(vec!["127.0.0.1:2379"]);
     ```
 
 2. Create a Transactional Key-Value client.
 
     ```rust
-        let client = TxnClient::new(&config);
+    let client = TxnClient::new(&config);
     ```
 
 3. (Optional) Modify data using a Transaction.
@@ -228,32 +222,32 @@ To use the Transactional Key-Value API, take the following steps:
 4. Call the Transactional Key-Value API's methods to access the data on TiKV. The Transactional Key-Value API contains the following methods:
 
     ```rust
-        fn begin(&self) -> KvFuture<Transaction>;
+    fn begin(&self) -> KvFuture<Transaction>;
 
-        fn get<K>(&self, key: K) -> KvFuture<Value>
-        where
-            K: AsRef<Key>;
+    fn get<K>(&self, key: K) -> KvFuture<Value>
+    where
+        K: AsRef<Key>;
 
-        fn set<P>(&mut self, pair: P) -> KvFuture<()>
-        where
-            P: Into<KvPair>;
+    fn set<P>(&mut self, pair: P) -> KvFuture<()>
+    where
+        P: Into<KvPair>;
 
-        fn delete<K>(&mut self, key: K) -> KvFuture<()>
-        where
-            K: AsRef<Key>;
+    fn delete<K>(&mut self, key: K) -> KvFuture<()>
+    where
+        K: AsRef<Key>;
 
-        fn seek<K>(&self, key: K) -> KvFuture<Scanner>
-        where
-            K: AsRef<Key>;
+    fn seek<K>(&self, key: K) -> KvFuture<Scanner>
+    where
+        K: AsRef<Key>;
 
-        fn commit(self) -> KvFuture<()>;
+    fn commit(self) -> KvFuture<()>;
 
-        fn rollback(self) -> KvFuture<()>;
+    fn rollback(self) -> KvFuture<()>;
     ```
 
 ### Usage example of the Transactional Key-Value API
 
-```rust
+    ```rust
     extern crate futures;
     extern crate tikv_client;
 
@@ -340,15 +334,15 @@ To use the Transactional Key-Value API, take the following steps:
         let key2: Key = b"key2".to_vec().into();
         dels(&txn, vec![key1, key2]);
     }
-```
+    ```
 
 The result is like:
 
-```bash
+    ```bash
     (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
     (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
     (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
-```
+    ```
 
 ## Programming model
 
@@ -362,12 +356,12 @@ The CI will validate all code is warning free, passes `rustfmt`, and passes a `c
 
 All code that reaches the `master` branch should not output errors when the following commands are run:
 
-```shell
+    ```shell
     cargo fmt --all -- --check
     cargo clippy --all -- -D clippy
     cargo test --all -- --nocapture
     cargo bench --all -- --test
-```
+    ```
 
 # Drawbacks
 
