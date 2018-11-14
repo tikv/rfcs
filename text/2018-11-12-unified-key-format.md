@@ -23,9 +23,8 @@ Defects:
 - Hard to implement: Actually there are some attempts to support different kind of formats, like
   https://github.com/tikv/tikv/pull/3182 and https://github.com/pingcap/pd/pull/474. However it
   turns out that these implementations won't work in real world scenario. For example, it is
-  [not sufficient][Golang rune literal] to decode the Golang format by only dealing with hex escapes
-  `\x..` and it is [not sufficient][Protobuffer other escape sequence] to decode the Protobuffer
-  format by only dealing with oct escapes `\...`.
+  not sufficient to decode the Golang format by only dealing with hex escapes `\x..` [\[1\]][1]
+  and decode the Protobuffer format by only dealing with oct escapes `\...` [\[2\]][2].
 
 - Hard to recognize different parts manually: For hex format, it is hard to extract different parts
   from it manually.
@@ -33,8 +32,8 @@ Defects:
 - Hard to be used in shells: For Protobuffer format and Go format, because there are escape
   characters U+005C (\\) in the output, we need to do an escape (convert `\` to `\\`) when passing
   it as a command line parameter in shells. As a result, current documentations are suggesting
-  [wrong usages][Wrong doc caused by shell escape] that *happens* to work under specially crafted
-  code, or [won't work][Wrong and not working doc caused by shell escape] actually.
+  wrong usages [\[3\]][3] that *happens* to work under specially
+  crafted code, or won't work [\[4\]][4] actually.
 
 - Contains ambiguous multi-bytes: For Go format, it directly outputs Unicode character if there is
   a valid unicode sequence. For example, hex `00E6B58B01FF` will be printed as `\x00测\x01\xff` in
@@ -48,7 +47,7 @@ stack components, which provides these feature:
 
 - Easy to implement encoding and decoding. Better to have a lot of existing libraries.
 
-- No escape characters U+005C (\\) after encoding so that it can be easily used in shells.
+- No escape character U+005C (\\) after encoding so that it can be easily used in shells.
 
 - No multi-byte characters after encoding to avoid encoding issues.
 
@@ -61,12 +60,12 @@ readable format for keys:
 
 - Encoded hex string must be concatenated together without any other characters.
 
-- Decoder must support either lower cased hex string or upper cased hex string.
+- Decoder must support hex string in either lower-case or upper-case.
 
 Although hex format has some defects as discussed in the motivation section above, it is still
 preferred over other formats (see alternatives section) with great advantages in simplicity and
 uniformity. In addition, it is very easy to be implemented in all languages and does not introduce
-escape characters.
+escape character U+005C (\\).
 
 In hex format, we are not easy to recognize special parts like `r`, `_t` and `_i`. This can be
 solved by other utility functions that further operates on this key format, or just memorizing
@@ -88,7 +87,7 @@ implementations are varied and only very few of them stick to the Percent-Encodi
 
 None.
 
-[Golang rune literal]: https://golang.org/ref/spec#Rune_literals
-[Protobuffer other escape sequence]: https://github.com/pingcap/pd/pull/1298/files#diff-ff78a54cb96e131d51e4628c92f70184R246
-[Wrong doc caused by shell escape]: https://github.com/pingcap/docs/blob/e81f3225803d37ed4b23f3257dfa48fda38a22f4/tools/tikv-control.md#view-mvcc-of-a-given-key
-[Wrong and not working doc caused by shell escape]: https://github.com/pingcap/docs/blob/578c4cbb88e17ad55d0b6a99a1158710425f72fb/tools/pd-control.md#region-key---formatrawpbprotoprotobuf-key
+[1]: https://golang.org/ref/spec#Rune_literals
+[2]: https://github.com/pingcap/pd/pull/1298/files#diff-ff78a54cb96e131d51e4628c92f70184R246
+[3]: https://github.com/pingcap/docs/blob/e81f3225803d37ed4b23f3257dfa48fda38a22f4/tools/tikv-control.md#view-mvcc-of-a-given-key
+[4]: https://github.com/pingcap/docs/blob/578c4cbb88e17ad55d0b6a99a1158710425f72fb/tools/pd-control.md#region-key---formatrawpbprotoprotobuf-key
