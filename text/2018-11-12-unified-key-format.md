@@ -108,6 +108,8 @@ function decode(hexString) {
 // ==> 'Hello World'
 // decode('c0aa')
 // ==> <Buffer c0 aa>
+// decode('')
+// ==> ''
 // decode('c0ag')
 // ==> Error: Invalid hex string
 // decode('c0a')
