@@ -9,6 +9,7 @@ Currently, users of TiKV must use [TiDB's Go Client](https://github.com/pingcap/
 We think this would help encourage community participation in the TiKV project and associated libraries. During talks with several potential corporate users we discovered that there was an interest in using TiKV to resolve concerns such as caching and raw key-value stores.
 
 # Detailed design
+
 ## Supported targets
 
 We will target the `stable` channel of Rust starting in the Rust 2018 edition. We choose to begin with Rust 2018 so we do not need to concern ourselves with an upgrade path.
@@ -29,11 +30,10 @@ All structures and functions will otherwise follow the [Rust API Guidelines](htt
 
 To utilize the client programmatically, users will be able to add the `tikv-client` crate to their `Cargo.toml`'s dependencies. Then they must use the crate with `use tikv_client;`. Unfortunately due to Rust’s naming conventions this inconsistency is in place.
 
-To utilize the command line client, users will be able to install the binary via `cargo install tikv-client`. They will then be able to access the client through the binary `tikv-client`. If they wish for a different name they can alias it in their shell.
-
 ## Usage
 
 ## Two types of APIs
+
 TiKV provides two types of APIs for developers:
 - The Raw Key-Value API
 
@@ -49,11 +49,11 @@ The client provides two types of APIs in two separate modules for developers to 
 
 ### The common data types
 
-- Key: raw binary data
-- Value: raw binary data
-- KvPair: Key-value pair type
-- KeyRange: Half-open interval of keys
-- Config: Configuration for client
+- `Key`: raw binary data
+- `Value`: raw binary data
+- `KvPair`: Key-value pair type
+- `KvFuture`: A specialized Future type for TiKV client
+- `Config`: Configuration for client
 
 ### Raw Key-Value API Basic Usage
 
@@ -75,35 +75,35 @@ To use the Raw Key-Value API, take the following steps:
 
     ```rust
     pub trait Client {
-        type AClient: Client;
+        type Impl: Client;
 
-        fn get(&self, key: impl AsRef<Key>) -> Get<Self::AClient>;
+        fn get(&self, key: impl AsRef<Key>) -> Get<Self::Impl>;
 
-        fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet<Self::AClient>;
+        fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet<Self::Impl>;
 
-        fn put(&self, pair: impl Into<KvPair>) -> Put<Self::AClient>;
+        fn put(&self, pair: impl Into<KvPair>) -> Put<Self::Impl>;
 
         fn batch_put(
             &self,
             pairs: impl IntoIterator<Item = impl Into<KvPair>>,
-        ) -> BatchPut<Self::AClient>;
+        ) -> BatchPut<Self::Impl>;
 
-        fn delete(&self, key: impl AsRef<Key>) -> Delete<Self::AClient>;
+        fn delete(&self, key: impl AsRef<Key>) -> Delete<Self::Impl>;
 
-        fn batch_delete(&self, keys: impl AsRef<[Key]>) -> BatchDelete<Self::AClient>;
+        fn batch_delete(&self, keys: impl AsRef<[Key]>) -> BatchDelete<Self::Impl>;
 
-        fn scan(&self, range: impl RangeBounds<Key>, limit: u32) -> Scan<Self::AClient>;
+        fn scan(&self, range: impl RangeBounds<Key>, limit: u32) -> Scan<Self::Impl>;
 
         fn batch_scan<Ranges, Bounds>(
             &self,
             ranges: Ranges,
             each_limit: u32,
-        ) -> BatchScan<Self::AClient>
+        ) -> BatchScan<Self::Impl>
         where
             Ranges: AsRef<[Bounds]>,
             Bounds: RangeBounds<Key>;
 
-        fn delete_range(&self, range: impl RangeBounds<Key>) -> DeleteRange<Self::AClient>;
+        fn delete_range(&self, range: impl RangeBounds<Key>) -> DeleteRange<Self::Impl>;
     }
     ```
 
@@ -126,7 +126,7 @@ To use the Raw Key-Value API, take the following steps:
         let key: Key = b"Company".to_vec().into();
         let value: Value = b"PingCAP".to_vec().into();
 
-        raw.put((Clone::clone(&key), Clone::clone(&value)))
+        raw.put((key.clone(), value.clone()))
             .cf("test_cf")
             .wait()
             .expect("Could not put kv pair to tikv");
@@ -185,7 +185,7 @@ The result is like:
 
 Raw Key-Value client is a client of the TiKV server and only supports the GET/BATCH_GET/PUT/BATCH_PUT/DELETE/BATCH_DELETE/SCAN/BATCH_SCAN/DELETE_RANGE commands. The Raw Key-Value client can be safely and concurrently accessed by multiple threads. Therefore, for one process, one client is enough generally.
 
-### Try the Transactional Key-Value API
+### Transactional Key-Value API Basic Usage
 
 The Transactional Key-Value API is more complicated than the Raw Key-Value API. Some transaction related concepts are listed as follows.
 
@@ -195,7 +195,7 @@ The Transactional Key-Value API is more complicated than the Raw Key-Value API. 
 
 - Snapshot
 
-    A Snapshot is the state of a Client at a particular point of time, which provides some readonly methods. The multiple reads of the same Snapshot is guaranteed consistent.
+    A Snapshot is the state of the TiKV data at a particular point of time, which provides some readonly methods. The multiple reads of the same Snapshot is guaranteed consistent.
 
 - Transaction
 
@@ -230,7 +230,9 @@ To use the Transactional Key-Value API, take the following steps:
 
     fn delete(&mut self, key: impl AsRef<Key>) -> KvFuture<()>;
 
-    fn seek(&self, key: impl AsRef<Key>) -> KvFuture<Scanner> {
+    fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
+
+    fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
 
     fn commit(self) -> KvFuture<()>;
 
@@ -264,29 +266,30 @@ To use the Transactional Key-Value API, take the following steps:
         txn.get(key).wait().expect("Could not get value")
     }
 
-    fn scan(client: &TxnClient, start: &Key, limit: usize) {
-        let txn = client.begin().wait().expect("Could not begin transaction");
-        let mut scanner = txn.seek(start).wait().expect("Could not seek to start key");
-        let mut limit = limit;
-        loop {
-            if limit == 0 {
-                break;
-            }
-            match scanner.poll() {
-                Ok(Async::Ready(None)) => return,
-                Ok(Async::Ready(Some(pair))) => {
+    fn scan(client: &TxnClient, range: impl RangeBounds<Key>, mut limit: usize) {
+        client
+            .begin()
+            .wait()
+            .expect("Could not begin transaction")
+            .scan(range)
+            .take_while(move |_| {
+                Ok(if limit == 0 {
+                    false
+                } else {
                     limit -= 1;
-                    println!("{:?}", pair);
-                }
-                _ => break,
-            }
-        }
+                    true
+                })
+            }).for_each(|pair| {
+                println!("{:?}", pair);
+                Ok(())
+            }).wait()
+            .expect("Could not scan keys");
     }
 
-    fn dels(client: &TxnClient, pairs: impl IntoIterator<Item = Key>)
+    fn dels(client: &TxnClient, keys: impl IntoIterator<Item = Key>)
     {
         let mut txn = client.begin().wait().expect("Could not begin transaction");
-        let _: Vec<()> = pairs
+        let _: Vec<()> = keys
             .into_iter()
             .map(|p| {
                 txn.delete(p).wait().expect("Could not delete key");
