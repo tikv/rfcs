@@ -61,6 +61,12 @@ To use the Raw Key-Value API, take the following steps:
 
     ```rust
     let config = Config::new(vec!["127.0.0.1:2379"]);
+    let config_with_security = Config::with_security(
+        vec!["127.0.0.1:3379"],
+        PathBuf::from("/path/to/ca.pem"),
+        PathBuf::from("/path/to/client.pem"),
+        PathBuf::from("/path/to/client-key.pem"),
+    );
     ```
 
 2. Create a Raw Key-Value client.
@@ -205,6 +211,12 @@ To use the Transactional Key-Value API, take the following steps:
 
     ```rust
     let config = Config::new(vec!["127.0.0.1:2379"]);
+    let config_with_security = Config::with_security(
+        vec!["127.0.0.1:3379"],
+        PathBuf::from("/path/to/ca.pem"),
+        PathBuf::from("/path/to/client.pem"),
+        PathBuf::from("/path/to/client-key.pem"),
+    );
     ```
 
 2. Create a Transactional Key-Value client.
