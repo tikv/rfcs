@@ -225,14 +225,26 @@ To use the Transactional Key-Value API, take the following steps:
     let client = TxnClient::new(&config);
     ```
 
-3. (Optional) Modify data using a Transaction.
+3. (Optional) Modify isolation level of a Transaction.
+
+    ``` rust
+    #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+    pub enum IsolationLevel {
+        SnapshotIsolation,
+        ReadCommitted,
+    }
+
+    txn.set_isolation_level(IsolationLevel::ReadCommitted);
+    ```
+
+4. (Optional) Modify data using a Transaction.
 
     The lifecycle of a Transaction is: _begin → {get, set, delete, scan} → {commit, rollback}_.
 
-4. Call the Transactional Key-Value API's methods to access the data on TiKV. The Transactional Key-Value API contains the following methods:
+5. Call the Transactional Key-Value API's methods to access the data on TiKV. The Transactional Key-Value API contains the following most commonly used methods:
 
     ```rust
-    fn begin(&self) -> KvFuture<Transaction>;
+    fn begin(&self) -> Transaction;
 
     fn get(&self, key: impl AsRef<Key>) -> KvFuture<Value>;
 
@@ -244,43 +256,41 @@ To use the Transactional Key-Value API, take the following steps:
 
     fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
 
+    fn set_isolation_level(&mut self, level: IsolationLevel);
+
     fn commit(self) -> KvFuture<()>;
 
     fn rollback(self) -> KvFuture<()>;
     ```
 
-### Usage example of the Transactional Key-Value API
+#### Usage example of the Transactional Key-Value API
 
     ```rust
     extern crate futures;
     extern crate tikv_client;
 
-    use futures::{Async, Future, Stream};
+    use std::ops::RangeBounds;
+
+    use futures::{future, Future, Stream};
     use tikv_client::transaction::{Client, Mutator, Retriever, TxnClient};
     use tikv_client::*;
 
-    fn puts(client: &TxnClient, pairs: impl IntoIterator<Item = impl Into<KvPair>>)
-    {
-        let mut txn = client.begin().wait().expect("Could not begin transaction");
-        let _: Vec<()> = pairs
-            .into_iter()
-            .map(Into::into)
-            .map(|p| {
-                txn.set(p).wait().expect("Could not set key value pair");
-            }).collect();
+    fn puts(client: &TxnClient, pairs: impl IntoIterator<Item = impl Into<KvPair>>) {
+        let mut txn = client.begin();
+        let _: Vec<()> = future::join_all(pairs.into_iter().map(Into::into).map(|p| txn.set(p)))
+            .wait()
+            .expect("Could not set key value pairs");
         txn.commit().wait().expect("Could not commit transaction");
     }
 
     fn get(client: &TxnClient, key: &Key) -> Value {
-        let txn = client.begin().wait().expect("Could not begin transaction");
+        let txn = client.begin();
         txn.get(key).wait().expect("Could not get value")
     }
 
     fn scan(client: &TxnClient, range: impl RangeBounds<Key>, mut limit: usize) {
         client
             .begin()
-            .wait()
-            .expect("Could not begin transaction")
             .scan(range)
             .take_while(move |_| {
                 Ok(if limit == 0 {
@@ -296,9 +306,8 @@ To use the Transactional Key-Value API, take the following steps:
             .expect("Could not scan keys");
     }
 
-    fn dels(client: &TxnClient, keys: impl IntoIterator<Item = Key>)
-    {
-        let mut txn = client.begin().wait().expect("Could not begin transaction");
+    fn dels(client: &TxnClient, keys: impl IntoIterator<Item = Key>) {
+        let mut txn = client.begin();
         let _: Vec<()> = keys
             .into_iter()
             .map(|p| {
@@ -327,7 +336,7 @@ To use the Transactional Key-Value API, take the following steps:
 
         // scan
         let key1: Key = b"key1".to_vec().into();
-        scan(&txn, &key1, 10);
+        scan(&txn, key1.., 10);
 
         // delete
         let key1: Key = b"key1".to_vec().into();
