@@ -64,7 +64,8 @@ readable format for keys:
 
 - Decoder must throw errors when meeting non-hex or odd number of characters.
 
-The encoding process can be described by the JavaScript code below:
+The encoding process accepts a byte array (the exact type varies according to languages) and output
+a string. It can be described by the JavaScript code below:
 
 ```js
 function encode(buffer) {
@@ -79,9 +80,14 @@ function encode(buffer) {
 // ==> '48656C6C6F20576F726C64'
 // encode(Buffer.from([]))
 // ==> ''
+// encode(Buffer.from('测试', 'utf8'))
+// ==> 'E6B58BE8AF95'
+// encode(Buffer.from([0x62, 0x75, 0x66, 0x66, 0x65, 0x72]))
+// ==> '627566666572'
 ```
 
-The decoding process can be described by the JavaScript code below:
+The decoding process accepts a string and outputs a byte array. It can be described by the
+JavaScript code below:
 
 ```js
 function decode(hexString) {
@@ -116,8 +122,8 @@ function decode(hexString) {
 // ==> Error: Invalid hex string
 ```
 
-Note that the code above is to demostrate the process, which is neither the simpliest nor a
-reference implementation. For example, the encoding implementation in JavaScript can be:
+Note that the code above is for demonstration purpose, which is neither the simpliest nor a
+reference implementation. For example, a better encoding implementation in JavaScript can be:
 
 ```js
 function encode(buffer) {
