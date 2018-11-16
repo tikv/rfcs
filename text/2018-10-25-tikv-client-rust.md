@@ -106,78 +106,78 @@ To use the Raw Key-Value API, take the following steps:
 
 ### Usage example of the Raw Key-Value API
 
-    ```rust
-    extern crate futures;
-    extern crate tikv_client;
+```rust
+extern crate futures;
+extern crate tikv_client;
 
-    use futures::future::Future;
-    use tikv_client::*;
+use futures::future::Future;
+use tikv_client::*;
 
-    fn main() {
-        let config = Config::new(vec!["127.0.0.1:3379"]);
-        let raw = raw::Client::new(&config)
-            .wait()
-            .expect("Could not connect to tikv");
+fn main() {
+    let config = Config::new(vec!["127.0.0.1:3379"]);
+    let raw = raw::Client::new(&config)
+        .wait()
+        .expect("Could not connect to tikv");
 
-        let key: Key = b"Company".to_vec().into();
-        let value: Value = b"PingCAP".to_vec().into();
+    let key: Key = b"Company".to_vec().into();
+    let value: Value = b"PingCAP".to_vec().into();
 
-        raw.put(key.clone(), value.clone())
-            .cf("test_cf")
-            .wait()
-            .expect("Could not put kv pair to tikv");
-        println!("Successfully put {:?}:{:?} to tikv", key, value);
+    raw.put(key.clone(), value.clone())
+        .cf("test_cf")
+        .wait()
+        .expect("Could not put kv pair to tikv");
+    println!("Successfully put {:?}:{:?} to tikv", key, value);
 
-        let value = raw
-            .get(&key)
-            .cf("test_cf")
-            .wait()
-            .expect("Could not get value");
-        println!("Found val: {:?} for key: {:?}", value, key);
+    let value = raw
+        .get(&key)
+        .cf("test_cf")
+        .wait()
+        .expect("Could not get value");
+    println!("Found val: {:?} for key: {:?}", value, key);
 
-        raw.delete(&key)
-            .cf("test_cf")
-            .wait()
-            .expect("Could not delete value");
-        println!("Key: {:?} deleted", key);
+    raw.delete(&key)
+        .cf("test_cf")
+        .wait()
+        .expect("Could not delete value");
+    println!("Key: {:?} deleted", key);
 
-        raw.get(&key)
-            .cf("test_cf")
-            .wait()
-            .expect_err("Get returned value for not existing key");
+    raw.get(&key)
+        .cf("test_cf")
+        .wait()
+        .expect_err("Get returned value for not existing key");
 
-        let keys = vec![b"k1".to_vec().into(), b"k2".to_vec().into()];
+    let keys = vec![b"k1".to_vec().into(), b"k2".to_vec().into()];
 
-        let values = raw
-            .batch_get(&keys)
-            .cf("test_cf")
-            .wait()
-            .expect("Could not get values");
+    let values = raw
+        .batch_get(&keys)
+        .cf("test_cf")
+        .wait()
+        .expect("Could not get values");
 
-        let start: Key = b"k1".to_vec().into();
-        let end: Key = b"k2".to_vec().into();
-        raw.scan(&start..&end, 10)
-            .cf("test_cf")
-            .key_only()
-            .wait()
-            .expect("Could not scan");
+    let start: Key = b"k1".to_vec().into();
+    let end: Key = b"k2".to_vec().into();
+    raw.scan(&start..&end, 10)
+        .cf("test_cf")
+        .key_only()
+        .wait()
+        .expect("Could not scan");
 
-        let ranges = [&start..&end, &start..&end];
-        raw.batch_scan(&ranges, 10)
-            .cf("test_cf")
-            .key_only()
-            .wait()
-            .expect("Could not batch scan");
-    }
-    ```
+    let ranges = [&start..&end, &start..&end];
+    raw.batch_scan(&ranges, 10)
+        .cf("test_cf")
+        .key_only()
+        .wait()
+        .expect("Could not batch scan");
+}
+```
 
 The result is like:
 
-    ```bash
-    Successfully put Key([67, 111, 109, 112, 97, 110, 121]):Value([80, 105, 110, 103, 67, 65, 80]) to tikv
-    Found val: Value([80, 105, 110, 103, 67, 65, 80]) for key: Key([67, 111, 109, 112, 97, 110, 121])
-    Key: Key([67, 111, 109, 112, 97, 110, 121]) deleted
-    ```
+```bash
+Successfully put Key([67, 111, 109, 112, 97, 110, 121]):Value([80, 105, 110, 103, 67, 65, 80]) to tikv
+Found val: Value([80, 105, 110, 103, 67, 65, 80]) for key: Key([67, 111, 109, 112, 97, 110, 121])
+Key: Key([67, 111, 109, 112, 97, 110, 121]) deleted
+```
 
 Raw Key-Value client only supports the GET/BATCH_GET/PUT/BATCH_PUT/DELETE/BATCH_DELETE/SCAN/BATCH_SCAN/DELETE_RANGE commands. The Raw Key-Value client can be safely and concurrently accessed by multiple threads. Therefore, for one process, one client is enough generally.
 
@@ -257,94 +257,94 @@ To use the Transactional Key-Value API, take the following steps:
 
 ### Usage example of the Transactional Key-Value API
 
-    ```rust
-    extern crate futures;
-    extern crate tikv_client;
+```rust
+extern crate futures;
+extern crate tikv_client;
 
-    use std::ops::RangeBounds;
+use std::ops::RangeBounds;
 
-    use futures::{future, Future, Stream};
-    use tikv_client::transaction::{Client, IsolationLevel};
-    use tikv_client::*;
+use futures::{future, Future, Stream};
+use tikv_client::transaction::{Client, IsolationLevel};
+use tikv_client::*;
 
-    fn puts(client: &Client, pairs: impl IntoIterator<Item = impl Into<KvPair>>) {
-        let mut txn = client.begin();
-        let _: Vec<()> = future::join_all(pairs.into_iter().map(Into::into).map(|p| txn.set(p)))
-            .wait()
-            .expect("Could not set key value pairs");
-        txn.commit().wait().expect("Could not commit transaction");
-    }
+fn puts(client: &Client, pairs: impl IntoIterator<Item = impl Into<KvPair>>) {
+    let mut txn = client.begin();
+    let _: Vec<()> = future::join_all(pairs.into_iter().map(Into::into).map(|p| txn.set(p)))
+        .wait()
+        .expect("Could not set key value pairs");
+    txn.commit().wait().expect("Could not commit transaction");
+}
 
-    fn get(client: &Client, key: &Key) -> Value {
-        let txn = client.begin();
-        txn.get(key).wait().expect("Could not get value")
-    }
+fn get(client: &Client, key: &Key) -> Value {
+    let txn = client.begin();
+    txn.get(key).wait().expect("Could not get value")
+}
 
-    fn scan(client: &Client, range: impl RangeBounds<Key>, mut limit: usize) {
-        client
-            .begin()
-            .scan(range)
-            .take_while(move |_| {
-                Ok(if limit == 0 {
-                    false
-                } else {
-                    limit -= 1;
-                    true
-                })
-            }).for_each(|pair| {
-                println!("{:?}", pair);
-                Ok(())
-            }).wait()
-            .expect("Could not scan keys");
-    }
+fn scan(client: &Client, range: impl RangeBounds<Key>, mut limit: usize) {
+    client
+        .begin()
+        .scan(range)
+        .take_while(move |_| {
+            Ok(if limit == 0 {
+                false
+            } else {
+                limit -= 1;
+                true
+            })
+        }).for_each(|pair| {
+            println!("{:?}", pair);
+            Ok(())
+        }).wait()
+        .expect("Could not scan keys");
+}
 
-    fn dels(client: &Client, keys: impl IntoIterator<Item = Key>) {
-        let mut txn = client.begin();
-        txn.set_isolation_level(IsolationLevel::ReadCommitted);
-        let _: Vec<()> = keys
-            .into_iter()
-            .map(|p| {
-                txn.delete(p).wait().expect("Could not delete key");
-            }).collect();
-        txn.commit().wait().expect("Could not commit transaction");
-    }
+fn dels(client: &Client, keys: impl IntoIterator<Item = Key>) {
+    let mut txn = client.begin();
+    txn.set_isolation_level(IsolationLevel::ReadCommitted);
+    let _: Vec<()> = keys
+        .into_iter()
+        .map(|p| {
+            txn.delete(p).wait().expect("Could not delete key");
+        }).collect();
+    txn.commit().wait().expect("Could not commit transaction");
+}
 
-    fn main() {
-        let config = Config::new(vec!["127.0.0.1:3379"]);
-        let txn = Client::new(&config)
-            .wait()
-            .expect("Could not connect to tikv");
+fn main() {
+    let config = Config::new(vec!["127.0.0.1:3379"]);
+    let txn = Client::new(&config)
+        .wait()
+        .expect("Could not connect to tikv");
 
-        // set
-        let key1: Key = b"key1".to_vec().into();
-        let value1: Value = b"value1".to_vec().into();
-        let key2: Key = b"key2".to_vec().into();
-        let value2: Value = b"value2".to_vec().into();
-        puts(&txn, vec![(key1, value1), (key2, value2)]);
+    // set
+    let key1: Key = b"key1".to_vec().into();
+    let value1: Value = b"value1".to_vec().into();
+    let key2: Key = b"key2".to_vec().into();
+    let value2: Value = b"value2".to_vec().into();
+    puts(&txn, vec![(key1, value1), (key2, value2)]);
 
-        // get
-        let key1: Key = b"key1".to_vec().into();
-        let value1 = get(&txn, &key1);
-        println!("{:?}", (key1, value1));
+    // get
+    let key1: Key = b"key1".to_vec().into();
+    let value1 = get(&txn, &key1);
+    println!("{:?}", (key1, value1));
 
-        // scan
-        let key1: Key = b"key1".to_vec().into();
-        scan(&txn, key1.., 10);
+    // scan
+    let key1: Key = b"key1".to_vec().into();
+    scan(&txn, key1.., 10);
 
-        // delete
-        let key1: Key = b"key1".to_vec().into();
-        let key2: Key = b"key2".to_vec().into();
-        dels(&txn, vec![key1, key2]);
-    }
+    // delete
+    let key1: Key = b"key1".to_vec().into();
+    let key2: Key = b"key2".to_vec().into();
+    dels(&txn, vec![key1, key2]);
+}
 ```
 
 The result is like:
 
-    ```bash
-    (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
-    (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
-    (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
-    ```
+```bash
+(Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
+(Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
+(Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
+```
 
 ## Programming model
 
