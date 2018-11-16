@@ -41,7 +41,7 @@ TiKV provides two types of APIs for developers:
 
     If your application scenario requires distributed ACID transactions and the atomicity of multiple keys within a transaction, you can use the Transactional Key-Value API.
 
-Generally, the Raw Key-Value API has higher throughput and lower latency compared to the Transactional Key-Value API. If distributed ACID transactions are not required, Raw Key-Value API is preferred over Transactional Key-Value API for better performance and ease of use.
+Generally, the Raw Key-Value API has higher throughput and lower latency compared to the Transactional Key-Value API. If distributed ACID transactions are not required, Raw Key-Value API is preferred over Transactional Key-Value API for better performance and ease of use. **Please be aware that these two types of APIs are mutually exclusive. Users should __never__ mix and use these two types of APIs on a __same__ TiKV cluster.**
 
 The client provides two types of APIs in two separate modules for developers to choose from.
 
@@ -187,7 +187,7 @@ The result is like:
     Key: Key([67, 111, 109, 112, 97, 110, 121]) deleted
     ```
 
-Raw Key-Value client is a client of the TiKV server and only supports the GET/BATCH_GET/PUT/BATCH_PUT/DELETE/BATCH_DELETE/SCAN/BATCH_SCAN/DELETE_RANGE commands. The Raw Key-Value client can be safely and concurrently accessed by multiple threads. Therefore, for one process, one client is enough generally.
+Raw Key-Value client only supports the GET/BATCH_GET/PUT/BATCH_PUT/DELETE/BATCH_DELETE/SCAN/BATCH_SCAN/DELETE_RANGE commands. The Raw Key-Value client can be safely and concurrently accessed by multiple threads. Therefore, for one process, one client is enough generally.
 
 ### Transactional Key-Value API Basic Usage
 
@@ -203,7 +203,7 @@ The Transactional Key-Value API is more complicated than the Raw Key-Value API. 
 
 - Transaction
 
-    Like the Transaction in SQL, a Transaction symbolizes a series of read and write operations performed within the Client. Internally, a Transaction consists of a Snapshot for reads, and a buffer for all writes. The default isolation level of a Transaction is Snapshot Isolation.
+    Like Transaction in SQL, a Transaction in TiKV symbolizes a series of read and write operations performed within the service. Internally, a Transaction consists of a Snapshot for reads, and a buffer for all writes. The default isolation level of a Transaction is Snapshot Isolation.
 
 To use the Transactional Key-Value API, take the following steps:
 
