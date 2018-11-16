@@ -72,65 +72,57 @@ To use the Raw Key-Value API, take the following steps:
 2. Create a Raw Key-Value client.
 
     ```rust
-    let client = RawClient::new(&config);
+    let client = raw::Client::new(&config);
     ```
 
 3. Call the Raw Key-Value client methods to access the data on TiKV. The Raw Key-Value API contains following methods
 
     ```rust
-    pub trait Client {
-        type Impl: Client;
+    impl Client {
+        pub fn new(_config: &Config) -> impl Future<Item = Self, Error = Error> + Send;
 
-        fn get(&self, key: impl AsRef<Key>) -> Get<Self::Impl>;
+        pub fn get(&self, key: impl AsRef<Key>) -> Get;
 
-        fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet<Self::Impl>;
+        pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
 
-        fn put(&self, pair: impl Into<KvPair>) -> Put<Self::Impl>;
+        pub fn put(&self, pair: impl Into<KvPair>) -> Put;
 
-        fn batch_put(
-            &self,
-            pairs: impl IntoIterator<Item = impl Into<KvPair>>,
-        ) -> BatchPut<Self::Impl>;
+        pub fn batch_put(&self, pairs: impl IntoIterator<Item = impl Into<KvPair>>) -> BatchPut;
 
-        fn delete(&self, key: impl AsRef<Key>) -> Delete<Self::Impl>;
+        pub fn delete(&self, key: impl AsRef<Key>) -> Delete;
 
-        fn batch_delete(&self, keys: impl AsRef<[Key]>) -> BatchDelete<Self::Impl>;
+        pub fn batch_delete(&self, keys: impl AsRef<[Key]>) -> BatchDelete;
 
-        fn scan(&self, range: impl RangeBounds<Key>, limit: u32) -> Scan<Self::Impl>;
+        pub fn scan(&self, range: impl RangeBounds<Key>, limit: u32) -> Scan;
 
-        fn batch_scan<Ranges, Bounds>(
-            &self,
-            ranges: Ranges,
-            each_limit: u32,
-        ) -> BatchScan<Self::Impl>
+        pub fn batch_scan<Ranges, Bounds>(&self, ranges: Ranges, each_limit: u32) -> BatchScan
         where
             Ranges: AsRef<[Bounds]>,
             Bounds: RangeBounds<Key>;
 
-        fn delete_range(&self, range: impl RangeBounds<Key>) -> DeleteRange<Self::Impl>;
+        pub fn delete_range(&self, range: impl RangeBounds<Key>) -> DeleteRange;
     }
     ```
 
-#### Usage example of the Raw Key-Value API
+### Usage example of the Raw Key-Value API
 
     ```rust
     extern crate futures;
     extern crate tikv_client;
 
     use futures::future::Future;
-    use tikv_client::raw::Client;
     use tikv_client::*;
 
     fn main() {
         let config = Config::new(vec!["127.0.0.1:3379"]);
-        let raw = raw::RawClient::new(&config)
+        let raw = raw::Client::new(&config)
             .wait()
             .expect("Could not connect to tikv");
 
         let key: Key = b"Company".to_vec().into();
         let value: Value = b"PingCAP".to_vec().into();
 
-        raw.put((key.clone(), value.clone()))
+        raw.put(key.clone(), value.clone())
             .cf("test_cf")
             .wait()
             .expect("Could not put kv pair to tikv");
@@ -156,7 +148,7 @@ To use the Raw Key-Value API, take the following steps:
 
         let keys = vec![b"k1".to_vec().into(), b"k2".to_vec().into()];
 
-        let _values = raw
+        let values = raw
             .batch_get(&keys)
             .cf("test_cf")
             .wait()
@@ -222,7 +214,7 @@ To use the Transactional Key-Value API, take the following steps:
 2. Create a Transactional Key-Value client.
 
     ```rust
-    let client = TxnClient::new(&config);
+    let client = transaction::Client::new(&config);
     ```
 
 3. (Optional) Modify isolation level of a Transaction.
@@ -244,13 +236,13 @@ To use the Transactional Key-Value API, take the following steps:
 5. Call the Transactional Key-Value API's methods to access the data on TiKV. The Transactional Key-Value API contains the following most commonly used methods:
 
     ```rust
-    fn begin(&self) -> Transaction;
+    pub fn begin(&self) -> Transaction;
 
-    fn get(&self, key: impl AsRef<Key>) -> KvFuture<Value>;
+    pub fn get(&self, key: impl AsRef<Key>) -> impl Future<Item = Value, Error = Error> + Send;
 
-    fn set(&mut self, pair: impl Into<KvPair>) -> KvFuture<()>;
+    pub fn set(&mut self, pair: impl Into<KvPair>) -> impl Future<Item = (), Error = Error> + Send;
 
-    fn delete(&mut self, key: impl AsRef<Key>) -> KvFuture<()>;
+    pub fn delete(&mut self, key: impl AsRef<Key>) -> impl Future<Item = (), Error = Error> + Send;
 
     fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
 
@@ -258,12 +250,12 @@ To use the Transactional Key-Value API, take the following steps:
 
     fn set_isolation_level(&mut self, level: IsolationLevel);
 
-    fn commit(self) -> KvFuture<()>;
+    pub fn commit(self) -> impl Future<Item = (), Error = Error> + Send;
 
-    fn rollback(self) -> KvFuture<()>;
+    pub fn rollback(self) -> impl Future<Item = (), Error = Error> + Send;
     ```
 
-#### Usage example of the Transactional Key-Value API
+### Usage example of the Transactional Key-Value API
 
     ```rust
     extern crate futures;
@@ -272,10 +264,10 @@ To use the Transactional Key-Value API, take the following steps:
     use std::ops::RangeBounds;
 
     use futures::{future, Future, Stream};
-    use tikv_client::transaction::{Client, Mutator, Retriever, TxnClient};
+    use tikv_client::transaction::{Client, IsolationLevel};
     use tikv_client::*;
 
-    fn puts(client: &TxnClient, pairs: impl IntoIterator<Item = impl Into<KvPair>>) {
+    fn puts(client: &Client, pairs: impl IntoIterator<Item = impl Into<KvPair>>) {
         let mut txn = client.begin();
         let _: Vec<()> = future::join_all(pairs.into_iter().map(Into::into).map(|p| txn.set(p)))
             .wait()
@@ -283,12 +275,12 @@ To use the Transactional Key-Value API, take the following steps:
         txn.commit().wait().expect("Could not commit transaction");
     }
 
-    fn get(client: &TxnClient, key: &Key) -> Value {
+    fn get(client: &Client, key: &Key) -> Value {
         let txn = client.begin();
         txn.get(key).wait().expect("Could not get value")
     }
 
-    fn scan(client: &TxnClient, range: impl RangeBounds<Key>, mut limit: usize) {
+    fn scan(client: &Client, range: impl RangeBounds<Key>, mut limit: usize) {
         client
             .begin()
             .scan(range)
@@ -306,8 +298,9 @@ To use the Transactional Key-Value API, take the following steps:
             .expect("Could not scan keys");
     }
 
-    fn dels(client: &TxnClient, keys: impl IntoIterator<Item = Key>) {
+    fn dels(client: &Client, keys: impl IntoIterator<Item = Key>) {
         let mut txn = client.begin();
+        txn.set_isolation_level(IsolationLevel::ReadCommitted);
         let _: Vec<()> = keys
             .into_iter()
             .map(|p| {
@@ -318,7 +311,7 @@ To use the Transactional Key-Value API, take the following steps:
 
     fn main() {
         let config = Config::new(vec!["127.0.0.1:3379"]);
-        let txn = TxnClient::new(&config)
+        let txn = Client::new(&config)
             .wait()
             .expect("Could not connect to tikv");
 
@@ -343,7 +336,7 @@ To use the Transactional Key-Value API, take the following steps:
         let key2: Key = b"key2".to_vec().into();
         dels(&txn, vec![key1, key2]);
     }
-    ```
+```
 
 The result is like:
 
