@@ -348,7 +348,7 @@ The result is like:
 
 ## Programming model
 
-The client instance is thread safe and all the interfaces return futures so users can use the client in either asynchronous or synchronous way. A dedicated event loop thread is created at a per client instance basis to drive the reactor to make progress.
+The client instance implements `Send + Clone` traits and all the interfaces involve rpc requests return futures so users can use the client in either asynchronous or synchronous way. A dedicated event loop thread is created at a per client instance basis to drive the reactor to make progress.
 
 ## Tooling
 
@@ -358,12 +358,12 @@ The CI will validate all code is warning free, passes `rustfmt`, and passes a `c
 
 All code that reaches the `master` branch should not output errors when the following commands are run:
 
-    ```shell
-    cargo fmt --all -- --check
-    cargo clippy --all -- -D clippy
-    cargo test --all -- --nocapture
-    cargo bench --all -- --test
-    ```
+```shell
+cargo fmt --all -- --check
+cargo clippy --all -- -D clippy
+cargo test --all -- --nocapture
+cargo bench --all -- --test
+```
 
 # Drawbacks
 
