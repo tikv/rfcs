@@ -79,27 +79,18 @@ To use the Raw Key-Value API, take the following steps:
 
     ```rust
     impl Client {
-        pub fn new(_config: &Config) -> impl Future<Item = Self, Error = Error> + Send;
-
+        pub fn new(_config: &Config) -> Connect;
         pub fn get(&self, key: impl AsRef<Key>) -> Get;
-
         pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
-
         pub fn put(&self, pair: impl Into<KvPair>) -> Put;
-
         pub fn batch_put(&self, pairs: impl IntoIterator<Item = impl Into<KvPair>>) -> BatchPut;
-
         pub fn delete(&self, key: impl AsRef<Key>) -> Delete;
-
         pub fn batch_delete(&self, keys: impl AsRef<[Key]>) -> BatchDelete;
-
         pub fn scan(&self, range: impl RangeBounds<Key>, limit: u32) -> Scan;
-
         pub fn batch_scan<Ranges, Bounds>(&self, ranges: Ranges, each_limit: u32) -> BatchScan
         where
             Ranges: AsRef<[Bounds]>,
             Bounds: RangeBounds<Key>;
-
         pub fn delete_range(&self, range: impl RangeBounds<Key>) -> DeleteRange;
     }
     ```
@@ -236,23 +227,37 @@ To use the Transactional Key-Value API, take the following steps:
 5. Call the Transactional Key-Value API's methods to access the data on TiKV. The Transactional Key-Value API contains the following most commonly used methods:
 
     ```rust
-    pub fn begin(&self) -> Transaction;
+    impl Client {
+        pub fn new(config: &Config) -> Connect;
+        pub fn begin(&self) -> Transaction;
+        pub fn begin_with_timestamp(&self, timestamp: Timestamp) -> Transaction;
+        pub fn snapshot(&self) -> Snapshot;
+        pub fn current_timestamp(&self) -> Timestamp;
+    }
 
-    pub fn get(&self, key: impl AsRef<Key>) -> impl Future<Item = Value, Error = Error> + Send;
+    impl Transaction {
+        pub fn commit(self) -> Commit;
+        pub fn rollback(self) -> Rollback;
+        pub fn lock_keys(&mut self, keys: impl AsRef<[Key]>) -> LockKeys;
+        pub fn is_readonly(&self) -> bool;
+        pub fn start_ts(&self) -> Timestamp;
+        pub fn snapshot(&self) -> Snapshot;
+        pub fn set_isolation_level(&mut self, level: IsolationLevel);
+        pub fn get(&self, key: impl AsRef<Key>) -> Get;
+        pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
+        pub fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
+        pub fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
+        pub fn set(&mut self, key: impl Into<Key>, value: impl Into<Value>) -> Set;
+        pub fn delete(&mut self, key: impl AsRef<Key>) -> Delete;
+    }
 
-    pub fn set(&mut self, pair: impl Into<KvPair>) -> impl Future<Item = (), Error = Error> + Send;
+    impl Snapshot {
+        pub fn get(&self, key: impl AsRef<Key>) -> Get;
+        pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
+        pub fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
+        pub fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
+    }
 
-    pub fn delete(&mut self, key: impl AsRef<Key>) -> impl Future<Item = (), Error = Error> + Send;
-
-    fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
-
-    fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
-
-    fn set_isolation_level(&mut self, level: IsolationLevel);
-
-    pub fn commit(self) -> impl Future<Item = (), Error = Error> + Send;
-
-    pub fn rollback(self) -> impl Future<Item = (), Error = Error> + Send;
     ```
 
 ### Usage example of the Transactional Key-Value API
@@ -269,9 +274,13 @@ use tikv_client::*;
 
 fn puts(client: &Client, pairs: impl IntoIterator<Item = impl Into<KvPair>>) {
     let mut txn = client.begin();
-    let _: Vec<()> = future::join_all(pairs.into_iter().map(Into::into).map(|p| txn.set(p)))
-        .wait()
-        .expect("Could not set key value pairs");
+    let _: Vec<()> = future::join_all(
+        pairs
+            .into_iter()
+            .map(Into::into)
+            .map(|p| txn.set(p.key().clone(), p.value().clone())),
+    ).wait()
+    .expect("Could not set key value pairs");
     txn.commit().wait().expect("Could not commit transaction");
 }
 
