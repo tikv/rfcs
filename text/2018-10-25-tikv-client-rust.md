@@ -60,9 +60,7 @@ To use the Raw Key-Value API, take the following steps:
 1. Create an instance of Config to specify endpoints of PD (Placement Driver) and optional security config
 
     ```rust
-    let config = Config::new(vec!["127.0.0.1:2379"]);
-    let config_with_security = Config::with_security(
-        vec!["127.0.0.1:3379"],
+    let config = Config::new(vec!["127.0.0.1:3379"]).with_security(
         PathBuf::from("/path/to/ca.pem"),
         PathBuf::from("/path/to/client.pem"),
         PathBuf::from("/path/to/client-key.pem"),
@@ -101,11 +99,17 @@ To use the Raw Key-Value API, take the following steps:
 extern crate futures;
 extern crate tikv_client;
 
+use std::path::PathBuf;
+
 use futures::future::Future;
 use tikv_client::*;
 
 fn main() {
-    let config = Config::new(vec!["127.0.0.1:3379"]);
+    let config = Config::new(vec!["127.0.0.1:3379"]).with_security(
+        PathBuf::from("/path/to/ca.pem"),
+        PathBuf::from("/path/to/client.pem"),
+        PathBuf::from("/path/to/client-key.pem"),
+    );
     let raw = raw::Client::new(&config)
         .wait()
         .expect("Could not connect to tikv");
@@ -144,6 +148,7 @@ fn main() {
         .cf("test_cf")
         .wait()
         .expect("Could not get values");
+    println!("Found values: {:?} for keys: {:?}", values, keys);
 
     let start: Key = b"k1".to_vec().into();
     let end: Key = b"k2".to_vec().into();
@@ -193,9 +198,7 @@ To use the Transactional Key-Value API, take the following steps:
 1. Create an instance of Config to specify endpoints of PD (Placement Driver) and optional security config
 
     ```rust
-    let config = Config::new(vec!["127.0.0.1:2379"]);
-    let config_with_security = Config::with_security(
-        vec!["127.0.0.1:3379"],
+    let config = Config::new(vec!["127.0.0.1:3379"]).with_security(
         PathBuf::from("/path/to/ca.pem"),
         PathBuf::from("/path/to/client.pem"),
         PathBuf::from("/path/to/client-key.pem"),
@@ -267,6 +270,7 @@ extern crate futures;
 extern crate tikv_client;
 
 use std::ops::RangeBounds;
+use std::path::PathBuf;
 
 use futures::{future, Future, Stream};
 use tikv_client::transaction::{Client, IsolationLevel};
@@ -319,7 +323,11 @@ fn dels(client: &Client, keys: impl IntoIterator<Item = Key>) {
 }
 
 fn main() {
-    let config = Config::new(vec!["127.0.0.1:3379"]);
+    let config = Config::new(vec!["127.0.0.1:3379"]).with_security(
+        PathBuf::from("/path/to/ca.pem"),
+        PathBuf::from("/path/to/client.pem"),
+        PathBuf::from("/path/to/client-key.pem"),
+    );
     let txn = Client::new(&config)
         .wait()
         .expect("Could not connect to tikv");
