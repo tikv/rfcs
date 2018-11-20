@@ -363,10 +363,6 @@ The result is like:
 (Key([107, 101, 121, 49]), Value([118, 97, 108, 117, 101, 49]))
 ```
 
-## Programming model
-
-The client instance implements `Send + Clone` traits and all the interfaces involve rpc requests return futures so users can use the client in either asynchronous or synchronous way. A dedicated event loop thread is created at a per client instance basis to drive the reactor to make progress.
-
 ## Tooling
 
 The `tikv_client` crate will be tested with Travis CI using Rust's standard testing framework. We will also include benchmark with criterion in the future. For public functions which process user input, we will seek to use fuzz testing such as `quickcheck` to find subtle bugs.
