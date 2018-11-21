@@ -18,7 +18,7 @@ We will also support the most recent `nightly` version of Rust, but users should
 
 ## Naming
 
-The [Rust API Guidelines](https://rust-lang-nursery.github.io/api-guidelines/naming.html) do not perscribe any particular crate name convention.
+The [Rust API Guidelines](https://rust-lang-nursery.github.io/api-guidelines/naming.html) do not prescribe any particular crate name convention.
 
 We choose to name the crate `tikv-client`. Choosing to seperate `tikv` and `client` helps potentially unfamiliar users to immediately understand the intent of the package. `tikvclient`, while understandable, is not immediately parsable by a human.
 
