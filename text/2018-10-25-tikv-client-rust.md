@@ -1,32 +1,53 @@
 # Summary
 
-Introduce a full featured, official TiKV (and PD) Rust client. It is intended to be used as a reference implementation, or to provide C-compatible binding for future clients.
+Introduce a full featured, official TiKV (and PD) Rust client. It is intended
+to be used as a reference implementation, or to provide C-compatible binding
+for future clients.
 
 # Motivation
 
-Currently, users of TiKV must use [TiDB's Go Client](https://github.com/pingcap/tidb/blob/master/store/tikv/client.go), which is not well packaged or documented. We would like to ensure that users can easily use TiKV and PD without needing to use TiDB.
+Currently, users of TiKV must use [TiDB's Go
+Client](https://github.com/pingcap/tidb/blob/master/store/tikv/client.go),
+which is not well packaged or documented. We would like to ensure that users
+can easily use TiKV and PD without needing to use TiDB.
 
-We think this would help encourage community participation in the TiKV project and associated libraries. During talks with several potential corporate users we discovered that there was an interest in using TiKV to resolve concerns such as caching and raw key-value stores.
+We think this would help encourage community participation in the TiKV project
+and associated libraries. During talks with several potential corporate users
+we discovered that there was an interest in using TiKV to resolve concerns such
+as caching and raw key-value stores.
 
 # Detailed design
 
 ## Supported targets
 
-We will target the `stable` channel of Rust starting in the Rust 2018 edition. We choose to begin with Rust 2018 so we do not need to concern ourselves with an upgrade path.
+We will target the `stable` channel of Rust starting in the Rust 2018 edition.
+We choose to begin with Rust 2018 so we do not need to concern ourselves with
+an upgrade path.
 
-We will also support the most recent `nightly` version of Rust, but users should not feel the need to reach for nightly unless they are already using it.
+We will also support the most recent `nightly` version of Rust, but users
+should not feel the need to reach for nightly unless they are already using it.
 
 ## Naming
 
-The [Rust API Guidelines](https://rust-lang-nursery.github.io/api-guidelines/naming.html) do not prescribe any particular crate name convention.
+The [Rust API
+Guidelines](https://rust-lang-nursery.github.io/api-guidelines/naming.html) do
+not prescribe any particular crate name convention.
 
-We choose to name the crate `tikv-client`. Choosing to seperate `tikv` and `client` helps potentially unfamiliar users to immediately understand the intent of the package. `tikvclient`, while understandable, is not immediately parsable by a human.
+We choose to name the crate `tikv-client`. Choosing to seperate `tikv` and
+`client` helps potentially unfamiliar users to immediately understand the
+intent of the package. `tikvclient`, while understandable, is not immediately
+parsable by a human.
 
-All structures and functions will otherwise follow the [Rust API Guidelines](https://rust-lang-nursery.github.io/api-guidelines/), some of which will be enforced by `clippy`.
+All structures and functions will otherwise follow the [Rust API
+Guidelines](https://rust-lang-nursery.github.io/api-guidelines/), some of which
+will be enforced by `clippy`.
 
 ## Installation
 
-To utilize the client programmatically, users will be able to add the `tikv-client` crate to their `Cargo.toml`'s dependencies. Then they must use the crate with `use tikv_client;`. Unfortunately due to Rust’s naming conventions this inconsistency is in place.
+To utilize the client programmatically, users will be able to add the
+`tikv-client` crate to their `Cargo.toml`'s dependencies. Then they must use
+the crate with `use tikv_client;`. Unfortunately due to Rust’s naming
+conventions this inconsistency is in place.
 
 ## Usage
 
@@ -35,15 +56,25 @@ To utilize the client programmatically, users will be able to add the `tikv-clie
 TiKV provides two types of APIs for developers:
 - The Raw Key-Value API
 
-    If your application scenario does not need distributed transactions or MVCC (Multi-Version Concurrency Control) and only needs to guarantee the atomicity towards one key, you can use the Raw Key-Value API.
+    If your application scenario does not need distributed transactions or MVCC
+(Multi-Version Concurrency Control) and only needs to guarantee the atomicity
+towards one key, you can use the Raw Key-Value API.
 
 - The Transactional Key-Value API
 
-    If your application scenario requires distributed ACID transactions and the atomicity of multiple keys within a transaction, you can use the Transactional Key-Value API.
+    If your application scenario requires distributed ACID transactions and the
+atomicity of multiple keys within a transaction, you can use the Transactional
+Key-Value API.
 
-Generally, the Raw Key-Value API has higher throughput and lower latency compared to the Transactional Key-Value API. If distributed ACID transactions are not required, Raw Key-Value API is preferred over Transactional Key-Value API for better performance and ease of use. **Please be aware that these two types of APIs are mutually exclusive. Users should __never__ mix and use these two types of APIs on a __same__ TiKV cluster.**
+Generally, the Raw Key-Value API has higher throughput and lower latency
+compared to the Transactional Key-Value API. If distributed ACID transactions
+are not required, Raw Key-Value API is preferred over Transactional Key-Value
+API for better performance and ease of use. **Please be aware that these two
+types of APIs are mutually exclusive. Users should __never__ mix and use these
+two types of APIs on a __same__ TiKV cluster.**
 
-The client provides two types of APIs in two separate modules for developers to choose from.
+The client provides two types of APIs in two separate modules for developers to
+choose from.
 
 ### The common data types
 
@@ -57,7 +88,8 @@ The client provides two types of APIs in two separate modules for developers to 
 
 To use the Raw Key-Value API, take the following steps:
 
-1. Create an instance of Config to specify endpoints of PD (Placement Driver) and optional security config
+1. Create an instance of Config to specify endpoints of PD (Placement Driver)
+and optional security config
 
     ```rust
     let config = Config::new(vec!["127.0.0.1:3379"]).with_security(
@@ -73,7 +105,8 @@ To use the Raw Key-Value API, take the following steps:
     let client = raw::Client::new(&config);
     ```
 
-3. Call the Raw Key-Value client methods to access the data on TiKV. The Raw Key-Value API contains following methods
+3. Call the Raw Key-Value client methods to access the data on TiKV. The Raw
+Key-Value API contains following methods
 
     ```rust
     impl Client {
@@ -81,11 +114,13 @@ To use the Raw Key-Value API, take the following steps:
         pub fn get(&self, key: impl AsRef<Key>) -> Get;
         pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
         pub fn put(&self, pair: impl Into<KvPair>) -> Put;
-        pub fn batch_put(&self, pairs: impl IntoIterator<Item = impl Into<KvPair>>) -> BatchPut;
+        pub fn batch_put(&self, pairs: impl IntoIterator<Item = impl
+Into<KvPair>>) -> BatchPut;
         pub fn delete(&self, key: impl AsRef<Key>) -> Delete;
         pub fn batch_delete(&self, keys: impl AsRef<[Key]>) -> BatchDelete;
         pub fn scan(&self, range: impl RangeBounds<Key>, limit: u32) -> Scan;
-        pub fn batch_scan<Ranges, Bounds>(&self, ranges: Ranges, each_limit: u32) -> BatchScan
+        pub fn batch_scan<Ranges, Bounds>(&self, ranges: Ranges, each_limit:
+u32) -> BatchScan
         where
             Ranges: AsRef<[Bounds]>,
             Bounds: RangeBounds<Key>;
@@ -170,16 +205,22 @@ fn main() {
 The result is like:
 
 ```bash
-Successfully put Key([67, 111, 109, 112, 97, 110, 121]):Value([80, 105, 110, 103, 67, 65, 80]) to tikv
-Found val: Value([80, 105, 110, 103, 67, 65, 80]) for key: Key([67, 111, 109, 112, 97, 110, 121])
+Successfully put Key([67, 111, 109, 112, 97, 110, 121]):Value([80, 105, 110,
+103, 67, 65, 80]) to tikv
+Found val: Value([80, 105, 110, 103, 67, 65, 80]) for key: Key([67, 111, 109,
+112, 97, 110, 121])
 Key: Key([67, 111, 109, 112, 97, 110, 121]) deleted
 ```
 
-Raw Key-Value client only supports the GET/BATCH_GET/PUT/BATCH_PUT/DELETE/BATCH_DELETE/SCAN/BATCH_SCAN/DELETE_RANGE commands. The Raw Key-Value client can be safely and concurrently accessed by multiple threads. Therefore, for one process, one client is enough generally.
+Raw Key-Value client only supports the
+GET/BATCH_GET/PUT/BATCH_PUT/DELETE/BATCH_DELETE/SCAN/BATCH_SCAN/DELETE_RANGE
+commands. The Raw Key-Value client can be safely and concurrently accessed by
+multiple threads. Therefore, for one process, one client is enough generally.
 
 ### Transactional Key-Value API Basic Usage
 
-The Transactional Key-Value API is more complicated than the Raw Key-Value API. Some transaction related concepts are listed as follows.
+The Transactional Key-Value API is more complicated than the Raw Key-Value API.
+Some transaction related concepts are listed as follows.
 
 - Client
 
@@ -187,15 +228,21 @@ The Transactional Key-Value API is more complicated than the Raw Key-Value API. 
 
 - Snapshot
 
-    A Snapshot is the state of the TiKV data at a particular point of time, which provides some readonly methods. The multiple reads of the same Snapshot is guaranteed consistent.
+    A Snapshot is the state of the TiKV data at a particular point of time,
+which provides some readonly methods. The multiple reads of the same Snapshot
+is guaranteed consistent.
 
 - Transaction
 
-    Like Transaction in SQL, a Transaction in TiKV symbolizes a series of read and write operations performed within the service. Internally, a Transaction consists of a Snapshot for reads, and a buffer for all writes. The default isolation level of a Transaction is Snapshot Isolation.
+    Like Transaction in SQL, a Transaction in TiKV symbolizes a series of read
+and write operations performed within the service. Internally, a Transaction
+consists of a Snapshot for reads, and a buffer for all writes. The default
+isolation level of a Transaction is Snapshot Isolation.
 
 To use the Transactional Key-Value API, take the following steps:
 
-1. Create an instance of Config to specify endpoints of PD (Placement Driver) and optional security config
+1. Create an instance of Config to specify endpoints of PD (Placement Driver)
+and optional security config
 
     ```rust
     let config = Config::new(vec!["127.0.0.1:3379"]).with_security(
@@ -225,9 +272,12 @@ To use the Transactional Key-Value API, take the following steps:
 
 4. (Optional) Modify data using a Transaction.
 
-    The lifecycle of a Transaction is: _begin → {get, set, delete, scan} → {commit, rollback}_.
+    The lifecycle of a Transaction is: _begin → {get, set, delete, scan} →
+{commit, rollback}_.
 
-5. Call the Transactional Key-Value API's methods to access the data on TiKV. The Transactional Key-Value API contains the following most commonly used methods:
+5. Call the Transactional Key-Value API's methods to access the data on TiKV.
+The Transactional Key-Value API contains the following most commonly used
+methods:
 
     ```rust
     impl Client {
@@ -250,7 +300,8 @@ To use the Transactional Key-Value API, take the following steps:
         pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
         pub fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
         pub fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
-        pub fn set(&mut self, key: impl Into<Key>, value: impl Into<Value>) -> Set;
+        pub fn set(&mut self, key: impl Into<Key>, value: impl Into<Value>) ->
+Set;
         pub fn delete(&mut self, key: impl AsRef<Key>) -> Delete;
     }
 
@@ -365,11 +416,16 @@ The result is like:
 
 ## Tooling
 
-The `tikv_client` crate will be tested with Travis CI using Rust's standard testing framework. We will also include benchmark with criterion in the future. For public functions which process user input, we will seek to use fuzz testing such as `quickcheck` to find subtle bugs.
+The `tikv_client` crate will be tested with Travis CI using Rust's standard
+testing framework. We will also include benchmark with criterion in the future.
+For public functions which process user input, we will seek to use fuzz testing
+such as `quickcheck` to find subtle bugs.
 
-The CI will validate all code is warning free, passes `rustfmt`, and passes a `clippy` check without lint warnings.
+The CI will validate all code is warning free, passes `rustfmt`, and passes a
+`clippy` check without lint warnings.
 
-All code that reaches the `master` branch should not output errors when the following commands are run:
+All code that reaches the `master` branch should not output errors when the
+following commands are run:
 
 ```shell
 cargo fmt --all -- --check
@@ -380,25 +436,45 @@ cargo bench --all -- --test
 
 # Drawbacks
 
-Choosing not to create a Rust TiKV client would mean the current state of clients remains the same.
+Choosing not to create a Rust TiKV client would mean the current state of
+clients remains the same.
 
-It is likely that in the future we would end up creating a client in some other form due to customer demand.
+It is likely that in the future we would end up creating a client in some other
+form due to customer demand.
 
 # Alternatives
 
 ## Package the Go client
 
-Choosing to do this would likely be considerably much less work. The code is already written, so most of the work would be documenting and packaging. Unfortunately, Go does not share the same performance characteristics and FFI capabilities as Rust, so it is a poor core binding for future libraries. Due to the limited abstractions available in Go (it does not have a Linear Type System) we may not be able to create the semantic abstractions possible in a Rust client, reducing the quality of implementations referencing the client.
+Choosing to do this would likely be considerably much less work. The code is
+already written, so most of the work would be documenting and packaging.
+Unfortunately, Go does not share the same performance characteristics and FFI
+capabilities as Rust, so it is a poor core binding for future libraries. Due to
+the limited abstractions available in Go (it does not have a Linear Type
+System) we may not be able to create the semantic abstractions possible in a
+Rust client, reducing the quality of implementations referencing the client.
 
 ## Choose another language
 
 We can choose another language such as C, C++, or Python.
 
-A C client would be the most portable and allow future users and customers to bind to the library as they wish. This quality is maintained in Rust, so it is not an advantage for C. Choosing to implement this client in C or C++ means we must take extra steps to support multiple packaging systems, string libraries, and other choices which would not be needed in languages like Ruby, Node.js, or Python.
+A C client would be the most portable and allow future users and customers to
+bind to the library as they wish. This quality is maintained in Rust, so it is
+not an advantage for C. Choosing to implement this client in C or C++ means we
+must take extra steps to support multiple packaging systems, string libraries,
+and other choices which would not be needed in languages like Ruby, Node.js, or
+Python.
 
-Choosing to use Python or Ruby for this client would likely be considerably less work than C/C++ as there is a reduced error surface. These languages do not offer good FFI bindings, and often require starting up a language runtime. We suspect that if we implement a C/C++/Rust client, future dynamic language libraries will be able to bind to the Rust client, allowing them to be written quickly and easily.
+Choosing to use Python or Ruby for this client would likely be considerably
+less work than C/C++ as there is a reduced error surface. These languages do
+not offer good FFI bindings, and often require starting up a language runtime.
+We suspect that if we implement a C/C++/Rust client, future dynamic language
+libraries will be able to bind to the Rust client, allowing them to be written
+quickly and easily.
 
 # Unresolved questions
 
-There are some concerns about integration testing. While we can use the mock `Pd` available in TiKV to mock PD, we do not currently have something similar for TiKV. We suspect implementing a mock TiKV will be the easiest method.
+There are some concerns about integration testing. While we can use the mock
+`Pd` available in TiKV to mock PD, we do not currently have something similar
+for TiKV. We suspect implementing a mock TiKV will be the easiest method.
 
