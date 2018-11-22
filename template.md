@@ -1,10 +1,13 @@
+<!-- 80 characters per line is preferred -->
+
 # Summary
 
 One para explanation of the proposal.
 
 # Motivation
 
-Why are we doing this? What use cases does it support? What is the expected outcome?
+Why are we doing this? What use cases does it support? What is the expected
+outcome?
 
 # Detailed design
 
@@ -21,7 +24,8 @@ Why should we not do this?
 # Alternatives
 
 - Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not choosing them?
+- What other designs have been considered and what is the rationale for not
+  choosing them?
 - What is the impact of not doing this?
 
 # Unresolved questions
