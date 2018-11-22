@@ -1,7 +1,7 @@
 # Summary
 
 Introduce a full featured, official TiKV (and PD) Rust client. It is intended
-to be used as a reference implementation, or to provide C-compatible binding
+to be used as a reference implementation, or to provide a C-compatible binding
 for future clients.
 
 # Motivation
