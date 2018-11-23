@@ -1,10 +1,10 @@
 # Summary
 
-Support `BatchSplit` feature that splits one Region into multiple Regions at a time if the size or the number of keys exceeds a threshold. This includes modifications of both TiKV and PD. For TiKV, every round of split-check produces multiple split keys instead of one and changes inner split related interface into batch style. For PD, add RPC `AskBatchSplit` and `ReportBatchSplit` to allow TiKV to ask for `region_id` and `peer_id` in batch.
+Support a `BatchSplit` feature that splits one Region into multiple Regions at a time if the size or the number of keys exceeds a threshold. This includes modifications of both TiKV and PD. For TiKV, every round of split-check produces multiple split keys instead of one and changes inner split related interface into batch style. For PD, add RPCs `AskBatchSplit` and `ReportBatchSplit` to allow TiKV to ask for `region_id` and `peer_id` in batch.
 
 # Motivation
 
-Current split only splits one Region at a time. It may be very slow when sequential write is too fast, namely, split speed can not keep up with write speed. Slow split can lead to large region. In this case, if a snapshot is triggered, it will occupy a lot of IO and make everything slow. Also, it is hard to schedule hotspots for a large Region, so it makes performance even worse.
+Current split only splits one Region at a time. It may be very slow when sequential write is too fast, namely, the split speed can not keep up with write speed. A slow split can lead to large region. In this case, if a snapshot is triggered, it will occupy a lot of I/O and make everything slow. Also, it is hard to schedule hotspots for a large Region, so it makes performance even worse.
 
 # Detailed design
 
