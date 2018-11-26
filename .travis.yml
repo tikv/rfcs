@@ -1,6 +1,10 @@
 language: minimal
+
+env:
+  - IGNORE_PAT="^\[.*\]:"
+
 script:
   - for f in text/*; do
-      fold -s $f | diff - $f ||
-        ( echo "Please wrap rfcs at 80 characters" && exit 1 );
+      grep -vE $IGNORE_PAT $f | fold -s | diff -I $IGNORE_PAT - $f ||
+        ( echo "Please wrap RFCs at 80 characters" && exit 1 );
     done
