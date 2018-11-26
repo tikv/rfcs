@@ -71,8 +71,8 @@ message SplitRequest {
 
 message BatchSplitRequest {
     repeated SplitRequest requests = 1;
-    // If true, the last region derive the origin region_id, 
-    // other regions use new ids.
+    // If true, the last Region obtains the origin region_id, 
+    // and other Regions use new Ids.
     bool right_derive = 2;
 }
 
@@ -102,17 +102,17 @@ message AdminResponse {
 }
 ```
 
-Add a new admin command type `BatchSplit`  with related request and response. `BatchSplitRequest` wraps multiple `SplitRequest` along with `right_derive` which invalidates the `right_derive` in each `SplitRequest`.
+Add a new admin command type `BatchSplit` with related request and response. `BatchSplitRequest` wraps multiple `SplitRequest` along with `right_derive` which invalidates the `right_derive` in each `SplitRequest`.
 
-When in rolling upgrade process, new TiKVs are mixed up with old TiKVs, so old command type `Split` still needs to be preserved.
+When in the rolling upgrade process, new TiKVs are mixed up with old TiKVs, so old command type `Split` still needs to be preserved.
 
 ## Implementation in TiKV
 
 ### How to produce multiple split keys
 
-This part mainly focus on `SplitChecker`. 
+This part mainly focuses on `SplitChecker`. 
 
-First of all, adjust trait to make it can return multiple split keys.
+First of all, adjust `trait` so that it can return multiple split keys.
 
 ```rust
 pub trait SplitChecker {
@@ -128,16 +128,16 @@ pub trait SplitChecker {
 
 Then add one config `batch_split_limit` to limit the number of produced split keys in a batch. If it is unlimited, for once split check, it scans all over the Region's range, and in some extreme case this would cause performance issue.
 
-Now we have four split-checkers: half, keys, size and table. SizeChecker and KeysChecker can be rewritten to produce multiple keys, and other checkers' logic stay unchanged. 
+Now we have four split-checkers: half, keys, size and table. SizeChecker and KeysChecker can be rewritten to produce multiple keys, and other checkers' logic stays unchanged. 
 
-The general logic of SizeChecker and KeysChecker are similiar, the only difference between them is one splits Region based on size and the other splits Region based on the number of keys. So here we mainly describe the logic of SizeChecker:
+The general logic of SizeChecker and KeysChecker are similar. The only difference between them is one splits Region based on size and the other splits Region based on the number of keys. So here we mainly describe the logic of SizeChecker:
 
-- before: it scans key-value pairs in a Region's range sequentially to accumlate their size as `total_size` and stops once the size reachs to `region_max_size` or scans to the end of range. If  `total_size` is smaller than `region_max_size` at the end, checker wouldn't produce any split key; if not, it regards the very key at which `total_size`  reachs to `region_split_size` as split key.
+- before: it scans key-value pairs in a Region's range sequentially to accumulate their size as `total_size` and stops once the size reaches `region_max_size` or scans to the end of the range. If `total_size` is smaller than `region_max_size` at the end, checker wouldn't produce any split key; if not, it regards the very key at which `total_size`  reaches `region_split_size` as split key.
 - after: it scans key-value pairs in a Region's range sequentially to accumulate their size as `total_size` and stops once the size reaches `region_split_size * (batch_split_limit-1) + region_max_size` or scans to the end of the range. During the scan process, it records the key as split key every `region_split_size`, but after finishing scanning, it may discard the last split key if the size of rest Region is not bigger than `region_max_size - region_split_size`. With this algorithm, if `batch_split_limit` is set to 1, TiKV can perfectly behave the same way as the split without batch.
 
 ### Compatibility concern
 
-The general process in raftstore changes a little, it mainly replaces `Split` with `BatchSplit`. But one thing should be noted, when rolling upgrade, PD version control will refuse `AskBatchSplit` request, thus split can't be performed during this process until all TiKV bump to new version. To let TiKV know whether `AskBatchSplit` fail for compatibility or not, we introduce a new error type for `ResponseHeader` :
+The general process in raftstore changes a little. It mainly replaces `Split` with `BatchSplit`. But one thing should be noted that during the rolling upgrade, PD version control will refuse the `AskBatchSplit` request, thus split can't be performed during this process until all TiKVs bump to a new version. To let TiKV know whether `AskBatchSplit` fails for compatibility or not, we introduce a new error type for `ResponseHeader`:
 
 ```protobuf
 enum ErrorType {
