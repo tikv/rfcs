@@ -130,33 +130,15 @@ old command type `Split` still needs to be preserved.
 
 ### How to produce multiple split keys
 
-This part mainly focuses on `SplitChecker`. 
+First introducing one config `batch_split_limit` to limit the number of produced 
+split keys in a batch. If it is unlimited, for a once split check, it scans all 
+over the Region's range, and in some extreme case, this would cause performance 
+issue.
 
-First of all, adjust `trait` so that it can return multiple split keys.
-
-```rust
-pub trait SplitChecker {
-    // ...
-    
-    // before: fn split_key(&mut self) -> Option<Vec<u8>>
-    fn split_keys(&mut self) -> Vec<Vec<u8>>;
-    
-    // before: fn approximate_split_key(&self, _: &Region, _: &DB) -> Result<Option<Vec<u8>>> 
-    fn approximate_split_keys(&self, _: &Region, _: &DB) -> Result<Vec<Vec<u8>>>;
-}
-```
-
-Then add one config `batch_split_limit` to limit the number of produced split 
-keys in a batch. If it is unlimited, for a once split check, it scans all over 
-the Region's range, and in some extreme case, this would cause performance issue.
-
-Now we have four split-checkers: half, keys, size, and table. SizeChecker and 
-KeysChecker can be rewritten to produce multiple keys, and other checkers' 
-logic stays unchanged. 
-
-The general logic of SizeChecker and KeysChecker are similar. The only 
-difference between them is one splits Region based on size and the other splits 
-Region based on the number of keys. So here we mainly describe the logic of 
+SizeChecker and KeysChecker can be rewritten to produce multiple keys, and the 
+general logic of SizeChecker and KeysChecker are similar. The only difference 
+between them is one splits Region based on size and the other splits Region 
+based on the number of keys. So here we mainly describe the logic of 
 SizeChecker:
 
 - before: it scans key-value pairs in a Region's range sequentially to 
