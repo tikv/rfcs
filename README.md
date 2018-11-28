@@ -23,6 +23,10 @@ stakeholders can be confident about the direction the project is evolving in.
 3. The PR is merged or closed when at least two project maintainers reach
    consensus.
 
+### Style of an RFC
+
+We should wrap line at 80 characters.
+
 ### License
 
 This content is licensed under Apachie License, Version 2.0,
