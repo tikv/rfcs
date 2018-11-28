@@ -35,8 +35,7 @@ service PD {
         option deprecated = true;
     }
     rpc AskBatchSplit(AskBatchSplitRequest) returns (AskBatchSplitResponse) {}
-    rpc ReportBatchSplit(ReportBatchSplitRequest) 
-            returns (ReportBatchSplitResponse) {}
+    rpc ReportBatchSplit(ReportBatchSplitRequest) returns (ReportBatchSplitResponse) {}
 }
 
 message AskBatchSplitRequest {
@@ -83,8 +82,7 @@ deprecated.
 ```protobuf
 message SplitRequest {
     // ...
-    // Will be ignored in batch split. Use `BatchSplitRequest::right_derive` 
-    // instead.
+    // Will be ignored in batch split. Use `BatchSplitRequest::right_derive` instead.
     bool right_derive = 4 [deprecated=true];
 }
 
@@ -143,10 +141,8 @@ pub trait SplitChecker {
     // before: fn split_key(&mut self) -> Option<Vec<u8>>
     fn split_keys(&mut self) -> Vec<Vec<u8>>;
     
-    // before: fn approximate_split_key(&self, _: &Region, _: &DB) 
-    // -> Result<Option<Vec<u8>>> 
-    fn approximate_split_keys(&self, _: &Region, _: &DB) -> 
-Result<Vec<Vec<u8>>> {
+    // before: fn approximate_split_key(&self, _: &Region, _: &DB) -> Result<Option<Vec<u8>>> 
+    fn approximate_split_keys(&self, _: &Region, _: &DB) -> Result<Vec<Vec<u8>>>;
 }
 ```
 
