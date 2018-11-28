@@ -33,9 +33,9 @@ linearizability.
 
 ## Local reader
 
-There are ReadDelegates (delegate) live in the local reader. Delegates are owned
-by Raft peers which live in the raftstore, they communicate via a channel, and
-share an atomic `LeaderLease`.
+The local reader uses ReadDelegates (delegate) to handle requests. Every
+delegate is owned by a Raft peer which belongs to the raftstore, they
+communicate via a channel, and each pair of them shares an atomic `LeaderLease`.
 
 A peer can do local read as long as it holds the following conditions (only list
 the most important):
