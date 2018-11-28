@@ -9,9 +9,9 @@ interface into batch style. For PD, add RPCs `AskBatchSplit` and
 
 # Motivation
 
-Current split only splits one Region at a time. It may be very slow when 
-sequential write is too fast, namely, the split speed can not keep up with 
-write speed. A slow split can lead to large region. In this case, if a snapshot 
+Current split only splits one Region at a time. It may be very slow when a 
+sequential write is too fast, namely, the split speed cannot keep up with 
+write speed. A slow split can lead to large Regions. In this case, if a snapshot 
 is triggered, it will occupy a lot of I/O and make everything slow. Also, it is 
 hard to schedule hotspots for a large Region, so it makes performance even 
 worse.
@@ -147,10 +147,10 @@ pub trait SplitChecker {
 ```
 
 Then add one config `batch_split_limit` to limit the number of produced split 
-keys in a batch. If it is unlimited, for once split check, it scans all over 
-the Region's range, and in some extreme case this would cause performance issue.
+keys in a batch. If it is unlimited, for a once split check, it scans all over 
+the Region's range, and in some extreme case, this would cause performance issue.
 
-Now we have four split-checkers: half, keys, size and table. SizeChecker and 
+Now we have four split-checkers: half, keys, size, and table. SizeChecker and 
 KeysChecker can be rewritten to produce multiple keys, and other checkers' 
 logic stays unchanged. 
 
@@ -168,9 +168,9 @@ as split key.
 - after: it scans key-value pairs in a Region's range sequentially to 
 accumulate their size as `total_size` and stops once the size reaches 
 `region_split_size * (batch_split_limit-1) + region_max_size` or scans to the 
-end of the range. During the scan process, it records the key as split key 
+end of the range. During the scan process, it records the key as a split key 
 every `region_split_size`, but after finishing scanning, it may discard the 
-last split key if the size of rest Region is not bigger than `region_max_size - 
+last split key if the size of the rest is not bigger than `region_max_size - 
 region_split_size`. With this algorithm, if `batch_split_limit` is set to 1, 
 TiKV can perfectly behave the same way as the split without batch.
 
@@ -207,7 +207,7 @@ calculated from SST properties. Although it may not be accurate enough, it's
 okay for a large Region.
 
 So if the size of Region is larger than `region_max_size * batch_split_limit * 
-2`, TiKV uses approximate way to produce split keys. The approximate way is 
+2`, TiKV uses an approximate way to produce split keys. The approximate way is 
 quite similar to the algorithm we describe above, but to estimate TiKV uses 
 approximate size of the Region and the number of keys in the Region's range to 
 calculate the average distance between two SST property keys, and produces a 
