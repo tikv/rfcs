@@ -34,8 +34,9 @@ linearizability.
 ## Local reader
 
 The local reader uses ReadDelegates (delegate) to handle requests. Every
-delegate is owned by a Raft peer which belongs to the raftstore, they
-communicate via a channel, and each pair of them shares an atomic `LeaderLease`.
+delegate is owned by a Raft peer which belongs to the raftstore. The delegate
+and the peer communicate via a channel, and each pair of them shares an atomic
+`LeaderLease`.
 
 A peer can do local read as long as it holds the following conditions (only list
 the most important):
@@ -84,8 +85,9 @@ them can be resolved by expiring atomic `LeaderLease`.
 Local reader is blocked before taking the snapshot while the leadership has
 changed.
 
-It is addressed by expiring the leader lease so the request failed lease check
-after reading.
+It is addressed by expiring the leader lease. After reading, it will be checked
+whether the lease is outdated. If yes, the reading results will not be returned
+back.
 
 ### Case 2
 
