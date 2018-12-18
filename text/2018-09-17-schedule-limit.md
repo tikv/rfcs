@@ -45,7 +45,7 @@ As shown in the figure, the biggest change is the introduction of the _waitingOp
 
 ## Evaluating operator affect
 
-Schedule operators are consisted of operator steps. The effect of an operator on the cluster can be calculated as the sum of the effects of all steps. There several types of operator steps:
+Schedule operators consist of operator steps. The effect of an operator on the cluster can be calculated as the sum of the effects of all steps. There are several types of operator steps:
 
 * TransferLeader
 * AddPeer
