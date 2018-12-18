@@ -61,7 +61,7 @@ Of course, the overhead of different types of operator are different. We can ass
 
 ## How to promote waiting operators
 
-Given a MaxScheduleCost configuration (say 20), when the coordinator promotes an operator, it need to guarantee that if we add all the schedule cost in the _runningOperators_, the total cost of any store will not exceed the configured value.
+Given a MaxScheduleCost configuration (say 20), when the coordinator promotes an operator, it needs to guarantee that if we add all the schedule cost in the _runningOperators_, the total cost of any store will not exceed the configured value.
 
 If the first operator in the waiting queue makes a store overload, it will wait until the conflicting operator finishes or times out before it can be moved to  _runningOperators_.
 
