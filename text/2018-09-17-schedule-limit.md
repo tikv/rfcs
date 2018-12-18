@@ -69,7 +69,7 @@ In order to improve efficiency of executing, when a non-first operator does not 
 
 ## How to ensure fair competition between different schedulers
 
-This is actually quite straightforward. We only need to limit the amount of generated operators by each scheduler in the _waitingOperators_ queue. For example, up to 3 operators from a same scheduler.
+This is actually quite straightforward. We only need to limit the number of generated operators by each scheduler in the _waitingOperators_ queue. For example, up to 3 operators from a same scheduler.
 
 Only when an old operator is moved into the _runningOperators_, the corresponding scheduler will have the opportunity to insert more operators into _waitingOperators_. This strategy not only ensures fairness between different schedulers, but also encourages schedulers to generate non-conflicting operators, thus reducing the impact on cluster performance.
 
