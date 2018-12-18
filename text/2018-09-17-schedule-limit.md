@@ -83,7 +83,7 @@ There is only 1 important configuration for basic usage:
 
     The maximum summary of cost of running operators for each store. 
 
-We can also allow to customize following configurations to better fit special needs. (Tests are needed to decide if each of them is worth making configurable)
+We can also allow to customize following configurations to better fit special needs. (Tests are needed to decide if each of them is worth being made configurable)
 
 * StoreMaxScheduleCost
 
