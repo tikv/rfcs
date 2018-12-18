@@ -33,7 +33,7 @@ This scheme is not good in these aspects:
 * Fixed limit configuration does not apply to clusters of different sizes
 * The preemption strategy between different schedulers is not fair enough
 * Scheduling is often concentrated on a small number of tikv-servers, which leads to slow scheduling sometimes and may affect the latency of tikv (we do consider snapshot count, but this statistic is reported after tikv receives the scheduling request)
-* Rely on schedulers correctly checking limit to ensure limit config not been violated -- hotbed of bugs. See [#1193](https://github.com/pingcap/pd/pull/1193) [#1155](https://github.com/pingcap/pd/pull/1155)
+* Rely on schedulers correctly checking limit to ensure the limit configuration has not been violated -- hotbed of bugs. See [#1193](https://github.com/pingcap/pd/pull/1193) [#1155](https://github.com/pingcap/pd/pull/1155)
 
 # Detailed design
 
