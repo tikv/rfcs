@@ -63,7 +63,7 @@ Of course, the overhead of different types of operator are different. We can ass
 
 Given a MaxScheduleCost configuration (say 20), when the coordinator promotes an operator, it need to guarantee that if we add all the schedule cost in the _runningOperators_, the total cost of any store will not exceed the configured value.
 
-If the first operator in the waiting queue will make a store overload, it will wait until the conflicting operator finishes or times out before it can be moved to the _runningOperators_.
+If the first operator in the waiting queue makes a store overload, it will wait until the conflicting operator finishes or times out before it can be moved to  _runningOperators_.
 
 In order to improve efficiency of executing, when a non-first operator does not conflict with any operator in front of it, it can be moved to _runningOperators_ too.
 
