@@ -103,7 +103,7 @@ We can also allow to customize following configurations to better fit special ne
 
 # Drawbacks
 
-The migration from the old way to the new scheme has a certain cost, involves the update of the deployment script, and compatibility with the old cluster configuration in the future.
+The migration from the old way to the new scheme has a certain cost, involving the update of the deployment script and compatibility with the old cluster configuration in the future.
 
 # Alternatives
 
