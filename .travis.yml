@@ -1,10 +1,6 @@
-language: minimal
-
-env:
-  - IGNORE_PAT="^\[.*\]:"
-
+language: node_js
+node_js:
+  - 10
+cache: npm
 script:
-  - for f in text/*; do
-      grep -vE $IGNORE_PAT $f | fold -s | diff -I $IGNORE_PAT - $f ||
-        ( echo "Please wrap RFCs at 80 characters" && exit 1 );
-    done
+  - npm run lint

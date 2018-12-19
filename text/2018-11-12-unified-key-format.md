@@ -1,11 +1,13 @@
-# Summary
+# Unified Key Format
+
+## Summary
 
 This RFC proposes a new unified and human readable format for keys. All TiDB
 software stack components (e.g. TiDB, TiKV, pd-ctl, tikv-ctl, ...) *must* follow
 this new format when printing out keys and accepting keys from user input like
 command line parameters.
 
-# Motivation
+## Motivation
 
 Currently we have multiple human readable formats for keys:
 
@@ -59,7 +61,7 @@ all TiDB software stack components, which provides these feature:
 
 - No multi-byte characters after encoding to avoid encoding issues.
 
-# Detailed Design
+## Detailed Design
 
 This RFC proposes to use hex format like
 `74000000000000001C5F7200000000000000FA` as unified a human readable format for
@@ -155,15 +157,15 @@ In hex format, we are not able to easily recognize special parts like `t`, `_r`
 and `_i`. This can be solved by other utility functions that further operates on
 this key format, or just memorizing the hex representation of these magic bytes.
 
-# Drawbacks
+## Drawbacks
 
 - We need to memorize hex representation of magic bytes, or implement additional
-helper tools.
+  helper tools.
 
 - It is not compatible with current formats and we need to write format
   converters.
 
-# Alternatives
+## Alternatives
 
 Other binary-to-text encodings like Base64, Percent-Encoding and punycode are
 investigated.
@@ -180,7 +182,7 @@ it becomes impossible to just do simple `grep` when searching for key existance
 in logs. This means that we must define and implement our own Percent-Encoding
 derivative, which is more complicated than current solution.
 
-# Unresolved questions
+## Unresolved questions
 
 None.
 
