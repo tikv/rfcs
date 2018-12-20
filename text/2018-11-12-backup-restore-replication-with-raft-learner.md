@@ -136,9 +136,9 @@ restore.
 
 For a Region, if we get a snapshot file and its following Raft logs, we can
 first apply the snapshot, and then apply the Raft logs in order, and the Region
-will have the consistent data eventually. We name this flow Replay later.
+will have the consistent data eventually. We name this flow *Replay* later.
 
-But here we must consider the Replay order of different Regions. For example,
+But here we must consider the *Replay* order of different Regions. For example,
 we have Region 1 and 2, and 2 is created through a Spit command in the logs of
 Region 1 at index 100.
 
@@ -169,12 +169,12 @@ before Region 1.
 
 Assume the command in the log 1 of Region 2 is `SET b = 10`, but the command in
 the log 11 of Region 1 is `SET b = 9`. So if Region 2 is replayed first, the
-`b` will have a wrong value. To solve this problem, we need to build a Replay
+`b` will have a wrong value. To solve this problem, we need to build a *Replay*
 order, the implementation may be easy - just to record the event.
 
 For Split 1 -> 2 + 1, Region 2 must record a event that `Region 2 is split from
-Region 1 at index 100`. When Region 2 wants to replay, it finds that - “oh,
-Region 1 hasn’t applied to 100 yet, so let’s wait”.
+Region 1 at index 100`. When Region 2 wants to replay, it finds that - "oh,
+Region 1 hasn’t applied to 100 yet, so let’s wait".
 
 For merge 1 + 2 -> 1, Region 1 must also persist the similar event, and it must
 wait for Region 2's replaying and then starts to replay later.
@@ -184,9 +184,9 @@ when we meet Split, Merge, or other Admin commands because we have no way to
 recover the cluster with only replaying Raft logs. Sync can cause latency
 increase sometimes, so removing this can help us increase the performance.
 
-So for restore, we need to first build the Replay tree (of course, there must
+So for restore, we need to first build the *Replay* tree (of course, there must
 be some problems when we start to do this) and replay the Regions concurrently
-or in order. This may be similar to lightning. We can create the Region
+or in order. This may be similar to *Lightning* (by PingCAP). We can create the Region
 directly in the new cluster, ingest the snapshot to that Region, and then add
 the following logs. After doing this, the Region can itself apply the logs and
 reach a consistency. For better performance, we can let the new leader fetch
@@ -207,7 +207,7 @@ node resume the replication easily.
 
 As you can see, there is one Backup node in the design, this may become the
 bottleneck. The snapshot transportation or log replication may occupy the whole
-network of this node. Another problem is whether the single node can handle too
+network of this node. Another problem is whether the single node can handle so
 many Regions.
 
 To solve this problem, maybe we can use multi Backup nodes, each node is
@@ -222,9 +222,9 @@ send a Scan command to the Raft leaders and let them scan the data of the
 snapshot. After we get all the data of Regions, we can use lightning to restore
 the cluster.
 
-I think this can work well but has some problems:
+This can possibly work well but has some problems:
 
-1. This will cause a high load for the current running cluster. And if we want
+1. This will cause a high load for the current running cluster, and if we want
    to limit the backup speed, the backup time may take a long time which
    definitely increases the pressure of RocksDB because of too old snapshot.
 2. We can’t do the backup frequently. But for the above Backup node way, we
