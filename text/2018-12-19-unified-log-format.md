@@ -1,4 +1,4 @@
-# Unified Key Format
+# Unified Log Format
 
 ## Summary
 
@@ -27,7 +27,11 @@ The Log Header Section is in the following format:
 ```
 
 - `date_time`: The human readable time that the log line is generated in the
-  local time zone, in the format `YYYY/MM/dd HH:mm:ss.SSS ZZ`.
+  local time zone in the format `YYYY/MM/dd HH:mm:ss.SSS Z`.
+
+   Note that this time format is written using [momentjs format tokens](http://momentjs.com/docs/#/displaying/format/).
+   Different chrono libraries use different tokens and implementations should
+   use equivalent format tokens accordingly.
 
    Sample: `2018/12/15 14:20:11.015 +08:00`
 
@@ -37,7 +41,7 @@ The Log Header Section is in the following format:
    Sample: `WARN`
 
 - `source_file`: The source file name that generates the log line. Only
-  characters matching the regular express `[a-zA-Z0-9\.-_]` are permitted and
+  characters matching the regular expression `[a-zA-Z0-9\.-_]` are permitted and
   other characters should be removed.
 
    Sample: `endpoint.rs`
