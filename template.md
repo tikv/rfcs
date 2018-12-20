@@ -1,12 +1,15 @@
-# Summary
+# Title
+
+## Summary
 
 One para explanation of the proposal.
 
-# Motivation
+## Motivation
 
-Why are we doing this? What use cases does it support? What is the expected outcome?
+Why are we doing this? What use cases does it support? What is the expected
+outcome?
 
-# Detailed design
+## Detailed design
 
 This is the bulk of the RFC. Explain the design in enough detail that:
 
@@ -14,16 +17,17 @@ This is the bulk of the RFC. Explain the design in enough detail that:
 - Corner cases are dissected by example.
 - How the feature is used.
 
-# Drawbacks
+## Drawbacks
 
 Why should we not do this?
 
-# Alternatives
+## Alternatives
 
 - Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not choosing them?
+- What other designs have been considered and what is the rationale for not
+  choosing them?
 - What is the impact of not doing this?
 
-# Unresolved questions
+## Unresolved questions
 
 What parts of the design are still to be determined?
