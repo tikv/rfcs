@@ -84,7 +84,7 @@ several types of operator steps:
 * _MergeRegion_
 * _SplitRegion_
 
-Obviously, these steps only affect a subset of all `tikv-server`s -- not the
+These steps only affect a subset of all `tikv-server`s -- not the
 entire cluster. For example, _TransferLeader_ can only affect the original and
 the new leader of the region. _AddLearner_ can affect the store to add the
 learner and the leader of the region.
