@@ -173,4 +173,4 @@ degree of the system.
 ## Unresolved questions
 
 The arbitrarily determined step cost may not correctly reflect the scheduling
-overhead, we need to test to verify that it is appropriate.
+overhead, so we need to test to verify that it is appropriate.
