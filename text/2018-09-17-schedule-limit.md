@@ -89,7 +89,7 @@ entire cluster. For example, _TransferLeader_ can only affect the original and
 the new leader of the region. _AddLearner_ can affect the store to add the
 learner and the leader of the region.
 
-Of course, the overhead of different types of operator are different. We can
+The overhead of different types of operator are different. We can
 assign different cost values to them based on experience. For example, we can
 arbitrarily set the cost of _TransferLeader_ to 1, the cost of _RemovePeer_ to
 2, and the cost of _AddLearner_ to 5 (leader) and 8 (new peer).
