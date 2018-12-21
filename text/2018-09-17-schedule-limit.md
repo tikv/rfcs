@@ -18,21 +18,21 @@ concurrently running operators:
 
 * _leader-schedule-limit_
 
-    Controls the number of operators scheduling region leaders at the same
+    Controls the number of operators scheduling Region leaders at the same
     time.
 
 * _region-schedule-limit_
 
-    Controls the number of operators scheduling region peers at the same time.
+    Controls the number of operators scheduling Region peers at the same time.
 
 * _replica-schedule-limit_
 
-    Controls the number of operators scheduling region replicas at the same
+    Controls the number of operators scheduling Region replicas at the same
     time.
 
 * _merge-schedule-limit_
 
-    Controls the number of region merge operators at the same time.
+    Controls the number of Region merge operators at the same time.
 
 ![Old schedule limit scheme](../media/schedule-limit-old.png)
 
@@ -86,8 +86,8 @@ several types of operator steps:
 
 These steps only affect a subset of all `tikv-server`s -- not the
 entire cluster. For example, _TransferLeader_ can only affect the original and
-the new leader of the region. _AddLearner_ can affect the store to add the
-learner and the leader of the region.
+the new leader of the Region. _AddLearner_ can affect the store to add the
+learner and the leader of the Region.
 
 The overhead of different types of operator are different. We can
 assign different cost values to them based on experience. For example, we can
@@ -121,7 +121,7 @@ _waitingOperators_. This strategy not only ensures fairness between different
 schedulers, but also encourages schedulers to generate non-conflicting
 operators, thus reducing the impact on cluster performance.
 
-As before, if different schedulers generate operators of a same region, the
+As before, if different schedulers generate operators of a same Region, the
 later one is rejected directly. Dropping the later operator when it is about
 to promote is also an option.
 
