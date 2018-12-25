@@ -13,10 +13,10 @@ later.
 
 ## Detailed Design
 
-A TiDB Log Format file contains a sequence of *lines* containing Unicode
-characters in UTF-8 encoding terminated by either the sequence LF or CRLF. Each
-line contains a *Log Header Section*, a *Log Fields Section* and a
-*Log Message Section*, concatenated by one whitespace character U+0020 (SPACE).
+A TiDB Log Format file contains a sequence of *lines* containing UTF-8
+characters terminated by either the sequence LF or CRLF. Each line contains a
+*Log Header Section* and a *Log Fields Section*, concatenated by one whitespace
+character U+0020 (SPACE).
 
 ### Log Header Section
 
@@ -41,8 +41,8 @@ The Log Header Section is in the following format:
    Sample: `WARN`
 
 - `source_file`: The source file name that generates the log line. Only
-  characters matching the regular expression `[a-zA-Z0-9\.-_]` are permitted and
-  other characters should be removed.
+  UTF-8 characters matching the regular expression `[a-zA-Z0-9\.-_]` are
+  permitted and other characters should be removed.
 
    Sample: `endpoint.rs`
 
@@ -74,10 +74,12 @@ Each Log Field is in the following format:
 [field_key=field_value]
 ```
 
-Log Field key and value must be strings. If types other than string is provided,
-it must be converted to string.
+Log Field key and value must be valid UTF-8 strings.
 
-When one of the following Unicode characters exists in the field key or field
+- If types other than string is provided, it must be converted to string.
+- If string in other encoding is provided, it must be converted to UTF-8.
+
+When one of the following UTF-8 characters exists in the field key or field
 value, field key or field value should be JSON string encoded:
 
 - U+0000 (NULL) ~ U+0020 (SPACE)
@@ -89,12 +91,14 @@ value, field key or field value should be JSON string encoded:
 Log Field sample:
 
 ```text
+[msg="Hello World"]
 [region_id=1]
 ["user name"=foo]
 [sql="SELECT * FROM TABLE\nWHERE ID=\"abc\""]
 [duration=1.345s]
 [client=192.168.0.123:12345]
 [txn_id=123000102231]
+[type=slow_log]
 ```
 
 Log Fields Section sample:
@@ -103,43 +107,88 @@ Log Fields Section sample:
 [region_id=1] [peer_id=14] [duration=1.345s] [sql="insert into t values (\"]This should not break log parsing!\")"]
 ```
 
-### Log Message Section
-
-The Log Message Section contains an additional log message, which is usually
-invariable at the output place. The following Unicode characters are replaced
-by U+0020 (SPACE) from the log message to prevent line break:
-
-- U+000A (LINE FEED (LF))
-- U+000D (CARRIAGE RETURN (CR))
-
-In addition, the log message must not start with U+005B (LEFT SQUARE BRACKET)
-in order to be differentiated from the Log Fields Section. This specification
-suggests to prepend a tab character U+0009 (CHARACTER TABULATION) when there is
-a leading U+005B character.
-
 ### Samples
 
 #### Log line without Log Fields
 
 ```text
-[2018/12/15 14:20:11.015 +08:00] [INFO] [tikv-server.rs:13] TiKV Started
+[2018/12/15 14:20:11.015 +08:00] [INFO] [tikv-server.rs:13]
 ```
 
-#### Log line with unknown source and simple Log Fields
+This is allowed but should be avoided, since it provides no information.
+
+#### Log line with an unknown source and simple Log Fields
 
 ```text
-[2013/01/05 00:01:15.000 -07:00] [WARN] [<unknown>] [ddl_job_id=1] [duration=1.3s] DDL Job finished
+[2013/01/05 00:01:15.000 -07:00] [WARN] [<unknown>] [event=ddl_job_finish] [ddl_job_id=1] [duration=1.3s]
 ```
 
 #### Log line with JSON encoded Log Fields
 
 ```text
-[2018/12/15 14:20:11.015 +08:00] [WARN] [session.go:1234] [sql="SELECT * FROM TABLE\nWHERE ID=\"abc\""] [duration=1.345s] [client=192.168.0.123:12345] [txn_id=123000102231] Slow query
+[2018/12/15 14:20:11.015 +08:00] [WARN] [session.go:1234] [event=slow_query] [sql="SELECT * FROM TABLE\nWHERE ID=\"abc\""] [duration=1.345s] [client=192.168.0.123:12345] [txn_id=123000102231] [msg="Slow query"]
 ```
 
 ```text
-[2018/12/15 14:20:11.015 +08:00] [FATAL] [panic_hook.rs:45] [stack="   0: std::sys::imp::backtrace::tracing::imp::unwind_backtrace\n             at /checkout/src/libstd/sys/unix/backtrace/tracing/gcc_s.rs:49\n   1: std::sys_common::backtrace::_print\n             at /checkout/src/libstd/sys_common/backtrace.rs:71\n   2: std::panicking::default_hook::{{closure}}\n             at /checkout/src/libstd/sys_common/backtrace.rs:60\n             at /checkout/src/libstd/panicking.rs:381"] [message="thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 99"] TiKV panic
+[2018/12/15 14:20:11.015 +08:00] [FATAL] [panic_hook.rs:45] [event=panic] [stack="   0: std::sys::imp::backtrace::tracing::imp::unwind_backtrace\n             at /checkout/src/libstd/sys/unix/backtrace/tracing/gcc_s.rs:49\n   1: std::sys_common::backtrace::_print\n             at /checkout/src/libstd/sys_common/backtrace.rs:71\n   2: std::panicking::default_hook::{{closure}}\n             at /checkout/src/libstd/sys_common/backtrace.rs:60\n             at /checkout/src/libstd/panicking.rs:381"] [message="thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 99"] [msg="TiKV panic"]
 ```
+
+### Note for Non-UTF-8 Characters
+
+Similar to JSON specification, this RFC stipulates that all output characters
+must be valid UTF-8 character sequences. Non-UTF-8 characters are not supported.
+It's up to the logging framework or framework users to determine what to do when
+there are non-UTF-8 characters. This RFC only provides some advice for different
+scenarios here.
+
+#### Logging Framework
+
+The logging framework is recommended to accept only UTF-8 characters at the
+interface level, i.e. use `str` in Rust language. In this way, the
+responsibility of avoiding non-UTF-8 characters is left to the framework user.
+
+For languages that do not provide such facilities, it is recommended that the
+logging framework should replace invalid UTF-8 character sequences with
+U+FFFD (REPLACEMENT CHARACTER), which looks like this: �. Notice that this is a
+lossy operation.
+
+#### Framework Users: Binary Fields
+
+Some fields are just likely to contain invalid UTF-8 characters, for example,
+the region start key and region end key. In such scenario, the application is
+recommended to do customized encoding before passing the field to the logging
+framework. For example, there is already an RFC that required keys to be encoded
+in hex format when outputting to logs.
+
+#### Framework Users: Unknown User-Input Fields
+
+Some field content comes from user input, i.e. the SQL expression. The logging
+framework user may not be able to ensure that the field content is a valid UTF-8
+string. In such scenario, this RFC provides two candidate solutions:
+
+- Lossy: Replacing invalid UTF-8 character sequences with U+FFFD
+  (REPLACEMENT CHARACTER)
+
+- Lossless: Performing customized escaping (i.e. Golang quoting) that converts
+  invalid UTF-8 character sequences to something else but also allows
+  converting back.
+
+### Note for Descriptive Fields
+
+It is recommended to have at least one descriptive field (i.e. field that
+describes what kind of log it is) named as `msg` for each log line. In addition,
+descriptive fields should be printed before other fields so that users can
+easily understand the logging purpose when reading log files.
+
+This facility can be provided by the logging framework, i.e. having a mandatory
+parameter `msg` served as this purpose.
+
+### Note for Large Fields
+
+This RFC does not limit the key or value length of fields. However usually long
+content (i.e. > 1KB) is not friendly for log storing or log parsing and is
+likely to cause issues. It's up to logging framework users to decide whether or
+not these long content should be avoided.
 
 ## Drawbacks
 
