@@ -4,34 +4,34 @@ At the time read requests are handled by a single thread named raftstore, which
 also handles write requests and other tasks. This RFC proposes introducing a new
 thread named local reader, for separating read requests from the raftstore.
 
-# Motivation
+## Motivation
 
 There are three major workloads for the raftstore:
 
- - Handle read requests: CPU intensive.
- - Handle write requests: I/O intensive.
- - Drive Raft state machines: CPU intensive.
+- Handle read requests: CPU intensive.
+- Handle write requests: I/O intensive.
+- Drive Raft state machines: CPU intensive.
 
 For read requests, TiKV takes a snapshot of the underlying RocksDB when a Raft
 leader is in its lease. Read requests are lightweight and the raftstore can
 handle them fast. However, due to the single-threaded character of the
 raftstore, read requests may be blocked by other workloads. E.g.,
 
- - Read QPS drops while write requests get more, and the raftstore spends more
-   time in writing Raft logs.
- - Read QPS drops while the Regions number grows, and the raftstore spends more
-   time in driving Raft state machines.
+- Read QPS drops while write requests get more, and the raftstore spends more
+  time in writing Raft logs.
+- Read QPS drops while the Regions number grows, and the raftstore spends more
+  time in driving Raft state machines.
 
 By having a dedicated thread for read requests, we can separate read requests
 from other workloads and address above issues. TiKV can get better performance
 and lower latency on read most workload.
 
-# Detailed design
+## Detailed design
 
 The local reader offloads read requests from the raftstore and guarantee
 linearizability.
 
-## Local reader
+### Local reader
 
 The local reader uses ReadDelegates (delegate) to handle requests. Every
 delegate is owned by a Raft peer which belongs to the raftstore. The delegate
@@ -41,16 +41,16 @@ and the peer communicate via a channel, and each pair of them shares an atomic
 A peer can do local read as long as it holds the following conditions (only list
 the most important):
 
- - It’s a Raft leader;
- - Its applied index’s term matches its current term;
- - It has a valid leader lease.
+- It’s a Raft leader;
+- Its applied index’s term matches its current term;
+- It has a valid leader lease.
 
 Before reading, a delegate checks the above conditions too. After reading is
 done, it performs an extra lease check, because read operations have to be done
 in a valid leader lease to guarantee linearizability. If a delegate fails these
 checks, it redirects read requests to the raftstore.
 
-## LeaderLease
+### LeaderLease
 
 `LeaderLease` is a state shared by the local reader and the raftstore. It is
 critical to implement local reader correctly. When a leader peer steps down,
@@ -59,19 +59,19 @@ which violates linearizability. The shared `LeaderLease` is implemented by an
 atomic variable, so a delegate observes leadership change immediately and stops
 handling read requests.
 
-## What requests can it handle?
+### What requests can it handle
 
 The section specifies the requests that the local reader can handle. There are
 three types of message defined in the [raft_cmdpb.proto].
 
- - Request
- - AdminRequest
- - StatusRequest
+- Request
+- AdminRequest
+- StatusRequest
 
 The local reader can only handle a subset of `Request`, that is
 
- - GetRequest
- - SnapRequest
+- GetRequest
+- SnapRequest
 
 As for other requests, it either redirects or panics on other requests.
 
@@ -97,18 +97,18 @@ new Region is elected on other TiKV.
 
 It is addressed by expiring the original leader lease before split is done.
 
-# Drawbacks
+## Drawbacks
 
 Keeping state synced correctly between peers and delegates is difficult. We must
 pay close attention to leader lease expiration if we want to make change to
 Raft.
 
-# Alternatives
+## Alternatives
 
 None that are immediately obvious. There must be some execution entity to handle
 requests if we want to separate read requests from the raftstore.
 
-# Unresolved questions
+## Unresolved questions
 
 None.
 
