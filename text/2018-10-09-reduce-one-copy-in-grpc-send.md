@@ -1,34 +1,38 @@
-# Summary
+# Reduce One Copy in gRPC Send
+
+## Summary
 
 Reduce one data copy in the process of sending messages in grpcio.
 This is not a new feature but an optimization.
 
-# Motivation
+## Motivation
 
 In pingcap/grpc-rs (which is named [`grpcio`](https://docs.rs/crate/grpcio/)
 on crates.io), we can call gRPC's core API to send data.
 In our old implementation, the whole process is:
 
-0. User code produces the data to be sent (particularly, the protobuf library's
+1. User code produces the data to be sent (particularly, the protobuf library's
    deserialization) -- a list of `&[u8]` in a call-back
-0. The data get copied into a `Vec<u8>`. For the protobuf library, this is done
+2. The data get copied into a `Vec<u8>`. For the protobuf library, this is done
    internally (**copy 0**)
-  ```rust
-  pub fn bin_ser(t: &Vec<u8>, buf: &mut Vec<u8>) {
-    buf.extend_from_slice(t)
-  }
-  ```
-0. We create a `grpc_slice` (a ref-counted single string) by copying the
+
+   ```rust
+   pub fn bin_ser(t: &Vec<u8>, buf: &mut Vec<u8>) {
+     buf.extend_from_slice(t)
+   }
+   ```
+
+3. We create a `grpc_slice` (a ref-counted single string) by copying the
    `Vec<u8>` mentioned above (**copy 1**)
-0. We create a `grpc_byte_buffer` (a ref-counted list of strings) from only
+4. We create a `grpc_byte_buffer` (a ref-counted list of strings) from only
    one `grpc_slice`
-0. Send data
+5. Send data
 
 In total, we copy the data twice. The first copy is unnecessary.
 
-# Detailed design
+## Detailed design
 
-## Basic concepts
+### Basic concepts
 
 First, due to Rust and C have different naming conventions:
 
@@ -37,13 +41,13 @@ First, due to Rust and C have different naming conventions:
 
 So don't be confused by the naming difference.
 
-## Changes
+### Changes
 
 After this refactoring,
 
-0. User code produces the data to be sent (particularly, the protobuf library's
+1. User code produces the data to be sent (particularly, the protobuf library's
    deserialization) -- a list of `&[u8]`
-0. We copy each produced `&[u8]` into `GrpcSlice`s collect them into a
+2. We copy each produced `&[u8]` into `GrpcSlice`s collect them into a
    `GrpcByteBuffer` wrapper (**copy 0**)
     ```rust
     pub fn push(&mut self, slice: GrpcSlice) {
@@ -52,7 +56,7 @@ After this refactoring,
         }
     }
     ```
-0. We take the raw C struct pointer in `GrpcByteBuffer` away and pass it
+3. We take the raw C struct pointer in `GrpcByteBuffer` away and pass it
    directly into the send functions
     ```rust
     pub unsafe fn take_raw(&mut self) -> *mut grpc_sys::GrpcByteBuffer {
@@ -62,7 +66,7 @@ After this refactoring,
     }
     ```
 
-# Drawbacks
+## Drawbacks
 
 This is purely an optimization, no drawbacks.
 The reason why still one copy:
@@ -73,12 +77,12 @@ The reason why still one copy:
 + We either need to extend the Rust objects' lifetime or do a copy (see
   alternatives section)
 
-# Unresolved questions
+## Unresolved questions
 
 Actuallty it's possible to extend Rust objects' lifetime.
 This can achieve real zero-copy.
 
-## Zero copy
+### Zero copy
 
 The basic idea is, extend the data's lifetime by moving it into our context
 object which is destroyed automatically when one send is complete.
