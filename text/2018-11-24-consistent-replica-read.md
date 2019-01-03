@@ -58,14 +58,14 @@ other logic remains the smase as before
 
 ### ReadIndex API
 
-In order to let the AP engine read data the same as *Consistent Replica Read.
-TiKV will provide a special API, which response to the request with the latest
+In order to let the AP engine read data the same as *Consistent Replica Read*.
+TiKV will provide a special API, which responds to the request with the latest
 `CommitIndex`. AP engine may need to handle the request same as described above.
 
 ## Drawbacks
 
-*Consistent Replica Reading* will be slightly slower than leader reading.
-because of the extra RPC, so it's more useful for the heavy read request.
+*Consistent Replica Reading* will be slightly slower than leader reading which
+is caused by the extra RPC. It's more useful for the heavy read request.
 
 ## Alternatives
 
