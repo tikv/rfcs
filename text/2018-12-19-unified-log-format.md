@@ -15,8 +15,8 @@ later.
 
 A TiDB Log Format file contains a sequence of *lines* containing UTF-8
 characters terminated by either the sequence LF or CRLF. Each line contains a
-*Log Header Section* and a *Log Fields Section*, concatenated by one whitespace
-character U+0020 (SPACE).
+*Log Header Section*, a *Log Message Section* and a *Log Fields Section*,
+concatenated by one whitespace character U+0020 (SPACE).
 
 ### Log Header Section
 
@@ -58,7 +58,32 @@ Log Header Section sample:
 
 ```text
 [2018/12/15 14:20:11.015 +08:00] [INFO] [kv.rs:145]
+```
+
+```text
 [2013/01/05 00:01:15.000 -07:00] [ERROR] [<unknown>]
+```
+
+### Log Message Section
+
+The Log Message Section contains a customized message describing the log line in
+the following format:
+
+```text
+[message]
+```
+
+Message must be valid a UTF-8 string and follows the same encoding rule for
+field key and field value (see Log Fields Section).
+
+Log Message Section sample:
+
+```text
+[my_custom_message]
+```
+
+```text
+["Slow Query"]
 ```
 
 ### Log Fields Section
@@ -91,14 +116,23 @@ value, field key or field value should be JSON string encoded:
 Log Field sample:
 
 ```text
-[msg="Hello World"]
 [region_id=1]
+```
+
+```text
 ["user name"=foo]
+```
+
+```text
 [sql="SELECT * FROM TABLE\nWHERE ID=\"abc\""]
+```
+
+```text
 [duration=1.345s]
+```
+
+```text
 [client=192.168.0.123:12345]
-[txn_id=123000102231]
-[type=slow_log]
 ```
 
 Log Fields Section sample:
@@ -109,28 +143,34 @@ Log Fields Section sample:
 
 ### Samples
 
-#### Log line without Log Fields
+#### Sample 1
+
+- There is a space in the message thus message is encoded when printing.
+- No log fields.
 
 ```text
-[2018/12/15 14:20:11.015 +08:00] [INFO] [tikv-server.rs:13]
+[2018/12/15 14:20:11.015 +08:00] [INFO] [tikv-server.rs:13] ["TiKV Started"]
 ```
 
-This is allowed but should be avoided, since it provides no information.
+#### Sample 2
 
-#### Log line with an unknown source and simple Log Fields
+- Unknown source.
+- There are some fields but all of them don't need to be encoded.
 
 ```text
-[2013/01/05 00:01:15.000 -07:00] [WARN] [<unknown>] [event=ddl_job_finish] [ddl_job_id=1] [duration=1.3s]
+[2013/01/05 00:01:15.000 -07:00] [WARN] [<unknown>] [DDL_Finished] [ddl_job_id=1] [duration=1.3s]
 ```
 
-#### Log line with JSON encoded Log Fields
+#### Sample 3
+
+- Some fields are encoded but some are not.
 
 ```text
-[2018/12/15 14:20:11.015 +08:00] [WARN] [session.go:1234] [event=slow_query] [msg="Slow query"] [sql="SELECT * FROM TABLE\nWHERE ID=\"abc\""] [duration=1.345s] [client=192.168.0.123:12345] [txn_id=123000102231]
+[2018/12/15 14:20:11.015 +08:00] [WARN] [session.go:1234] ["Slow query"] [sql="SELECT * FROM TABLE\nWHERE ID=\"abc\""] [duration=1.345s] [client=192.168.0.123:12345] [txn_id=123000102231]
 ```
 
 ```text
-[2018/12/15 14:20:11.015 +08:00] [FATAL] [panic_hook.rs:45] [event=panic] [msg="TiKV panic"] [stack="   0: std::sys::imp::backtrace::tracing::imp::unwind_backtrace\n             at /checkout/src/libstd/sys/unix/backtrace/tracing/gcc_s.rs:49\n   1: std::sys_common::backtrace::_print\n             at /checkout/src/libstd/sys_common/backtrace.rs:71\n   2: std::panicking::default_hook::{{closure}}\n             at /checkout/src/libstd/sys_common/backtrace.rs:60\n             at /checkout/src/libstd/panicking.rs:381"] [message="thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 99"]
+[2018/12/15 14:20:11.015 +08:00] [FATAL] [panic_hook.rs:45] ["TiKV panic"] [stack="   0: std::sys::imp::backtrace::tracing::imp::unwind_backtrace\n             at /checkout/src/libstd/sys/unix/backtrace/tracing/gcc_s.rs:49\n   1: std::sys_common::backtrace::_print\n             at /checkout/src/libstd/sys_common/backtrace.rs:71\n   2: std::panicking::default_hook::{{closure}}\n             at /checkout/src/libstd/sys_common/backtrace.rs:60\n             at /checkout/src/libstd/panicking.rs:381"] [error="thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 99"]
 ```
 
 ### Note for Non-UTF-8 Characters
@@ -172,16 +212,6 @@ string. In such scenario, this RFC provides two candidate solutions:
 - Lossless: Performing customized escaping (e.g. Golang quoting) that converts
   invalid UTF-8 character sequences to something else but also allows
   converting back.
-
-### Note for Descriptive Fields
-
-It is recommended to have at least one descriptive field (i.e. field that
-describes what kind of log it is) named as `msg` for each log line. In addition,
-descriptive fields should be printed before other fields so that users can
-easily understand the logging purpose when reading log files.
-
-This facility can be provided by the logging framework, e.g. having a mandatory
-parameter `msg` served as this purpose.
 
 ### Note for Large Fields
 
