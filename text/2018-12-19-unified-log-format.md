@@ -27,11 +27,11 @@ The Log Header Section is in the following format:
 ```
 
 - `date_time`: The human readable time that the log line is generated in the
-  local time zone in the format `YYYY/MM/dd HH:mm:ss.SSS Z`.
+  local time zone in the following format using the [UTS #35] symbol table:
 
-   Note that this time format is written using [momentjs format tokens](http://momentjs.com/docs/#/displaying/format/).
-   Different chrono libraries use different tokens and implementations should
-   use equivalent format tokens accordingly.
+  ```text
+  yyyy/MM/dd HH:mm:ss.SSS ZZZZZ
+  ```
 
    Sample: `2018/12/15 14:20:11.015 +08:00`
 
@@ -126,11 +126,11 @@ This is allowed but should be avoided, since it provides no information.
 #### Log line with JSON encoded Log Fields
 
 ```text
-[2018/12/15 14:20:11.015 +08:00] [WARN] [session.go:1234] [event=slow_query] [sql="SELECT * FROM TABLE\nWHERE ID=\"abc\""] [duration=1.345s] [client=192.168.0.123:12345] [txn_id=123000102231] [msg="Slow query"]
+[2018/12/15 14:20:11.015 +08:00] [WARN] [session.go:1234] [event=slow_query] [msg="Slow query"] [sql="SELECT * FROM TABLE\nWHERE ID=\"abc\""] [duration=1.345s] [client=192.168.0.123:12345] [txn_id=123000102231]
 ```
 
 ```text
-[2018/12/15 14:20:11.015 +08:00] [FATAL] [panic_hook.rs:45] [event=panic] [stack="   0: std::sys::imp::backtrace::tracing::imp::unwind_backtrace\n             at /checkout/src/libstd/sys/unix/backtrace/tracing/gcc_s.rs:49\n   1: std::sys_common::backtrace::_print\n             at /checkout/src/libstd/sys_common/backtrace.rs:71\n   2: std::panicking::default_hook::{{closure}}\n             at /checkout/src/libstd/sys_common/backtrace.rs:60\n             at /checkout/src/libstd/panicking.rs:381"] [message="thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 99"] [msg="TiKV panic"]
+[2018/12/15 14:20:11.015 +08:00] [FATAL] [panic_hook.rs:45] [event=panic] [msg="TiKV panic"] [stack="   0: std::sys::imp::backtrace::tracing::imp::unwind_backtrace\n             at /checkout/src/libstd/sys/unix/backtrace/tracing/gcc_s.rs:49\n   1: std::sys_common::backtrace::_print\n             at /checkout/src/libstd/sys_common/backtrace.rs:71\n   2: std::panicking::default_hook::{{closure}}\n             at /checkout/src/libstd/sys_common/backtrace.rs:60\n             at /checkout/src/libstd/panicking.rs:381"] [message="thread 'main' panicked at 'index out of bounds: the len is 3 but the index is 99"]
 ```
 
 ### Note for Non-UTF-8 Characters
@@ -205,3 +205,5 @@ this RFC, but is not flexible enough.
 ## Unresolved questions
 
 The decoding process is not provided in this RFC.
+
+[UTS #35]: http://www.unicode.org/reports/tr35/tr35-31/tr35-dates.html#Date_Field_Symbol_Table
