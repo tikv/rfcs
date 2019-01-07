@@ -144,7 +144,7 @@ scenarios here.
 #### Logging Framework
 
 The logging framework is recommended to accept only UTF-8 characters at the
-interface level, i.e. use `str` in Rust language. In this way, the
+interface level, e.g. use `str` in Rust language. In this way, the
 responsibility of avoiding non-UTF-8 characters is left to the framework user.
 
 For languages that do not provide such facilities, it is recommended that the
@@ -162,14 +162,14 @@ in hex format when outputting to logs.
 
 #### Framework Users: Unknown User-Input Fields
 
-Some field content comes from user input, i.e. the SQL expression. The logging
+Some field content comes from user input, e.g. the SQL expression. The logging
 framework user may not be able to ensure that the field content is a valid UTF-8
 string. In such scenario, this RFC provides two candidate solutions:
 
 - Lossy: Replacing invalid UTF-8 character sequences with U+FFFD
   (REPLACEMENT CHARACTER)
 
-- Lossless: Performing customized escaping (i.e. Golang quoting) that converts
+- Lossless: Performing customized escaping (e.g. Golang quoting) that converts
   invalid UTF-8 character sequences to something else but also allows
   converting back.
 
@@ -180,13 +180,13 @@ describes what kind of log it is) named as `msg` for each log line. In addition,
 descriptive fields should be printed before other fields so that users can
 easily understand the logging purpose when reading log files.
 
-This facility can be provided by the logging framework, i.e. having a mandatory
+This facility can be provided by the logging framework, e.g. having a mandatory
 parameter `msg` served as this purpose.
 
 ### Note for Large Fields
 
 This RFC does not limit the key or value length of fields. However usually long
-content (i.e. > 1KB) is not friendly for log storing or log parsing and is
+content (e.g. > 1KB) is not friendly for log storing or log parsing and is
 likely to cause issues. It's up to logging framework users to decide whether or
 not these long content should be avoided.
 
