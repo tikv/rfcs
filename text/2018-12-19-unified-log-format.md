@@ -73,7 +73,7 @@ the following format:
 [message]
 ```
 
-Message must be valid a UTF-8 string and follows the same encoding rule for
+Message must be a valid UTF-8 string and follows the same encoding rule for
 field key and field value (see Log Fields Section).
 
 Log Message Section sample:
@@ -197,8 +197,8 @@ lossy operation.
 Some fields are just likely to contain invalid UTF-8 characters, for example,
 the region start key and region end key. In such scenario, the application is
 recommended to do customized encoding before passing the field to the logging
-framework. For example, there is already an RFC that required keys to be encoded
-in hex format when outputting to logs.
+framework. For example, there is already [Unified Key Format RFC] that requires
+keys to be encoded in hex format when outputting to logs.
 
 #### Framework Users: Unknown User-Input Fields
 
@@ -237,3 +237,4 @@ this RFC, but is not flexible enough.
 The decoding process is not provided in this RFC.
 
 [UTS #35]: http://www.unicode.org/reports/tr35/tr35-31/tr35-dates.html#Date_Field_Symbol_Table
+[Unified Key Format RFC]: https://github.com/tikv/rfcs/blob/master/text/2018-11-12-unified-key-format.md
