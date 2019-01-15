@@ -39,7 +39,7 @@ type Driver struct {
     // eventRunner manages all events (e.g. add/delete nodes, hot read/write,
     // ...), which will be executed.
     eventRunner     *EventRunner
-    // raftEngine_ records all Raft related information. Since PD doesn't care
+    // raftEngine records all Raft related information. Since PD doesn't care
     // about how Raft layer works, it's not necessary to implement a real Raft
     // layer here. We can simplify the logic by using a shared `raftEngine`.
     raftEngine      *RaftEngine
@@ -56,7 +56,7 @@ type Driver struct {
 type Node struct {
     *metapb.Store
     // client in `Node` is responsible for sending the store heartbeat and the
-    // Region heartbeat to PD through gRPC. This “deceives” PD as it
+    // Region heartbeat to PD through gRPC. This "deceives" PD as it
     // communicates with a real TiKV cluster.
     client                   Client
     // receiveRegionHeartbeatCh is a channel to receive the Region heartbeat
@@ -117,7 +117,7 @@ shared `raftEngine`.
 
 #### Verification of correctness
 
-To verify the correctness of the scheduling of PD. We need to define a checker.
+To verify the correctness of the scheduling of PD, we need to define a checker.
 The checker will continue to check the condition we specified. If the condition
 is met, which means the scheduling result is as we expected, it will exit.
 Otherwise, it will keep running until its timeout expires and then raise an
