@@ -8,9 +8,9 @@ performance of scheduling of PD.
 
 ## Motivation
 
-Currently, it's a little bit hard to tell if the PD has some scheduling problems
+Currently, it's a little bit hard to tell if PD has some scheduling problems
 under certain circumstances. Also, in the test environment, it's unrealistic to
-deploy hundreds of TiKV to test the performance of PD under high pressure
+deploy hundreds of TiKVs to test the performance of PD under high pressure
 situations where high concurrency requests exist.
 
 Therefore, we need to construct a tool to simulate a large number of TiKVs in
@@ -64,8 +64,7 @@ type Node struct {
     receiveRegionHeartbeatCh <-chan *pdpb.RegionHeartbeatResponse
     // tasks is used to store `Task`s (`Task` is an interface which defines and
     // executes some Raft commands on the shared `raftEngine`, e.g. adding a
-    // learner and removing a peer, ...) which are converted by the PD
-    // responses.
+    // learner and removing a peer, ...) which are converted by PD responses.
     tasks                    map[uint64]Task
     // raftEngine is shared by each node as mentioned above.
     raftEngine               *RaftEngine
@@ -104,12 +103,12 @@ case usually consists of these parts:
 - Checker: It checks if the case runs as expected.
 
 When we start the simulator, it will first create a driver, which will initilize
-the mocking TiKV cluster according to the specified case. After the PD is
+the mocking TiKV cluster according to the specified case. After PD is
 bootstrapped, it will start to run a timer. The driver will trigger each node to
 send the heartbeat to PD according to the tick count. In order to simulate a
 real TiKV cluster's behavior, for each tick, it will execute some Raft logic,
 such as leader election, Region split, on a shared `raftEngine` if needed and
-execute the events predefined in the case. Besides, after receiving the PD's
+execute the events predefined in the case. Besides, after receiving PD's
 response, it will convert this response to the task, and put this task into a
 task list of a node.
 For each tick, it will run these tasks to execute some Raft commands on the
@@ -147,4 +146,4 @@ None
 
 ## Unresolved questions
 
-The case is not easy to be constructed. We need to find a way to make it easier.
+The case is not easy to construct. We need to find a way to make it easier.
