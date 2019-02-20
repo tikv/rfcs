@@ -108,29 +108,26 @@ To use the Raw Key-Value API, take the following steps:
     ```rust
     impl Client {
         pub fn new(_config: &Config) -> Connect;
-        pub fn get(&self, key: impl AsRef<Key>) -> Get;
-        pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
-        pub fn put(&self, pair: impl Into<KvPair>) -> Put;
+        pub fn get(&self, key: impl Into<Key>) -> Get;
+        pub fn batch_get(&self, keys: impl IntoIterator<Item = impl Into<Key>>) -> BatchGet;
+        pub fn put(&self, key: impl Into<Key>, value: impl Into<Value>) -> Put;
         pub fn batch_put(&self,
             pairs: impl IntoIterator<Item = impl Into<KvPair>>
         ) -> BatchPut;
-        pub fn delete(&self, key: impl AsRef<Key>) -> Delete;
-        pub fn batch_delete(&self, keys: impl AsRef<[Key]>) -> BatchDelete;
-        pub fn scan(&self, range: impl RangeBounds<Key>, limit: u32) -> Scan;
+        pub fn delete(&self, key: impl Into<Key>) -> Delete;
+        pub fn batch_delete(&self, keys: impl IntoIterator<Item = impl Into<Key>>) -> BatchDelete;
+        pub fn scan(&self, range: impl KeyRange, limit: u32) -> Scan;
         pub fn batch_scan<Ranges, Bounds>(&self,
-            ranges: Ranges,
+            ranges: impl IntoIterator<Item = impl KeyRange>,
             each_limit: u32
         ) -> BatchScan where Ranges: AsRef<[Bounds]>, Bounds: RangeBounds<Key>;
-        pub fn delete_range(&self, range: impl RangeBounds<Key>) -> DeleteRange;
+        pub fn delete_range(&self, range: impl KeyRange) -> DeleteRange;
     }
     ```
 
 #### Usage example of the Raw Key-Value API
 
 ```rust
-extern crate futures;
-extern crate tikv_client;
-
 use std::path::PathBuf;
 
 use futures::future::Future;
@@ -156,27 +153,27 @@ fn main() {
     println!("Successfully put {:?}:{:?} to tikv", key, value);
 
     let value = raw
-        .get(&key)
+        .get(key.clone())
         .cf("test_cf")
         .wait()
         .expect("Could not get value");
     println!("Found val: {:?} for key: {:?}", value, key);
 
-    raw.delete(&key)
+    raw.delete(key.clone())
         .cf("test_cf")
         .wait()
         .expect("Could not delete value");
     println!("Key: {:?} deleted", key);
 
-    raw.get(&key)
+    raw.get(key)
         .cf("test_cf")
         .wait()
         .expect_err("Get returned value for not existing key");
 
-    let keys = vec![b"k1".to_vec().into(), b"k2".to_vec().into()];
+    let keys: Vec<Key> = vec![b"k1".to_vec().into(), b"k2".to_vec().into()];
 
     let values = raw
-        .batch_get(&keys)
+        .batch_get(keys.clone())
         .cf("test_cf")
         .wait()
         .expect("Could not get values");
@@ -184,14 +181,14 @@ fn main() {
 
     let start: Key = b"k1".to_vec().into();
     let end: Key = b"k2".to_vec().into();
-    raw.scan(&start..&end, 10)
+    raw.scan(start.clone()..end.clone(), 10)
         .cf("test_cf")
         .key_only()
         .wait()
         .expect("Could not scan");
 
-    let ranges = [&start..&end, &start..&end];
-    raw.batch_scan(&ranges, 10)
+    let ranges = vec![start.clone()..end.clone(), start..end];
+    raw.batch_scan(ranges, 10)
         .cf("test_cf")
         .key_only()
         .wait()
@@ -255,7 +252,13 @@ To use the Transactional Key-Value API, take the following steps:
     let client = transaction::Client::new(&config);
     ```
 
-3. (Optional) Modify isolation level of a Transaction.
+3. Create a Transaction.
+
+    ```rust
+    let txn = client.begin();
+    ```
+
+4. (Optional) Modify isolation level of a Transaction.
 
     ``` rust
     #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -267,12 +270,12 @@ To use the Transactional Key-Value API, take the following steps:
     txn.set_isolation_level(IsolationLevel::ReadCommitted);
     ```
 
-4. (Optional) Modify data using a Transaction.
+5. (Optional) Modify data using a Transaction.
 
     The lifecycle of a Transaction is: _begin → {get, set, delete, scan} →
 {commit, rollback}_.
 
-5. Call the Transactional Key-Value API's methods to access the data on TiKV.
+6. Call the Transactional Key-Value API's methods to access the data on TiKV.
    The Transactional Key-Value API contains the following most commonly used
    methods:
 
@@ -288,37 +291,40 @@ To use the Transactional Key-Value API, take the following steps:
     impl Transaction {
         pub fn commit(self) -> Commit;
         pub fn rollback(self) -> Rollback;
-        pub fn lock_keys(&mut self, keys: impl AsRef<[Key]>) -> LockKeys;
+        pub fn lock_keys(&mut self, keys: impl IntoIterator<Item = impl Into<Key>>) -> LockKeys;
         pub fn is_readonly(&self) -> bool;
         pub fn start_ts(&self) -> Timestamp;
         pub fn snapshot(&self) -> Snapshot;
         pub fn set_isolation_level(&mut self, level: IsolationLevel);
-        pub fn get(&self, key: impl AsRef<Key>) -> Get;
-        pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
+        pub fn get(&self, key: impl Into<Key>) -> Get;
+        pub fn batch_get(&self, keys: impl IntoIterator<Item = impl Into<Key>>) -> BatchGet;
         pub fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
         pub fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
         pub fn set(&mut self,
             key: impl Into<Key>,
             value: impl Into<Value>
         ) -> Set;
-        pub fn delete(&mut self, key: impl AsRef<Key>) -> Delete;
+        pub fn delete(&mut self, key: impl Into<Key>) -> Delete;
     }
 
     impl Snapshot {
-        pub fn get(&self, key: impl AsRef<Key>) -> Get;
-        pub fn batch_get(&self, keys: impl AsRef<[Key]>) -> BatchGet;
+        pub fn get(&self, key: impl Into<Key>) -> Get;
+        pub fn batch_get(&self, keys: impl IntoIterator<Item = impl Into<Key>>) -> BatchGet;
         pub fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
         pub fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
     }
 
     ```
 
+7. Complete the transaction.
+
+    ```rust
+    txn.commit();
+    ```
+
 #### Usage example of the Transactional Key-Value API
 
 ```rust
-extern crate futures;
-extern crate tikv_client;
-
 use std::ops::RangeBounds;
 use std::path::PathBuf;
 
@@ -338,7 +344,7 @@ fn puts(client: &Client, pairs: impl IntoIterator<Item = impl Into<KvPair>>) {
     txn.commit().wait().expect("Could not commit transaction");
 }
 
-fn get(client: &Client, key: &Key) -> Value {
+fn get(client: &Client, key: Key) -> Value {
     let txn = client.begin();
     txn.get(key).wait().expect("Could not get value")
 }
@@ -391,7 +397,7 @@ fn main() {
 
     // get
     let key1: Key = b"key1".to_vec().into();
-    let value1 = get(&txn, &key1);
+    let value1 = get(&txn, key1.clone());
     println!("{:?}", (key1, value1));
 
     // scan
@@ -418,7 +424,7 @@ The result is like:
 The `tikv_client` crate will be tested with Travis CI using Rust's standard
 testing framework. We will also include benchmark with criterion in the future.
 For public functions which process user input, we will seek to use fuzz testing
-such as `quickcheck` to find subtle bugs.
+such as `proptest` to find subtle bugs.
 
 The CI will validate all code is warning free, passes `rustfmt`, and passes a
 `clippy` check without lint warnings.
