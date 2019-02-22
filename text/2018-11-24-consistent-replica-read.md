@@ -4,7 +4,7 @@
 
 *Consistent Replica Read* supports consistent read on the follower replica or
 learner replica, which can reduce the read load on the leader. *Consistent
-Replica Read* also useful in OLAP scenario or backup scenario.
+Replica Read* is also useful in OLAP scenario or backup scenario.
 
 The key to achieve consistent read on the replica is `ReadIndex`, which
 introduced in chapter 6 of the [raft
