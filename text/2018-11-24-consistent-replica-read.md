@@ -33,8 +33,8 @@ these steps:
    replica is a follower or learner, it should use `ReadIndex` policy.
 2. Got the latest `CommitIndex` from the raft library. Assign a `uuid` for the
    request and invoke the `read_index` API of the raft library with the data
-   thatwas encoded by `uuid`. then the raft state machine will notify our apply
-   state machine with the `read_status` through the `Ready` message. and we can
+   that was encoded by `uuid`. Then the raft state machine will notify our apply
+   state machine with the `read_status` through the `Ready` message. And we can
    get the latest `CommitIndex` throught the corresponding `uuid` from the
    `read_status`.
 3. Read data according to the state of applying. If the `ApplyIndex` greater
@@ -44,7 +44,7 @@ these steps:
 
 **Note**: Currently, we only handled read requests on the leader, so we have a
 few optimizations. One is the request can be processed if the
-`apply_index_term` equal to the `current_term` because we only return success
+`apply_index_term` equals to the `current_term` because we only return success
 after apply. The another one is the local read based on the lease. However, if
 the follower received a read request, the read requests on the leader must go
 through the normal flow of the `ReadIndex` policy to ensure linear consistency.
@@ -54,7 +54,7 @@ leader.
 
 In order to distinguish the replica reading, we will add an option in the
 request context. This option will mark whether to allow a replica to read,
-other logic remains the smase as before
+other logic remains the same as before
 
 ### ReadIndex API
 
@@ -77,10 +77,10 @@ client whether it can start reading. The request message from the client:
 ```protobuf
     message ReplicaReadRequest {
         Context context = 1;
-        apply_index =2;
+        apply_index = 2;
     }
 ```
 
 If the `ReadIndex` less than the `apply_index` in the request, TiKV will
-responds `TRUE`, otherwise it responds `FLASE`. and the client should do retry
-for a `False` response.
+responds `TRUE`, otherwise it responds `FALSE`. Ssnd the client should do retry
+for a `FALSE` response.
