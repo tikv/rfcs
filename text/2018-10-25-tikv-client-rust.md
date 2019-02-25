@@ -109,13 +109,17 @@ To use the Raw Key-Value API, take the following steps:
     impl Client {
         pub fn new(_config: &Config) -> Connect;
         pub fn get(&self, key: impl Into<Key>) -> Get;
-        pub fn batch_get(&self, keys: impl IntoIterator<Item = impl Into<Key>>) -> BatchGet;
+        pub fn batch_get(&self,
+            keys: impl IntoIterator<Item = impl Into<Key>>
+        ) -> BatchGet;
         pub fn put(&self, key: impl Into<Key>, value: impl Into<Value>) -> Put;
         pub fn batch_put(&self,
             pairs: impl IntoIterator<Item = impl Into<KvPair>>
         ) -> BatchPut;
         pub fn delete(&self, key: impl Into<Key>) -> Delete;
-        pub fn batch_delete(&self, keys: impl IntoIterator<Item = impl Into<Key>>) -> BatchDelete;
+        pub fn batch_delete(&self,
+            keys: impl IntoIterator<Item = impl Into<Key>>
+        ) -> BatchDelete;
         pub fn scan(&self, range: impl KeyRange, limit: u32) -> Scan;
         pub fn batch_scan<Ranges, Bounds>(&self,
             ranges: impl IntoIterator<Item = impl KeyRange>,
@@ -291,13 +295,17 @@ To use the Transactional Key-Value API, take the following steps:
     impl Transaction {
         pub fn commit(self) -> Commit;
         pub fn rollback(self) -> Rollback;
-        pub fn lock_keys(&mut self, keys: impl IntoIterator<Item = impl Into<Key>>) -> LockKeys;
+        pub fn lock_keys(&mut self,\
+            keys: impl IntoIterator<Item = impl Into<Key>>
+        ) -> LockKeys;
         pub fn is_readonly(&self) -> bool;
         pub fn start_ts(&self) -> Timestamp;
         pub fn snapshot(&self) -> Snapshot;
         pub fn set_isolation_level(&mut self, level: IsolationLevel);
         pub fn get(&self, key: impl Into<Key>) -> Get;
-        pub fn batch_get(&self, keys: impl IntoIterator<Item = impl Into<Key>>) -> BatchGet;
+        pub fn batch_get(&self,
+            keys: impl IntoIterator<Item = impl Into<Key>>
+        ) -> BatchGet;
         pub fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
         pub fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
         pub fn set(&mut self,
@@ -309,7 +317,9 @@ To use the Transactional Key-Value API, take the following steps:
 
     impl Snapshot {
         pub fn get(&self, key: impl Into<Key>) -> Get;
-        pub fn batch_get(&self, keys: impl IntoIterator<Item = impl Into<Key>>) -> BatchGet;
+        pub fn batch_get(&self,
+            keys: impl IntoIterator<Item = impl Into<Key>>
+        ) -> BatchGet;
         pub fn scan(&self, range: impl RangeBounds<Key>) -> Scanner;
         pub fn scan_reverse(&self, range: impl RangeBounds<Key>) -> Scanner;
     }
