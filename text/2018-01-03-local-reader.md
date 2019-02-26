@@ -14,8 +14,8 @@ There are three major workloads for the raftstore:
 
 For read requests, TiKV takes a snapshot of the underlying RocksDB when a Raft
 leader is in its lease. Read requests are lightweight and the raftstore can
-handle them fast. However, due to the single-threaded character of the
-raftstore, read requests may be blocked by other workloads. E.g.,
+handle them fast. However, due to the single-threaded nature of the raftstore,
+read requests may be blocked by other workloads. E.g.,
 
 - Read QPS drops while write requests get more, and the raftstore spends more
   time in writing Raft logs.
@@ -33,13 +33,13 @@ linearizability.
 
 ### Local reader
 
-The local reader uses ReadDelegates (delegate) to handle requests. Every
+The local reader uses `ReadDelegate`s (delegate) to handle requests. Every
 delegate is owned by a Raft peer which belongs to the raftstore. The delegate
 and the peer communicate via a channel, and each pair of them shares an atomic
 `LeaderLease`.
 
-A peer can do local read as long as it holds the following conditions (only list
-the most important):
+A peer can do local read as long as it holds the following conditions (only
+listing the most important):
 
 - It’s a Raft leader;
 - Its applied index’s term matches its current term;
