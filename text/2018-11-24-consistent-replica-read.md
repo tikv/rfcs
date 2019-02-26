@@ -31,26 +31,26 @@ these steps:
 1. Determine the policy of the read request. If the request is required to
    check the quorum, the replica is a leader and expired the lease, or the
    replica is a follower or learner, it should use `ReadIndex` policy.
-2. Got the latest `CommitIndex` from the raft library. Assign a `uuid` for the
+2. Get the latest `CommitIndex` from the raft library. Assign a `uuid` for the
    request and invoke the `read_index` API of the raft library with the data
    that was encoded by `uuid`. Then the raft state machine will notify our apply
    state machine with the `read_status` through the `Ready` message. And we can
-   get the latest `CommitIndex` throught the corresponding `uuid` from the
+   get the latest `CommitIndex` through the corresponding `uuid` from the
    `read_status`.
 3. Read data according to the state of applying. If the `ApplyIndex` greater
-   than or eqaul to the the coresponding latest `CommitIndex`, the request can
+   than or eqaul to the corresponding latest `CommitIndex`, the request can
    be processed, rather than will push to the pending queue until it can be
    processed.
 
-**Note**: Currently, we only handled read requests on the leader, so we have a
+**Note**: Currently, we only handle read requests on the leader, so we have a
 few optimizations. One is the request can be processed if the
 `apply_index_term` equals to the `current_term` because we only return success
 after apply. The another one is the local read based on the lease. However, if
 the follower received a read request, the read requests on the leader must go
 through the normal flow of the `ReadIndex` policy to ensure linear consistency.
 This is because the apply status of the follower not guaranteed to be
-consistent with the leader, the apply status of the follower may newer than the
-leader.
+consistent with the leader, the apply status of the follower may be newer than
+the leader.
 
 In order to distinguish the replica reading, we will add an option in the
 request context. This option will mark whether to allow a replica to read,
@@ -82,5 +82,5 @@ client whether it can start reading. The request message from the client:
 ```
 
 If the `ReadIndex` less than the `apply_index` in the request, TiKV will
-responds `TRUE`, otherwise it responds `FALSE`. Ssnd the client should do retry
+responds `TRUE`, otherwise it responds `FALSE`. Then the client should retry
 for a `FALSE` response.
