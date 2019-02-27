@@ -38,7 +38,7 @@ these steps:
    get the latest `CommitIndex` through the corresponding `uuid` from the
    `read_status`.
 3. Read data according to the state of applying. If the `ApplyIndex` greater
-   than or eqaul to the corresponding latest `CommitIndex`, the request can
+   than or equal to the corresponding latest `CommitIndex`, the request can
    be processed, rather than will push to the pending queue until it can be
    processed.
 
