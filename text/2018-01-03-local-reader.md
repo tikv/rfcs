@@ -17,8 +17,8 @@ leader is in its lease. Read requests are lightweight and the raftstore can
 handle them fast. However, due to the single-threaded nature of the raftstore,
 read requests may be blocked by other workloads. E.g.,
 
-- Read QPS drops while write requests get more, and the raftstore spends more
-  time in writing Raft logs.
+- Read QPS drops while number of write requests increases, and the raftstore
+  spends more time in writing Raft logs.
 - Read QPS drops while the Regions number grows, and the raftstore spends more
   time in driving Raft state machines.
 
@@ -28,7 +28,7 @@ and lower latency on read most workload.
 
 ## Detailed design
 
-The local reader offloads read requests from the raftstore and guarantee
+The local reader offloads read requests from the raftstore and guarantees
 linearizability.
 
 ### Local reader
@@ -54,7 +54,7 @@ checks, it redirects read requests to the raftstore.
 
 `LeaderLease` is a state shared by the local reader and the raftstore. It is
 critical to implement local reader correctly. When a leader peer steps down,
-its delegate is no longer allowed to read, otherwise it may read the stall data
+its delegate is no longer allowed to read, otherwise it may read stall data
 which violates linearizability. The shared `LeaderLease` is implemented by an
 atomic variable, so a delegate observes leadership change immediately and stops
 handling read requests.
