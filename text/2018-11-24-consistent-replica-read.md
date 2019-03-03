@@ -44,7 +44,7 @@ steps:
    processed.
 
 **Note**: Currently, we only handle read requests on the leader, so we have a
-few optimizations. One of them is that the processed can be processed if
+few optimizations. One of them is that the request can be processed if
 `apply_index_term` equals to the `current_term`, as we only return success
 after apply. Another one is local read based on the lease. However, if the
 follower receives a read request, the read requests on the leader must go
@@ -59,10 +59,10 @@ read. Other logics remains the same as before.
 
 ### ReadIndex API
 
-In order for let the AP engine to read data the same way as *Consistent Replica
+In order for the AP engine to read data the same way as *Consistent Replica
 Read*. TiKV will provide a special API, which responds to the request with the
-latest `CommitIndex`. The AP engine may need to handle the request same as
-described above.
+latest `CommitIndex`. The AP engine may need to handle the request as described
+above.
 
 ## Drawbacks
 
