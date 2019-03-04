@@ -70,7 +70,7 @@ key_path = "./rsa.key"
 [output]
 # If the ouput JSON should be minified.
 minify = false
-# Level of logging to use. Available: error. warn, info, debug, trace
+# Level of logging to use. Available: critical, error, warning, info, debug, trace
 logging = "info"
 ```
 
@@ -98,6 +98,9 @@ requests. In the case of REPL mode, it shall always exit zero.
 
 Users will interact with the tool through the command line. It will support both
 a one-off mode or a REPL (Read-eval-print-loop) style mode (See alternatives).
+
+Due to the nature of TiKV having two APIs, *raw* and *transactional* we need to
+support both APIs. Learn about the differences [here](https://tikv.org/docs/architecture/#apis).
 
 Example of the one-off raw mode:
 
@@ -162,7 +165,7 @@ Finished in 0.001s. (txn ts: 1551216224838)
 ```
 
 One-off transactional mode is a bit different, as we need some way to maintain
-timestamp across commands. The user may choose how to do this, the reccomended
+timestamp across commands. The user may choose how to do this, the recommended
 way is via ENV variables, but they must do this. (See alternatives)
 
 ```bash
@@ -186,8 +189,8 @@ Finished in 0.004s. (txn ts: 1551216224838)
 
 ## Drawbacks
 
-We may not wish to need to maintain this tool, or we may wish for the community
-to maintain it.
+This will increase our maintenance burden, so it may be better to leave this up
+to independent community efforts.
 
 ## Alternatives
 
