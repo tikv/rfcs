@@ -35,7 +35,7 @@ steps:
 2. Get the latest `CommitIndex` from the raft library. Assign a `uuid` for the
    request and invoke the `read_index` API of the raft library with the data
    that was encoded by `uuid`. Then the raft state machine will notify our apply
-   state machine with the `read_status` through the `Ready` message. And we can
+   state machine with `read_status` through the `Ready` message. And we can
    get the latest `CommitIndex` through the corresponding `uuid` from the
    `read_status`.
 3. Read data according to the state of applying. If the `ApplyIndex` is greater
@@ -54,13 +54,13 @@ consistent with the leader, for instance, the apply status of the follower
 may be newer than the leader.
 
 In order to distinguish the replica reading process, we intend to add an
-option in the request context, which will mark whether to allow a replica to
-read. Other logics remains the same as before.
+option in the request context to mark whether to allow a replica to read.
+Other logics remains the same as before.
 
 ### ReadIndex API
 
 In order for the AP engine to read data the same way as *Consistent Replica
-Read*. TiKV will provide a special API, which responds to the request with the
+Read*, TiKV will provide a special API to respond to the request with the
 latest `CommitIndex`. The AP engine may need to handle the request as described
 above.
 
@@ -74,8 +74,8 @@ leader reading. It's more suitable for scenarios with heavy read requests.
 ### ReadIndex API II
 
 To avoid extra logic in the AP engine, the `ReadIndex` API responds to the
-client whether it can start reading. The request message from the client is
-as shown below:
+client whether it can start reading or not. The request message from the client
+is as shown below:
 
 ```protobuf
     message ReplicaReadRequest {
@@ -84,6 +84,6 @@ as shown below:
     }
 ```
 
-If the `ReadIndex` less than the `apply_index` in the request, TiKV will
+If `ReadIndex` is less than the `apply_index` in the request, TiKV will
 responds `TRUE`, otherwise it responds `FALSE`. Then the client should retry
 for a `FALSE` response.
