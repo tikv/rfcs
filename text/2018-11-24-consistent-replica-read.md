@@ -16,7 +16,7 @@ Currently, all read requests are handled on the leader, and load balancing is
 performed only by the `balanceLeader` operator, which have lead to many
 limitations. On one hand, we want a way to improve read throughput and divert
 load away from the leader; on the other hand, we want some nodes to handle
-read-only service and some of the heavy analytics queries.
+read-only services and some of the heavy analytics queries.
 
 ## Detail design
 
