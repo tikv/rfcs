@@ -118,7 +118,8 @@ found to be lost.
 Users will interact with the tool through the command line. It will support both
 a one-off mode or a REPL (Read-eval-print-loop) style mode (See alternatives).
 
-TiKV has two APIs, *raw* and *transactional*, both are supported. Learn about the differences [here](https://tikv.org/docs/architecture/#apis).
+TiKV has two APIs, *raw* and *transactional*, both are supported. Learn about the
+differences [here](https://tikv.org/docs/architecture/#apis).
 
 Example of the one-off raw mode:
 
