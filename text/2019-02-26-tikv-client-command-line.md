@@ -12,7 +12,7 @@ Currently `tikv-ctl` offers some ways to interact with a TiKV cluster, it
 focuses mostly on the *management* of a TiKV cluster instead of a *client* for
 the cluster.
 
-With the `tikv-client` crate users will find a way to interact with their TiKV
+With the `tikv-client` Rust crate users will find a way to interact with their TiKV
 cluster from their application. Some users will find it desirable to be able to
 inspect their cluster from a command line tool, or otherwise outside of their
 application.
@@ -54,6 +54,7 @@ The options are:
 ```toml
 [connection]
 # A list of `pd` endpoints.
+# Default: None
 pd_endpoints = [
     "127.0.0.1:2379",
     "127.0.0.2:2379",
@@ -61,18 +62,35 @@ pd_endpoints = [
 
 [tls]
 # The path of the CA file for TLS.
+# Default: None
 ca_path = "./rsa.ca"
 # The path of the certificate file for TLS.
+# Default: None
 cert_path = "./rsa.cert"
 # The path of the key file for TLS.
+# Default: None
 key_path = "./rsa.key"
 
-[output]
-# If the ouput JSON should be minified.
-minify = false
-# Level of logging to use. Available: critical, error, warning, info, debug, trace
+[client]
+# Level of logging to use.
+# Available: critical, error, warning, info, debug, trace
+# Default: info
 logging = "info"
+# If the ouput JSON should be minified.
+# Default: false
+minify = false
+# The mode the client should be in.
+# All clients connected to a keyspace should use the same mode.
+# Available: raw, transaction
+# Default: transaction
+mode = "transaction"
+# If the tool should output on stderr the duration of commands.
+# Default: true
+output-durations = true
 ```
+
+On the command line, these options have the same name, but with `_` replaced
+with `-` for idiomatic reasons.
 
 ### Input/Output
 
@@ -92,27 +110,27 @@ All standard (non-logging) output will be on `stdout`.
 It will feature configurable logging levels with `slog` which will output to `stderr`.
 
 The tool will exit zero on successful requests, and non-zero on unsuccessful
-requests. In the case of REPL mode, it shall always exit zero.
+requests. In the case of REPL mode, it shall exit zero unless the connection is
+found to be lost.
 
 ### Interacting with it
 
 Users will interact with the tool through the command line. It will support both
 a one-off mode or a REPL (Read-eval-print-loop) style mode (See alternatives).
 
-Due to the nature of TiKV having two APIs, *raw* and *transactional* we need to
-support both APIs. Learn about the differences [here](https://tikv.org/docs/architecture/#apis).
+TiKV has two APIs, *raw* and *transactional*, both are supported. Learn about the differences [here](https://tikv.org/docs/architecture/#apis).
 
 Example of the one-off raw mode:
 
 ```bash
-$ tikv-cli raw set "cncf" "linux foundation"
+$ tikv-cli --mode raw set "cncf" "linux foundation"
 Finished in 0.001s.
-$ tikv-cli raw set "tikv" "rust"
+$ tikv-cli --mode raw set "tikv" "rust"
 Finished in 0.001s.
-$ tikv-cli raw get "cncf"
+$ tikv-cli --mode raw get "cncf"
 "linux foundation"
 Finished in 0.002s.
-$ tikv-cli raw scan "b"..
+$ tikv-cli --mode raw scan "b"..
 [
     { key: "cncf", value: "linux foundation" },
     { key: "tikv", value: "rust" },
@@ -123,7 +141,7 @@ Finished in 0.003s.
 Example of REPL raw mode:
 
 ```bash
-$ tikv-cli raw
+$ tikv-cli --mode raw
 > set "cncf" "linux foundation"
 Finished in 0.001s.
 > set "tikv" "rust"
@@ -139,12 +157,12 @@ Finished in 0.001s.
 Finished in 0.003s.
 ```
 
-REPL transactional mode, notice how the `>>` communicates that the user is in a
-transaction. Also notice how the transaction timestamp is outputted in the
-request complete messages.
+In the REPL of the *(default)* transactional mode below, the `>>` communicates
+that the user is in a transaction. Also notice how the transaction timestamp is
+outputted in the request complete messages.
 
 ```bash
-$ tikv-cli txn
+$ tikv-cli
 > begin
 Finished in 0.000s. (txn ts: 1551216224838)
 >>set "cncf" "linux foundation"
@@ -160,31 +178,36 @@ Finished in 0.001s. (txn ts: 1551216224838)
     { key: "tikv", value: "rust" },
 ]
 Finished in 0.003s. (txn ts: 1551216224838)
-> commit
+>> commit
 Finished in 0.001s. (txn ts: 1551216224838)
 ```
 
-One-off transactional mode is a bit different, as we need some way to maintain
-timestamp across commands. The user may choose how to do this, the recommended
-way is via ENV variables, but they must do this. (See alternatives)
+One-off transactional mode is a bit different, a series of commands can be
+provided as a list. Begin and commit are inserted implictly at the start and end
+of the command. This creates a 'command level atomicity'.
+
+In most scripting uses, we expect users will newline separate commands.
+
+The output is a JSON array, with each index having the result of the respective
+command. In the case of command such as `set` which have no output, a `null` is
+used.
 
 ```bash
-$ TS=$(tikv-cli txn begin)
-$ tikv-cli txn ${TS} set "cncf" "linux foundation"
-Finished in 0.001s. (txn ts: 1551216224838)
-$ tikv-cli txn ${TS} set "tikv" "rust"
-Finished in 0.001s. (txn ts: 1551216224838)
-$ tikv-cli txn ${TS} get "cncf"
-"linux foundation"
-Finished in 0.002s. (txn ts: 1551216224838)
-$ tikv-cli txn ${TS} scan "b"..
+$ tikv-cli \
+    set "cncf" "linux foundation" \
+    set "tikv" "rust" \
+    get "cncf" \
+    scan "b"..
 [
-    { key: "cncf", value: "linux foundation" },
-    { key: "tikv", value: "rust" },
+    null,
+    null,
+    "linux foundation",
+    [
+        { key: "cncf", value: "linux foundation" },
+        { key: "tikv", value: "rust" },
+    ],
 ]
-Finished in 0.003s. (txn ts: 1551216224838)
-$ tikv-cli txn ${TS} commit
-Finished in 0.004s. (txn ts: 1551216224838)
+Finished in 0.003s.
 ```
 
 ## Drawbacks
@@ -202,9 +225,6 @@ to independent community efforts.
   distinction between management tools and clients.
 * (*No REPL, or only REPL*). We may chose to not have a REPL mode, or we may chose
   to *only* have a REPL mode.
-* (*A different timestamp handling for one-off mode*). We may find the way we
-  handle timestamps in transactional one-off mode to be unwieldly. Perhaps there
-  is a better way.
 
 ## Unresolved questions
 
