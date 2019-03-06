@@ -44,7 +44,7 @@ steps:
    processed.
 
 **Note**: Our currentl implementation to handle read requests only on the leader
-allow us a few optimizations. One of them is that the request can be processed
+allows us a few optimizations. One of them is that the request can be processed
 if `apply_index_term` equals to the `current_term`, as we only return success
 after apply. Another one is local read based on lease. However, if the
 follower receives a read request, the read requests on the leader must go
