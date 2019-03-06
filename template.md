@@ -1,5 +1,7 @@
 # Title
 
+* Start Date: YYYY-MM-DD
+
 ## Summary
 
 One para explanation of the proposal.

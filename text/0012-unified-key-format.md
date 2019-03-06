@@ -1,5 +1,7 @@
 # Unified Key Format
 
+* Start Date: 2018-11-12
+
 ## Summary
 
 This RFC proposes a new unified and human readable format for keys. All TiDB

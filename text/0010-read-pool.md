@@ -1,5 +1,7 @@
 # Read Pool
 
+* Start Date: 2017-12-22
+
 ## Summary
 
 This RFC proposes a new thread pool that supports async operations, which is

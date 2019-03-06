@@ -1,5 +1,7 @@
 # Batch Split
 
+* Start Date: 2018-10-25
+
 ## Summary
 
 Support a `BatchSplit` feature that splits one Region into multiple Regions at

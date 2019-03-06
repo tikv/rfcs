@@ -1,5 +1,7 @@
 # Unified Log Format
 
+* Start Date: 2018-12-19
+
 ## Summary
 
 This RFC stipulates a unified log format called "TiDB Log Format" to be used
