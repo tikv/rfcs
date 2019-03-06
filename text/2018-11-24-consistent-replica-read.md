@@ -84,6 +84,6 @@ is as shown below:
     }
 ```
 
-If `ReadIndex` is less than the `apply_index` in the request, TiKV will
+If `ReadIndex` is less than `apply_index` in the request, TiKV will
 responds `TRUE`, otherwise it responds `FALSE`. Then the client should retry
 for a `FALSE` response.
