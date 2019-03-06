@@ -31,27 +31,31 @@ to make sure raft can still work properly. I suggest adding following rules to
 make it work:
 
 1. When a leader finds all followings are satisfied when handling ticks,
-it stops ticking.
+   it stops ticking.
 
     1) All followers have met commit_index == last_index_of_leader,
     2) apply_index == last_index,
     3) its flag named `waken` is false,
 
 2. When a follower finds all followings are satisfied when handling ticks,
-it stops ticking.
+   it stops ticking.
 
     1) term == last_log_term,
     2) has a valid leader,
     3) its flag named `waken` is false,
 
 3. When a peer is created, it starts ticking.
+
 4. When a peer receives a proposal (write proposal/read index), it marks flag
-`waken` to true and starts ticking.
+   `waken` to true and starts ticking.
+
 5. When a peer receives RequestVote/PreRequestVote/MsgTimeoutNow, it marks
-flag `waken` to true and starts ticking.
+   flag `waken` to true and starts ticking.
+
 6. When a follower receives leader's message, it marks `waken` to false.
+
 7. When a leader finds all nodes are actively replying messages, it marks
-`waken` to false.
+   `waken` to false.
 
 When a cluster is started, because of 3, all peers are ticking. It works
 just the old way. Because of 2, ticks of followers will not stop until a
