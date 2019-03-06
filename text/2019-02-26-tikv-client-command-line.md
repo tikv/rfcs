@@ -2,40 +2,40 @@
 
 ## Summary
 
-Use the TiKV Rust Client to build a simple command line tool for inspection and anaylsis.
+Use the TiKV Rust Client to build a simple command line tool for inspection and analysis.
 
 This tool will stand as an analogue to `mycli` or `mysql-client` for users.
 
 ## Motivation
 
-Currently `tikv-ctl` offers some ways to interact with a TiKV cluster, it
+While `tikv-ctl` offers some ways to interact with a TiKV cluster, it
 focuses mostly on the *management* of a TiKV cluster instead of a *client* for
 the cluster.
 
-With the `tikv-client` Rust crate users will find a way to interact with their TiKV
+With the `tikv-client` Rust crate, users will find a way to interact with their TiKV
 cluster from their application. Some users will find it desirable to be able to
 inspect their cluster from a command line tool, or otherwise outside of their
 application.
 
 Building a simple command line tool to execute commands such as `get`, `set`,
-`delete`, and `scan` would mean users do not need to worry about creating such
+`delete`, or `scan` means users do not need to worry about creating such
 tools for themselves.
 
 It also provides us with a useful tool during the development cycle, as it will
 be very easy to issue one-off commands to TiKV.
 
-Further, we mentioned in the Rust Client RFC
-(https://github.com/tikv/rfcs/pull/7) we mentioned we wanted to accomplish this.
+Plus, this tool is one of the goals we mentioned in the Rust Client RFC
+(https://github.com/tikv/rfcs/pull/7).
 
 ## Detailed design
 
-The client will be created using the `tikv-client` crate and its already existing
-functionality. It will utilize `clap` to provide a simple wrapper around the
-crate API.
+The client will be created using the `tikv-client` crate and existing
+functionality. `clap` and `serde` will be used to provide a simple wrapper
+around the crate API.
 
 ### Install
 
-We will build this tool in the `tikv-cli` repository. It will be published.
+This tool will be built in the `tikv-cli` repository. It will be published.
 Users will be able to install it with `cargo install tikv-cli`. (See
 *Alternatives* for another option.)
 
@@ -44,10 +44,10 @@ Users will be able to install it with `cargo install tikv-cli`. (See
 The tool will retrieve its configuration from one of the following places, in
 order of precedence (greatest to least):
 
-* The command line options, such as `--pd 127.0.0.1:2379`.
+* Command line flags, such as `--pd 127.0.0.1:2379`.
 * A local configuration file `./.tikv-cli.toml`
-* The global configuration file `${XDG_CONFIG_HOME}/tikv-cli.toml`.
-* The default options (connect to localhost, no TLS).
+* A global configuration file `${XDG_CONFIG_HOME}/tikv-cli.toml`.
+* Default options (connect to localhost, no TLS).
 
 The options are:
 
@@ -102,24 +102,24 @@ object `{ key: "", value: "" }`, for multiple results it will return a JSON
 array. Errors will use an `{ error: "" }` object. Opting out of prettyprint will
 be via the `--minify` flag.
 
-JSON was chosen because it is an efficient, pervasive, human-readable, modern
+JSON is chosen because it is an efficient, pervasive, human-readable, modern
 standard that has many tools (eg `jq`) to use for post processing if needed.
 
 All standard (non-logging) output will be on `stdout`.
 
 It will feature configurable logging levels with `slog` which will output to `stderr`.
 
-The tool will exit zero on successful requests, and non-zero on unsuccessful
+The tool will exit with exit code zero on successful requests, and non-zero on unsuccessful
 requests. In the case of REPL mode, it shall exit zero unless the connection is
 found to be lost.
 
 ### Interacting with it
 
-Users will interact with the tool through the command line. It will support both
-a one-off mode or a REPL (Read-eval-print-loop) style mode (See alternatives).
+Users will interact with the tool through a command line interface. It will
+support both one-off mode or REPL (Read-eval-print-loop) style mode (See [alternatives](#Alternatives)).
 
-TiKV has two APIs, *raw* and *transactional*, both are supported. Learn about the
-differences [here](https://tikv.org/docs/architecture/#apis).
+TiKV has two APIs, *raw* and *transactional*, both are supported by this tool.
+Learn about the differences [here](https://tikv.org/docs/architecture/#apis).
 
 Example of the one-off raw mode:
 
