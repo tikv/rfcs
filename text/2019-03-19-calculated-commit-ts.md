@@ -168,6 +168,9 @@ Rollback will not be written; when a prewrite finds there's a record in
 * Breaks historical snapshot reading.
 * Increases complexity of the code.
 * tidb-binlog will be much affected by this change.
+* If a user reads TiKV with a timestamp that is ahead of the real time (this
+  might be done by calling TiKV client directly), it may cause a transaction
+  committed with a `commit_ts` that is ahead of the real time.
 * If someday we supports transactional reads on followers, it will be exclusive
   with this optimization.
 
@@ -177,3 +180,11 @@ config when possible.
 ## Alternatives
 
 ## Unresolved questions
+
+The performance impacts to reads with shuffle leader enabled still need to be
+carefully dealt with. When leader transfers, the outer lock of
+`max_read_ts_map` need to be write locked. Therefore, other read/write
+operations, which only need read lock, may be affected. According to tests, this
+may make QPS of read only queries 3% lower (the tested queries are like
+`SELECT v FROM table WHERE id = a OR id = b`). Luckily, frequent leader transfer
+is not a common case.
