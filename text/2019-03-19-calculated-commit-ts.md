@@ -165,14 +165,12 @@ Rollback will not be written; when a prewrite finds there's a record in
   contentions.
 * Makes the `commit_ts` not related to the real commit time, which may make the
   data lives shorter than GC lifetime.
-* Breaks historical snapshot reading.
+* Breaks historical readings.
 * Increases complexity of the code.
 * tidb-binlog will be much affected by this change.
 * If a user reads TiKV with a timestamp that is ahead of the real time (this
   might be done by calling TiKV client directly), it may cause a transaction
   committed with a `commit_ts` that is ahead of the real time.
-* If someday we supports transactional reads on followers, it will be exclusive
-  with this optimization.
 
 It's better to made this an optional optimization, and can be enabled with
 config when possible.
