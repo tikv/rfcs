@@ -180,12 +180,14 @@ Finished in 0.001s. (txn ts: 1551216224838)
 ]
 Finished in 0.003s. (txn ts: 1551216224838)
 >> commit
-Finished in 0.001s. (txn ts: 1551216224838)
+Finished in 0.001s. (txn ts: 1551216224838, commit ts: 1551216224838)
 ```
 
 One-off transactional mode is a bit different, a series of commands can be
-provided as a list. Begin and commit are inserted implictly at the start and end
-of the command. This creates a 'command level atomicity'.
+provided as a list. This is similar to an 'Auto-commit mode' where `begin` and
+`commit` are inserted implictly at the start and end of the command. If any
+commands fail, the entire transaction is rolled back and the program exits with
+a non-zero exit code.
 
 In most scripting uses, we expect users will newline separate commands.
 
