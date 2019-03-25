@@ -8,12 +8,12 @@ This RFC proposes to hibernate a peer when it reaches a stable state.
 
 There are several ticks when driving a peer. The cost of tick is usually
 small. However, when there are a lot of regions in one TiKV instances, the
-cost can't be eligible. We have observed that an idle cluster with many
+cost can't be negligible. We have observed that an idle cluster with many
 regions can waste a lot of CPUs to send useless heartbeats and tick to routine
 checks. Even in an online cluster with tens of thousands of regions, enlarge
 the ticks' interval can usually lead to better performance. Threaded raftstore
 can ease the problem but can't solve it. In general, not all regions keep
-working all the time. Imbalanced load is a very common use case in practice.
+working all the time. Unbalanced load is a very common use case in practice.
 For those idle regions, we can hibernate them to avoid resources waste, hence
 get a better performance.
 
@@ -35,27 +35,30 @@ make it work:
 
     1) All followers have met commit_index == last_index_of_leader,
     2) apply_index == last_index,
-    3) its flag named `waken` is false,
+    3) its flag named `steady` is true,
 
 2. When a follower finds all followings are satisfied when handling ticks,
    it stops ticking.
 
     1) term == last_log_term,
     2) has a valid leader,
-    3) its flag named `waken` is false,
+    3) its flag named `steady` is true,
 
 3. When a peer is created, it starts ticking.
 
 4. When a peer receives a proposal (write proposal/read index), it marks flag
-   `waken` to true and starts ticking.
+   `steady` to false and starts ticking.
 
 5. When a peer receives RequestVote/PreRequestVote/MsgTimeoutNow, it marks
-   flag `waken` to true and starts ticking.
+   flag `steady` to false and starts ticking.
 
-6. When a follower receives leader's message, it marks `waken` to false.
+6. When a follower receives leader's message, it marks `steady` to true.
 
 7. When a leader finds all nodes are actively replying messages, it marks
-   `waken` to false.
+   `steady` to true.
+
+8. If a follower finds out network to leader is unavailable, it marks `steady`
+   to false and starts ticking.
 
 When a cluster is started, because of 3, all peers are ticking. It works
 just the old way. Because of 2, ticks of followers will not stop until a
@@ -68,14 +71,15 @@ must tick in this case so that it can keep retry sending out entries when
 network is in bad condition. And after the proposal is committed on all peers
 and applied on leader, leader will stop ticking because of 1.
 
-If during that time, leader is out of service, client will try to redirect
-requests to followers. Because of 4, followers will start ticking. They start
-campaigns in the end. And their campaign messages will wake the whole cluster
-up because of 5. Note that in such case, new leader will not stop ticking even
-it is elected and apply the new entry because there is still one out of service
-node, which is the old leader. Rule 4 can be more aggressive like if it detects
-that it has not received messages from leader for more than election_timeout,
-it can start campaign immediately.
+If during that time, leader is out of service, client may try to redirect
+requests to followers. Because of 4, followers will start ticking. If client
+doesn't redirect the requests, followers can still start ticking due to 8.
+They start campaigns in the end. And their campaign messages will wake the
+whole cluster up because of 5. Note that in such case, new leader will not
+stop ticking even it is elected and applies the new entry because there is
+still one out of service node, which is the old leader. Rule 4 and 8 can be
+more aggressive like if it detects that it has not received messages from
+leader for more than election_timeout, it can start campaign immediately.
 
 If during that time, follower is out of service and recovered before any
 proposals, it will start ticking because of 3. To prevent it from disturbing
@@ -93,9 +97,9 @@ mechanism to make it removed. This will be discussed when talking about
 
 ### RaftLogGc
 
-Apparently, only leader needs to tick. And when raft tick is stopped, this
-tick can be stopped too. When new write proposal arrives or a new leader
-is elected, the tick can be started again.
+Because raft log is done by proposal, so only leader needs to tick. And when
+raft tick is stopped, this tick can be stopped too. When new write proposal
+arrives or a new leader is elected, the tick can be started again.
 
 ### SplitRegionCheck
 
