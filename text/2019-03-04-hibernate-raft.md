@@ -8,14 +8,14 @@ This RFC proposes to hibernate a peer when it reaches a stable state.
 
 There are several ticks when driving a peer. The cost of tick is usually
 small. However, when there are a lot of regions in one TiKV instances, the
-cost can't be negligible. We have observed that an idle cluster with many
-regions can waste a lot of CPUs to send useless heartbeats and tick to routine
-checks. Even in an online cluster with tens of thousands of regions, enlarge
+cost can be significant. We have observed that an idle cluster with many
+regions can waste a lot of CPU time to send useless heartbeats and ticks for routine
+checks. In an online cluster with tens of thousands of regions, enlarging
 the ticks' interval can usually lead to better performance. Threaded raftstore
 can ease the problem but can't solve it. In general, not all regions keep
 working all the time. Unbalanced load is a very common use case in practice.
-For those idle regions, we can hibernate them to avoid resources waste, hence
-get a better performance.
+For those idle regions, we can hibernate them to avoid wasting resources and
+get better performance.
 
 ## Detailed design
 
@@ -25,9 +25,9 @@ Following describes how to disable all these ticks when possible.
 
 ### Raft
 
-Raft tick is used to driving a raft state machine, so leader can send
-heartbeats, follower can campaign when leader is down. To disable it, we need
-to make sure raft can still work properly. I suggest adding following rules to
+Raft tick is used to drive a raft state machine, so a leader can send
+heartbeats, and a follower can campaign when the leader is down. To disable it,
+to make sure raft can still work properly. The following rules are needed to
 make it work:
 
 1. When a leader finds all followings are satisfied when handling ticks,
@@ -52,44 +52,44 @@ make it work:
 5. When a peer receives RequestVote/PreRequestVote/MsgTimeoutNow, it marks
    flag `steady` to false and starts ticking.
 
-6. When a follower receives leader's message, it marks `steady` to true.
+6. When a follower receives the leader's message, it marks `steady` to true.
 
-7. When a leader finds all nodes are actively replying messages, it marks
+7. When a leader finds all nodes are actively replying to messages, it marks
    `steady` to true.
 
-8. If a follower finds out network to leader is unavailable, it marks `steady`
+8. If a follower finds out the network to leader is unavailable, it marks `steady`
    to false and starts ticking.
 
 When a cluster is started, because of 3, all peers are ticking. It works
-just the old way. Because of 2, ticks of followers will not stop until a
-leader is elected and at lease a new log is appended. If there is no further
+same as the old way. Because of 2, ticks of followers will not stop until a
+leader is elected and at least one new log is appended. If there is no further
 proposals, because of 1, leader will stop ticking too.
 
 When both leader and followers are hibernated, a proposal arrives. Leader will
 start ticking again because of 4. And followers will tick. Note that leader
 must tick in this case so that it can keep retry sending out entries when
-network is in bad condition. And after the proposal is committed on all peers
+network is in bad condition. After the proposal is committed on all peers
 and applied on leader, leader will stop ticking because of 1.
 
-If during that time, leader is out of service, client may try to redirect
-requests to followers. Because of 4, followers will start ticking. If client
+During that time, if the leader is out of service, a client may try to redirect
+requests to followers. Because of 4, followers will start ticking. If the client
 doesn't redirect the requests, followers can still start ticking due to 8.
-They start campaigns in the end. And their campaign messages will wake the
+They start campaigns in the end, and their campaign messages will wake the
 whole cluster up because of 5. Note that in such case, new leader will not
 stop ticking even it is elected and applies the new entry because there is
 still one out of service node, which is the old leader. Rule 4 and 8 can be
-more aggressive like if it detects that it has not received messages from
+more aggressive: if it detects that it has not received messages from
 leader for more than election_timeout, it can start campaign immediately.
 
-If during that time, follower is out of service and recovered before any
+During this time, if a follower is out of service and recovered before any
 proposals, it will start ticking because of 3. To prevent it from disturbing
-the leader, PreVote needs to be enabled. And leader will eventually be woken
+the leader, PreVote needs to be enabled. This way the leader will eventually be woken
 up and broadcasting heartbeat until all followers have been calmed down and go
 to sleep as 7 indicates. If follower is recovered after proposals, leader has
 been woken up already, and the whole cluster will be made sure to be up to
 date.
 
-If during that time, a new node is added to the cluster, because of 1, leader
+During this time, if a new node is added to the cluster, because of 1, leader
 will keep ticking until the conf change is complete and new node has caught up
 all the logs. If a node is removed, and the node is isolated, we need another
 mechanism to make it removed. This will be discussed when talking about
