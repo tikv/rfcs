@@ -38,8 +38,9 @@ For example:
 
 Txn2 reads `"k1"` twice but gets two different results. If `commit_ts` is
 allocated from PD, this will not happen, because Txn2's first read must happen
-before Txn1's prewrite, and Txn1's `commit_ts` must be requested after finishing
-prewrite, which means, Txn2's `commit_ts` must be larger than Txn1's `start_ts`.
+before Txn1's prewrite while Txn1's `commit_ts` must be requested after
+finishing prewrite. And as a result, Txn2's `commit_ts` must be larger than
+Txn1's `start_ts`.
 
 On the other hand, `commit_ts` can't be arbitrarily large. If the `commit_ts` is
 ahead of actual time, the committed data may be unreadable by other new
