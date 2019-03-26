@@ -9,13 +9,13 @@ This RFC proposes to hibernate a peer when it reaches a stable state.
 There are several ticks when driving a peer. The cost of tick is usually
 small. However, when there are a lot of regions in one TiKV instances, the
 cost can be significant. We have observed that an idle cluster with many
-regions can waste a lot of CPU time to send useless heartbeats and ticks for routine
-checks. In an online cluster with tens of thousands of regions, enlarging
-the ticks' interval can usually lead to better performance. Threaded raftstore
-can ease the problem but can't solve it. In general, not all regions keep
-working all the time. Unbalanced load is a very common use case in practice.
-For those idle regions, we can hibernate them to avoid wasting resources and
-get better performance.
+regions can waste a lot of CPU time to send useless heartbeats and ticks for
+routine checks. In an online cluster with tens of thousands of regions,
+enlarging the ticks' interval can usually lead to better performance. Threaded
+raftstore can ease the problem but can't solve it. In general, not all regions
+keep working all the time. Unbalanced load is a very common use case in
+practice. For those idle regions, we can hibernate them to avoid wasting
+resources and get better performance.
 
 ## Detailed design
 
@@ -26,9 +26,8 @@ Following describes how to disable all these ticks when possible.
 ### Raft
 
 Raft tick is used to drive a raft state machine, so a leader can send
-heartbeats, and a follower can campaign when the leader is down. To disable it,
-to make sure raft can still work properly. The following rules are needed to
-make it work:
+heartbeats, and a follower can campaign when the leader is down. To make sure
+raft can still work properly, the following rules are needed:
 
 1. When a leader finds all followings are satisfied when handling ticks,
    it stops ticking.
@@ -61,7 +60,7 @@ make it work:
    to false and starts ticking.
 
 When a cluster is started, because of 3, all peers are ticking. It works
-same as the old way. Because of 2, ticks of followers will not stop until a
+the same as the old way. Because of 2, ticks of followers will not stop until a
 leader is elected and at least one new log is appended. If there is no further
 proposals, because of 1, leader will stop ticking too.
 
