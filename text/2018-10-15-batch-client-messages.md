@@ -79,7 +79,7 @@ used by TiKV to tell clients the current load of TiKV.  So clients can adjust
 their strategy (e.g. add some backoff to avoid little batch) to be more
 effective for TiKV.
 
-### Implement in TiKV
+### Implementation in TiKV
 
 The implementation in TiKV is very simple. It just extracts `Request`s from
 `BatchCommandsRequest`, dispatches them to engine layer, and then collects the
@@ -100,6 +100,9 @@ TiKV gets CPU usage of gRPC threads by reading
 `/proc/<tikv-pid>/tasks/<grpc-tid>`, which is only avaliable on Linux. If gRPC
 CPU usage is greater than 80% in last 1 seconds, TiKV can tell clients it's
 overload.
+
+However it's not available on other operating systems. In these cases TiKV will
+never tell clients it's overload, which means `transport_layer_load` will be 0.
 
 ## Drawbacks
 
