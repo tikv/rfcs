@@ -4,13 +4,13 @@
 
 Add a new API `BatchCommands` into `Tikv` service, which contains a vector of
 raw client requests (e.g. `GetRequest`). It can reduce gRPC messages count
-obviously, and according to tests the performance is improved considerably,
-especially when TiKV or TiDB's CPU usage is the bottleneck.
+dramatically; and, according to tests, the performance is improved considerably,
+especially when TiKV or TiDB's CPU usage reaches the bottleneck.
 
 ## Motivation
 
-In the current implementation the default configuration of `grpc-concurrency`
-is `4`, so it could be a bottleneck of TiKV under heavy load. Although we can
+In the current implementation, the default configuration of `grpc-concurrency`
+is `4`, which could be a bottleneck of TiKV under heavy load. Although we can
 increase the configuration value, or make it adaptable further, we still need
 to try best to reduce the gRPC CPU usage. With `BatchCommands` interface,
 clients can batch some requests into one request, and send them to TiKV with
@@ -99,14 +99,15 @@ than a configurable value, TiDB will wait 2 millisecond and then do the send.
 TiKV gets CPU usage of gRPC threads by reading
 `/proc/<tikv-pid>/tasks/<grpc-tid>`, which is only avaliable on Linux. If gRPC
 CPU usage is greater than 80% in last 1 seconds, TiKV can tell clients it's
-overload.
+overloaded.
 
-However it's not available on other operating systems. In these cases TiKV will
-never tell clients it's overload, which means `transport_layer_load` will be 0.
+However, this function is not available on other operating systems, in which
+case TiKV will never tell clients it's overloaded, which means
+`transport_layer_load` will be 0.
 
 ## Drawbacks
 
-As you can see we introduce a *wait algorithm* in TiDB, which must cause a
-higher latency when the algorithm works. However a bigger batch means less
+As you can see the *wait algorithm* we introduce in TiDB will surely cause a
+higher latency when the algorithm works. However, a bigger batch means less
 syscalls, and then less cost on network. So we must choose the *threshold*
 carefully to avoid potential performance drops.
