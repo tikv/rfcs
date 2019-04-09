@@ -11,7 +11,7 @@ the bottleneck.
 ## Motivation
 
 In the current implementation, the default configuration of `grpc-concurrency`
-is `4`, which could be a bottleneck of TiKV under heavy load. Although we can
+is `4`, which could be a bottleneck for TiKV under heavy load. Although we can
 increase the configuration value, or make it adaptable, we still need
 to try the best to reduce the gRPC CPU usage. With the `BatchCommands` interface,
 clients can consolidate requests in a batch, and send them to TiKV with
@@ -61,27 +61,27 @@ message BatchCommandsResponse {
 `BatchCommands` is a dual-way streaming interface. This means TiKV will constuct
 responses for batched requests. For example, TiDB can send a
 `BatchCommandsRequest` with requests `[Req-1, Req-2, Req-3, Req-4, Req-5]`.
-However TiKV may send back `BatchCommandsResponse`s back with responses `[Resp-1,
+However, TiKV may send back `BatchCommandsResponse`s with responses `[Resp-1,
 Resp-5, Resp-3]` and `[Resp-2, Resp-4]`. It's unnecessary to wait for any
 single response that comes from one `BatchCommandsRequest`; the order depends
 on processing speed of each request.
 
 `request_ids` in both `BatchCommandsRequest` and `BatchCommandsResponse` is
 used to map requests and responses in the streaming interface so that TiDB can
-know one response is for which request.
+know about the correlation.
 
 We use `oneof` instead of `message` to unify requests and responses. Their
 wired protocols are almost the same, but the former generates much better code.
 
 `transport_layer_load` in `BatchCommandsResponse` is
 used by TiKV to tell clients its current load, so clients can adjust
-their strategy (e.g. add some backoff to avoid little batch) to be more
+their strategy (e.g. add some backoff time to avoid overly small batch) to be more
 efficient for TiKV.
 
 ### Implementation in TiKV
 
 The implementation in TiKV is very simple. TiKV just extracts `Request`s from
-`BatchCommandsRequest`, dispatches them to the engine layer, consolidate the
+`BatchCommandsRequest`, dispatches them to the engine layer, consolidates the
 `Response`s into `BatchCommandsResponse`, and sends it to clients.
 
 ### Implement in TiDB
