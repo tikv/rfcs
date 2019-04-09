@@ -2,18 +2,19 @@
 
 ## Summary
 
-Add a new API `BatchCommands` into `Tikv` service, which contains a vector of
-raw client requests (e.g. `GetRequest`). It can reduce gRPC messages count
-dramatically; and, according to tests, the performance is improved considerably,
-especially when TiKV or TiDB's CPU usage reaches the bottleneck.
+This proposal adds a new API `BatchCommands` in `Tikv` service, which
+contains a vector of raw client requests (e.g. `GetRequest`). It can reduce
+gRPC messages count dramatically; and, according to tests, the performance
+is improved considerably, especially when TiKV or TiDB's CPU usage reaches
+the bottleneck.
 
 ## Motivation
 
 In the current implementation, the default configuration of `grpc-concurrency`
 is `4`, which could be a bottleneck of TiKV under heavy load. Although we can
-increase the configuration value, or make it adaptable further, we still need
-to try best to reduce the gRPC CPU usage. With `BatchCommands` interface,
-clients can batch some requests into one request, and send them to TiKV with
+increase the configuration value, or make it adaptable, we still need
+to try the best to reduce the gRPC CPU usage. With the `BatchCommands` interface,
+clients can consolidate requests in a batch, and send them to TiKV with
 less `send` (or `sendmsg`) syscalls, which normally means less gRPC CPU usage.
 
 ## Detailed design
@@ -44,7 +45,7 @@ message BatchCommandsRequest {
 message BatchCommandsResponse {
     repeated Response responses = 1;
     repeated uint64 request_ids = 2;
-    // Indicates the TiKV's transport layer is in heavy load or not.
+    // Indicates whether the TiKV's transport layer is under heavy load or not.
     uint64 transport_layer_load = 3;
 
     message Response {
@@ -57,48 +58,47 @@ message BatchCommandsResponse {
 }
 ```
 
-First of all, it's a dual-way streaming interface. It means TiKV is to constuct
+`BatchCommands` is a dual-way streaming interface. This means TiKV will constuct
 responses for batched requests. For example, TiDB can send a
-`BatchCommandsRequest` with requests `[Req-1, Req-2, Req-3, Req-4, Req-5]`,
-however TiKV can give `BatchCommandsResponse`s back with responses `[Resp-1,
+`BatchCommandsRequest` with requests `[Req-1, Req-2, Req-3, Req-4, Req-5]`.
+However TiKV may send back `BatchCommandsResponse`s back with responses `[Resp-1,
 Resp-5, Resp-3]` and `[Resp-2, Resp-4]`. It's unnecessary to wait for any
-responses which comes from one `BatchCommandsRequest`; the order just depends
-on processing speed of every requests.
+single response that comes from one `BatchCommandsRequest`; the order depends
+on processing speed of each request.
 
 `request_ids` in both `BatchCommandsRequest` and `BatchCommandsResponse` is
-used to relate requests and responses in the streaming interface. When clients
-send a batch request to TiKV, they also need to store their `request_ids`
-somewhere, and then dispatch responses (extracted from batch responses)
-respectively to them.
+used to map requests and responses in the streaming interface so that TiDB can
+know one response is for which request.
 
-`oneof` is used to unify requests and responses, instead of a `message`. Their
-wired protocols are almost same, but the former's generated code is much better.
+We use `oneof` instead of `message` to unify requests and responses. Their
+wired protocols are almost the same, but the former generates much better code.
 
-The last thing is `transport_layer_load` in `BatchCommandsResponse`, which is
-used by TiKV to tell clients the current load of TiKV.  So clients can adjust
+`transport_layer_load` in `BatchCommandsResponse` is
+used by TiKV to tell clients its current load, so clients can adjust
 their strategy (e.g. add some backoff to avoid little batch) to be more
-effective for TiKV.
+efficient for TiKV.
 
 ### Implementation in TiKV
 
-The implementation in TiKV is very simple. It just extracts `Request`s from
-`BatchCommandsRequest`, dispatches them to engine layer, and then collects the
-`Response`s into `BatchCommandsResponse` and sends it to clients.
+The implementation in TiKV is very simple. TiKV just extracts `Request`s from
+`BatchCommandsRequest`, dispatches them to the engine layer, consolidate the
+`Response`s into `BatchCommandsResponse`, and sends it to clients.
 
 ### Implement in TiDB
 
-The implementation in TiDB is a little complex. One TiDB can establish many
-connections to one TiKV, and for every connection TiDB will construct a map
-to associate requests with some IDs. When send requests to TiKVs, TiDB needs
-to decide to wait for a while to collect a bigger batch or not. In our design
-it depends on TiKVs' load returned in `BatchCommandsResponse`. If it's greater
-than a configurable value, TiDB will wait 2 millisecond and then do the send.
+The implementation in TiDB is a little complex. One TiDB server can establish many
+connections to one TiKV server, and for every connection TiDB will construct a map
+to associate requests with some IDs, which are generated by TiDB to trace requests.
+Before sending requests to TiKV, TiDB needs to decide whether to wait for a while
+to collect a bigger batch or not. In our design, this depends on TiKVs' load returned
+in `BatchCommandsResponse`. If the load is greater than a configurable threshold,
+TiDB will wait for 2 milliseconds before sending the requests.
 
 ### How TiKV knows its gRPC threads are busy
 
 TiKV gets CPU usage of gRPC threads by reading
 `/proc/<tikv-pid>/tasks/<grpc-tid>`, which is only avaliable on Linux. If gRPC
-CPU usage is greater than 80% in last 1 seconds, TiKV can tell clients it's
+CPU usage is greater than 80% in last second, TiKV can inform clients that it's
 overloaded.
 
 However, this function is not available on other operating systems, in which
