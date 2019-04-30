@@ -89,19 +89,16 @@ a `PreMerge` is proposed while `CommitMerge` is not applied.
 
 ### CheckPeerStaleState
 
-Hibernation means it should not be interrupted only when it's really
-necessary. This tick is deprecated completely. We have two ways to clean up
-stale peers without ticks.
+This tick can't be removed as there is no reliable way to remove stale peer.
 
-One way is relying on the PD, so that when pd finds that the peer count of a
-store doesn't match the expected value calculated from heartbeats of leader,
-it sends a list of regions to store, so that store can clean all stale peers
-according to the region epoch.
-
-The other way is relying on the range check. If a store receives a demand to
-create a new peer on the node while the range is covered by other peers, then
-it asks the overlapped peer to check if it's stale. This is simple but may not
-release space in time.
+Besides leader has to broadcast heartbeats to all followers in a long period
+as memtioned above, so this tick can be also used for broadcasting and checking
+heartbeats. To make sure followers check the leader heartbeat reliablely, we can
+add a intermediate state to group state as PreChaos. If a follower is Idle, then
+change it to PreChaos; if it's PreChaos, then change it to Chaos. So it takes
+two ticks for follower to actually start campaign while it only takes one tick
+for leader to broadcast heartbeats. So followers should generally stay calm if
+network and clock is good.
 
 ## Drawbacks
 
