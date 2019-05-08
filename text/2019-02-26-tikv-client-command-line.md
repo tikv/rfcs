@@ -35,9 +35,9 @@ around the crate API.
 
 ### Install
 
-This tool will be built in the `tikv-cli` repository. It will be published.
-Users will be able to install it with `cargo install tikv-cli`. (See
-*Alternatives* for another option.)
+This tool will be built in the `client-rust` repository. It will be published.
+Users will be able to install it with
+`cargo install tikv-client --features cli`. (See *Alternatives* for another option.)
 
 ### Configuration
 
@@ -45,8 +45,9 @@ The tool will retrieve its configuration from one of the following places, in
 order of precedence (greatest to least):
 
 * Command line flags, such as `--pd 127.0.0.1:2379`.
-* A local configuration file `./.tikv-cli.toml`
-* A global configuration file `${XDG_CONFIG_HOME}/tikv-cli.toml`.
+* A local configuration file `./.tikv-client.toml`
+* A global configuration file `${XDG_CONFIG_HOME}/tikv-client.toml` (or
+  comparable cross platform options)
 * Default options (connect to localhost, no TLS).
 
 The options are:
@@ -86,7 +87,13 @@ minify = false
 mode = "transaction"
 # If the tool should output on stderr the duration of commands.
 # Default: true
-output-durations = true
+output_durations = true
+# Control the encoding.
+# TiKV has a Unified Key Format which is used in cases where a more human readable format is
+# required for non-UTF-8 data.
+# Avaiable: utf-8, ukf, profobuffer, hex
+key-encoding = "utf-8"
+value-encoding = "utf-8"
 ```
 
 On the command line, these options have the same name, but with `_` replaced
@@ -113,10 +120,23 @@ The tool will exit with exit code zero on successful requests, and non-zero on u
 requests. In the case of REPL mode, it shall exit zero unless the connection is
 found to be lost.
 
+TiKV is often used in cases where a key or value is not a UTF-8 compatible
+string, or may print undesirable control characters to the console. We provide the
+`key-encoding` and `value-encoding` configuration options to control this.
+
+For most users, their natural first attempt with the client will be to use UTF-8
+strings for both keys and values. In order to prevent confusion, we default to
+UTF-8 for both and make the options for `*-encoding` discoverable.
+
+The `key-encoding` and `value-encoding` options support `utf-8`, `ukf` (TiKV's
+Unified Key format), `protobuffer`, or `hex`. (There is a potential use of
+values to store keys.)
+
 ### Interacting with it
 
 Users will interact with the tool through a command line interface. It will
-support both one-off mode or REPL (Read-eval-print-loop) style mode (See [alternatives](#Alternatives)).
+support both one-off mode or REPL (Read-eval-print-loop) style mode
+(See [alternatives](#Alternatives)).
 
 TiKV has two APIs, *raw* and *transactional*, both are supported by this tool.
 Learn about the differences [here](https://tikv.org/docs/architecture/#apis).
@@ -124,14 +144,14 @@ Learn about the differences [here](https://tikv.org/docs/architecture/#apis).
 Example of the one-off raw mode:
 
 ```bash
-$ tikv-cli --mode raw set "cncf" "linux foundation"
+$ tikv-client --mode raw set "cncf" "linux foundation"
 Finished in 0.001s.
-$ tikv-cli --mode raw set "tikv" "rust"
+$ tikv-client --mode raw set "tikv" "rust"
 Finished in 0.001s.
-$ tikv-cli --mode raw get "cncf"
+$ tikv-client --mode raw get "cncf"
 "linux foundation"
 Finished in 0.002s.
-$ tikv-cli --mode raw scan "b"..
+$ tikv-client --mode raw scan "b" ..
 [
     { key: "cncf", value: "linux foundation" },
     { key: "tikv", value: "rust" },
@@ -142,7 +162,7 @@ Finished in 0.003s.
 Example of REPL raw mode:
 
 ```bash
-$ tikv-cli --mode raw
+$ tikv-client --mode raw
 > set "cncf" "linux foundation"
 Finished in 0.001s.
 > set "tikv" "rust"
@@ -163,7 +183,7 @@ that the user is in a transaction. Also notice how the transaction timestamp is
 outputted in the request complete messages.
 
 ```bash
-$ tikv-cli
+$ tikv-client
 > begin
 Finished in 0.000s. (txn ts: 1551216224838)
 >>set "cncf" "linux foundation"
@@ -196,7 +216,7 @@ command. In the case of command such as `set` which have no output, a `null` is
 used.
 
 ```bash
-$ tikv-cli \
+$ tikv-client \
     set "cncf" "linux foundation" \
     set "tikv" "rust" \
     get "cncf" \
@@ -213,6 +233,12 @@ $ tikv-cli \
 Finished in 0.003s.
 ```
 
+## Future Work
+
+We plan to eventually spin off this command line interface into an independent
+project as it matures. For the time being it will provide a very convenient way
+to use and test the Rust client.
+
 ## Drawbacks
 
 This will increase our maintenance burden, so it may be better to leave this up
@@ -220,10 +246,6 @@ to independent community efforts.
 
 ## Alternatives
 
-* *(Installation/Repo)* We could use the `tikv-client` repository and provide
-  either an opt-out or an opt-in binary from `src/bin/tikv-cli.rs`. If we chose
-  an opt-in functionality here users mgiht end up with an awkard installation
-  call.
 * (*Use `tikv-cli`*), we could use `tikv-cli` for this, but it creates as fuzzy
   distinction between management tools and clients.
 * (*No REPL, or only REPL*). We may chose to not have a REPL mode, or we may chose
