@@ -89,7 +89,7 @@ there are any read proposals to let pd rebalance correctly.
 ### CheckMerge
 
 It has been implemented in the lazy way already that it's only scheduled when
-a `PreMerge` is proposed while `CommitMerge` is not applied.
+a `PrepareMerge` is proposed while `CommitMerge` is not applied.
 
 ### CheckPeerStaleState
 
