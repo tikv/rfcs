@@ -22,40 +22,42 @@ faster and easier once TiFlash provides consistency check.
 
 We should add a new API for raft-rs to request a snapshot of a region via grpc.
 
-```protobuf
-message getSnapshotRequest {
-    metapb.Region region = 1
-}
-```
+The request snapshot message is piggybacked by `reject` and `reject_hint`, it
+sets `reject` to `true` and `reject_hint` to `INVALID_INDEX`.
 
-### tikv learner
+When the follower requests a snapshot, it enters a special state called
+`requesting_snapshot`. In this state, the follower rejects all `MsgAppend` and
+responses a request snapshot message.
 
-`tikv-rngine` is the specific learner that TiFlash works along with. TiFlash
-will send a request to learner and ask for snapshot, and `rngine` shall request
-this snapshot from the leader/followers.
+#### Flow control
 
-Hereby we try to make things easier by only implementing requesting snapshot
-from leader at first, further logic for requesting snapshot from other
-followers can be discussed in the future.
+Snapshot needs flow control, otherwise, it wastes disk and network bandwidths by
+repeatedly sending snapshot and raft logs.
 
-### tikv master
+Luckily, raft-rs already provides an efficient flow control mechanism, request
+snapshot is also managed by the mechanism. Request snapshot messages will
+eventually let the follower enter a `Snapshot` state in a leader's view, thus
+leader sends a snapshot and pauses replicating raft logs to the follower.
 
-TiKV leaders should answer the `getSnapshotRequest` by responding a
-`SnapshotResponse` message and the follower/learner should do `ApplySnapshot`
-logic as usual. After the process, Old snapshots may be GCed.
+#### Leader election
 
-### error handling
+A follow shall not start a leader election if it's in the`requesting_snapshot`
+state, because its raft logs or state machine may be damaged. Transfer leader
+messages will silently be ignored, unfortunately.
 
-Common errors that may encounter snapshot might fail to generate
-(AsyncSnapshotErr), etc. Most logic does not need changing when we deal with
-`getSnapshotRequest`. TiFlash needs to deal with extra errors when unable to
-get and apply snapshot data.
+### TiKV
+
+The actual raft snapshot is generated in TiKV side, it is important to not
+generate a **stale** snapshot. By stale, it means the `snapshot_index` is less
+than the current commit index. Otherwise, followers may apply some already
+applied admin commands, like split or merge. It is an undesired behavior to
+apply admin commands repeatedly.
 
 ## Drawbacks
 
 Enabling followers/learners to request snapshot actively could affect some
 pre-assumptions for TiKV leaders potentially. The TiKV might, for instance,
-lost control of the number of external connections, or affect other requests
+lost control of the number of generated snasphots, or affect other requests
 when too many snapshot requests are processing. Further discussions should aim
 at these topics to resolve corner cases above.
 
