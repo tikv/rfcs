@@ -3,8 +3,8 @@
 ## Summary
 
 In current design, a follower can only wait for the leader to send a snapshot
-iff the leader founds out the follower cannot catch up to its index. This RFC
-proposes to let a follower able to request snapshot from leader actively.
+iff the leader finds out the follower cannot catch up to its index. This RFC
+proposes to let a follower be able to request snapshot from leader actively.
 
 ## Motivation
 
@@ -18,12 +18,16 @@ faster and easier once TiFlash provides consistency check.
 
 ## Detailed design
 
-### raft-rs
+### Request snapshot
 
-We should add a new API for raft-rs to request a snapshot of a region via grpc.
+We should add a new API for raft-rs to request a snapshot of a raft.
 
 The request snapshot message is piggybacked by `reject` and `reject_hint`, it
 sets `reject` to `true` and `reject_hint` to `INVALID_INDEX`.
+
+Also, a new field `request_snapshot` is needed in the `eraftpb.Message`,
+in order to distinguish between the reject messages from the new follower
+(A new follower may response `reject_hint = INVALID_INDEX` too).
 
 When the follower requests a snapshot, it enters a special state called
 `requesting_snapshot`. In this state, the follower rejects all `MsgAppend` and
@@ -41,11 +45,12 @@ leader sends a snapshot and pauses replicating raft logs to the follower.
 
 #### Leader election
 
-A follow shall not start a leader election if it's in the`requesting_snapshot`
-state, because its raft logs or state machine may be damaged. Transfer leader
-messages will silently be ignored, unfortunately.
+Should a follower be able to start a leader election? It's up to callers to
+decide. E.g., a follower can always request a snapshot even if it's
+totally fine. However, if a follower loses it's raft logs, it should not start
+a leader election.
 
-### TiKV
+### Snapshot
 
 The actual raft snapshot is generated in TiKV side, it is important to not
 generate a **stale** snapshot. By stale, it means the `snapshot_index` is less
@@ -60,17 +65,6 @@ pre-assumptions for TiKV leaders potentially. The TiKV might, for instance,
 lost control of the number of generated snasphots, or affect other requests
 when too many snapshot requests are processing. Further discussions should aim
 at these topics to resolve corner cases above.
-
-## Alternatives
-
-### Plan B
-
-In order to request for a region's snapshot from leader, TiKV learner may also
-deceive the leader by replying an index much previous than the leader's index
-so that the leader will send a snapshot.
-
-The pros and cons of Plan B is that it is easy to implement but leaves
-uncertainty because the leader may not really respond by sending a snapshot.
 
 ## Unresolved questions
 
