@@ -55,7 +55,7 @@ The options are:
 ```toml
 [connection]
 # A list of `pd` endpoints.
-# Default: None
+# Default: "127.0.0.1:2379"
 pd_endpoints = [
     "127.0.0.1:2379",
     "127.0.0.2:2379",
@@ -91,9 +91,9 @@ output_durations = true
 # Control the encoding.
 # TiKV has a Unified Key Format which is used in cases where a more human readable format is
 # required for non-UTF-8 data.
-# Avaiable: utf-8, ukf, profobuffer, hex
-key-encoding = "utf-8"
-value-encoding = "utf-8"
+# Avaiable: utf-8, ukf, protobuffer, hex
+key_encoding = "utf-8"
+value_encoding = "utf-8"
 ```
 
 On the command line, these options have the same name, but with `_` replaced
@@ -122,13 +122,13 @@ found to be lost.
 
 TiKV is often used in cases where a key or value is not a UTF-8 compatible
 string, or may print undesirable control characters to the console. We provide the
-`key-encoding` and `value-encoding` configuration options to control this.
+`key_encoding` and `value_encoding` configuration options to control this.
 
 For most users, their natural first attempt with the client will be to use UTF-8
 strings for both keys and values. In order to prevent confusion, we default to
 UTF-8 for both and make the options for `*-encoding` discoverable.
 
-The `key-encoding` and `value-encoding` options support `utf-8`, `ukf` (TiKV's
+The `key_encoding` and `value_encoding` options support `utf-8`, `ukf` (TiKV's
 Unified Key format), `protobuffer`, or `hex`. (There is a potential use of
 values to store keys.)
 
