@@ -77,9 +77,10 @@ This RFC proposes the following definitions for the tiers of platforms and targe
         - CentOS 7.x.x on x86-64 on x84-64 with SSE4.2
         - Ubuntu 16.04 through 19.04 on x84-64 with SSE4.2
     + **Tier 2**:
-        - Any Linux Kernel >3.x with glibc >2.17 on x86-64 without SSE4.2
+        - Any Linux Kernel >3.x with glibc >2.17 on x86-64 with SSE4.2
         - Any Linux Kernel >3.x with glibc >2.17 on ARM64/AARCH64
     + **Tier 3**:
+        - Any Linux Kernel >3.x with glibc >2.17 on x86-64 without SSE4.2
         - Any Linux Kernel >3.x with musl libc on X86-64 or ARM64/AARCH64, with or without SSE4.2
         - The latest Mac OS X release on X86-64 (Caution: Apple offers no written support cycle)
     + **Not supported**:
