@@ -122,7 +122,7 @@ This RFC as currently defined does not change any of our *current* support, it o
 
 ## Alternatives
 
-* We could merge development and deployment tiers, but this would not be the full story, since TiKV builds in many more places than we reccomend deployment.
+* We could merge development and deployment tiers, but this would not be the full story, since TiKV builds in many more places than we support deployment.
 * We could not specify what we support and let our users enjoy a fun guessing game
 * We could only specify supported (Tier 1) targets and not worry about partial support.
 * We could limit our Tier 1 to platforms we run Jepsen/Schrodinger tests.
