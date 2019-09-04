@@ -206,14 +206,14 @@ only clarifies them and defines a path forward for new targets.
 
 * We must maintain this compatability specification and ensure correctness
 * Contributors may feel encouraged to try to promote certain platforms up a tier
-and require us to do more testing on releases.
+  and require us to do more testing on releases.
 * This list does not talk about hardware recommendations like CPUs and memory
-since they are dependent on workload and too specific for this RFC. This is
-about what hardware TiKV *can* and *can not* operate on, when not limited by
-computational resources. Nor does it include specifics about which cloud, VM, or
-container platforms we support. Users should refer to
-https://tikv.org/docs/3.0/tasks/deploy/introduction/ for system specification
-guidelines around these topics.
+  since they are dependent on workload and too specific for this RFC. This is
+  about what hardware TiKV *can* and *can not* operate on, when not limited by
+  computational resources. Nor does it include specifics about which cloud, VM, or
+  container platforms we support. Users should refer to
+  https://tikv.org/docs/3.0/tasks/deploy/introduction/ for system specification
+  guidelines around these topics.
 
 ## Alternatives
 
