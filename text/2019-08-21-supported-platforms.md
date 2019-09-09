@@ -28,7 +28,7 @@ case we should move to a new lower-bound.
 
 Supporting a large variety of architectures, CPU features, and operating systems
 is difficult and places a large burden on the release and testing process.
-Clearly defining what must be be tested gives our team the ability to focus our
+Clearly defining what must be tested gives our team the ability to focus our
 efforts, while still inviting others to help us improve support.
 
 For production deployments, our recommendations (Tier 1) remain the same, and
@@ -48,7 +48,7 @@ of TiKV they can access and use. Folks working on TiKV will probably not be
 running a copy of their preferred deployment platform. These are *development*
 targets, where users benefit from being able to harness tooling or IDE features
 that require the TiKV source to at least *build* and be able to handle a couple
-operations a second. So it makes sense to define a second, less rigorous
+operations a second. So it makes sense to define a second
 *Development platform* with tiers as well.
 
 A good example of this is the Nix package manager. While we are quite certain
@@ -68,19 +68,19 @@ This RFC proposes the following terms to be defined for TiKV:
   the build process. These platforms can *run* TiKV, but not necessarily *build*
   it. This platform is the concern of end user community.
 * **Development Platforms:** Development targets for interactively developing
-  TiKV on. These platforms can build, debug, and run TiKV, but may not have all
-  features to run a production workload. These platforms are only the concern of
-  our development community.
+  TiKV on. These platforms can at least build, debug, run, debug, and test TiKV,
+  but may not have all features to run a production workload. These platforms
+  are only the concern of our development community.
 * **Tier 1:** Official build processes build, test, and benchmark these targets,
   and they are considered endorsed by the maintainers for all usage.
       + Example: CentOS 7, our official build OS, on X86-64 with SSE4
       + Full instructions present and regularly tested
       + Tested on each PR
       + Binaries provided
-* **Tier 2:** Official build processes build, but *do not require testing or
-  benchmarking these platforms to suceed*. Users can feel comfortable
-  experimenting or exploring TiKV with this tier, but they should *expect
-  problems if used in production*.
+* **Tier 2:** Recommended release workflow can build, but we *do not require
+  testing or benchmarking these platforms to suceed*. Users can feel
+  comfortable experimenting or exploring TiKV with this tier, but they should
+  *expect problems if used in production*.
       + Example: Mac OS, which several contributors use for testing, but we
         don't feel comfortable recommending for deployment
       + Only recommended for experimentation
@@ -162,7 +162,8 @@ This RFC proposes the following definitions for the tiers of platforms and targe
       + **Not supported**:
         - Windows
         - FreeBSD
-        - Any Linux using the 'Unbreakable Enterprise Kernel' by Oracle.
+        - Any Linux using the 'Unbreakable Enterprise Kernel' by Oracle
+        - Any big endian architecture
 * **Development Platforms**
       + **Tier 1**:
         - Any Linux kernel >3.x on X84-64 with glibc 2.17 with SSE4.2 or without
@@ -177,7 +178,8 @@ This RFC proposes the following definitions for the tiers of platforms and targe
       + **Not supported**:
         - Windows
         - FreeBSD
-        - Any Linux using the 'Unbreakable Enterprise Kernel' by Oracle.
+        - Any Linux using the 'Unbreakable Enterprise Kernel' by Oracle
+        - Any big endian architecture
 
 This list does not attempt to list all posibilities, it lists all major targets
 we are asked about on a regular basis and special cases we are aware of. If
