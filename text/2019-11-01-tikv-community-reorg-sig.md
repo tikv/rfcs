@@ -47,7 +47,7 @@ In addition, this picture also reflects the relationship between community roles
 
 - Reviewer
     + Must belong to a SIG; has the obligation to review PRs.
-  + Generated from Active Contributors. When an Active Contributor has significant contributions to the module and is nominated by 2 or more Committers, he/she will be invited to be a Reviewer of the module.
+    + Generated from Active Contributors. When an Active Contributor has significant contributions to the module and is nominated by 2 or more Committers, he/she will be invited to be a Reviewer of the module.
     + Has valid sign-off (approval with Looks Good To Me, or LGTM) for code reviews of the module
 
 - Tech Lead
@@ -79,7 +79,7 @@ The SIG follows the role definitions in the Community structure. The SIG is subj
 - **Active Contributors**
 
     - Active contributors will be invited to the SIG
-    - Keep active inof at least one module in the SIG
+    - Remain active in at least one module in the SIG
     - Continue to contribute in at least one module
     - Can participate in the proposal and discussion in the SIG
 
