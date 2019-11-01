@@ -2,7 +2,7 @@
 
 ## Summary
 
-This RFC proposes an upgraded organization structure for the TiKV community, with more community roles and community organizations introduced to better stimulate the vitality of the community and maintain a positive and healthy community environment. This RFC also proposes the constitution and the operation the Special Interest Group (SIG).
+This RFC proposes an upgraded organization structure for the TiKV community, with more community roles and community organizations introduced to better stimulate the vitality of the community and maintain a positive and healthy community environment. This RFC also proposes the constitution and the operation of the Special Interest Group (SIG).
 
 ## Motivation
 
