@@ -18,7 +18,7 @@ There are two parts for the designs. Part 1 focuses on the organization changes 
 
 ![TiKV Community Organization](../media/tikv-community-org.png)
 
-The above picture reflects the first change in this community structure upgrade - the roles of Reviewer and Active Contributor will be introduced to the developer Group. The current Developer Group includes the following:
+The above picture reflects the first change in this community structure upgrade - the roles of Reviewer and Active Contributor will be introduced to the developer Group. The new Developer Group includes the following:
 
 - **Maintainer**: a planner and designer of the project; capable of merging master branches; appointed by existing Maintainers from Committers.
 - **Committer**: nominated by Maintainers or PMC as a contributor with outstanding contribution to TiKV; must have implemented at least one feature or fixed a major bug independently.
