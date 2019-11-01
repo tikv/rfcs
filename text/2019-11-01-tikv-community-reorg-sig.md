@@ -1,5 +1,5 @@
 # TiKV Community Re-organization and SIG Launching
-
+<!-- markdownlint-disable MD013 -->
 ## Summary
 
 This RFC proposes an upgraded organization structure for the TiKV community, with more community roles and community organizations introduced to better stimulate the vitality of the community and maintain a positive and healthy community environment. This RFC also proposes the constitution and the operation of the Special Interest Group (SIG).
@@ -42,17 +42,17 @@ An SIG mainly leads the development and maintenance of a TiKV module and is resp
 In addition, this picture also reflects the relationship between community roles and SIGs.
 
 - Active Contributor
-    + Must be a Contributor with at least 8 PRs merged to the master branch within 1 year.
-    + To join an SIG, a Contributor needs to contribute more than 8 PRs to the module that the SIG is responsible for within 1 year, so that he/she can be invited to join the SIG for targeted learning and contributions.
+    - Must be a Contributor with at least 8 PRs merged to the master branch within 1 year.
+    - To join an SIG, a Contributor needs to contribute more than 8 PRs to the module that the SIG is responsible for within 1 year, so that he/she can be invited to join the SIG for targeted learning and contributions.
 
 - Reviewer
-    + Must belong to a SIG; has the obligation to review PRs.
-    + Generated from Active Contributors. When an Active Contributor has significant contributions to the module and is nominated by 2 or more Committers, he/she will be invited to be a Reviewer of the module.
-    + Has valid sign-off (approval with Looks Good To Me, or LGTM) for code reviews of the module
+    - Must belong to a SIG; has the obligation to review PRs.
+    - Generated from Active Contributors. When an Active Contributor has significant contributions to the module and is nominated by 2 or more Committers, he/she will be invited to be a Reviewer of the module.
+    - Has valid sign-off (approval with Looks Good To Me, or LGTM) for code reviews of the module
 
 - Tech Lead
-    + The organizer of the SIG; responsible for the day-to-day operations including organizing meetings, answering questions, etc.
-    + Tech Leads are responsible for the management and growth of the SIG. For now, the role is taken by PingCAP members, but is hopefully extended to community developers in the future.
+    - The organizer of the SIG; responsible for the day-to-day operations including organizing meetings, answering questions, etc.
+    - Tech Leads are responsible for the management and growth of the SIG. For now, the role is taken by PingCAP members, but is hopefully extended to community developers in the future.
 
 The constitution and operation of SIGs will be detailed in later sections.
 
