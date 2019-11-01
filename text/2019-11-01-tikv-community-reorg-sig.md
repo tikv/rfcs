@@ -1,5 +1,7 @@
 # TiKV Community Re-organization and SIG Launching
+
 <!-- markdownlint-disable MD013 -->
+
 ## Summary
 
 This RFC proposes an upgraded organization structure for the TiKV community, with more community roles and community organizations introduced to better stimulate the vitality of the community and maintain a positive and healthy community environment. This RFC also proposes the constitution and the operation of the Special Interest Group (SIG).
@@ -42,17 +44,17 @@ An SIG mainly leads the development and maintenance of a TiKV module and is resp
 In addition, this picture also reflects the relationship between community roles and SIGs.
 
 - Active Contributor
-    - Must be a Contributor with at least 8 PRs merged to the master branch within 1 year.
-    - To join an SIG, a Contributor needs to contribute more than 8 PRs to the module that the SIG is responsible for within 1 year, so that he/she can be invited to join the SIG for targeted learning and contributions.
+  - Must be a Contributor with at least 8 PRs merged to the master branch within 1 year.
+  - To join an SIG, a Contributor needs to contribute more than 8 PRs to the module that the SIG is responsible forwithin 1 year, so that he/she can be invited to join the SIG for targeted learning and contributions.
 
 - Reviewer
-    - Must belong to a SIG; has the obligation to review PRs.
-    - Generated from Active Contributors. When an Active Contributor has significant contributions to the module and is nominated by 2 or more Committers, he/she will be invited to be a Reviewer of the module.
-    - Has valid sign-off (approval with Looks Good To Me, or LGTM) for code reviews of the module
+  - Must belong to a SIG; has the obligation to review PRs.
+  - Generated from Active Contributors. When an Active Contributor has significant contributions to the module and is nominated by 2 or more Committers, he/she will be invited to be a Reviewer of the module.
+  - Has valid sign-off (approval with Looks Good To Me, or LGTM) for code reviews of the module
 
 - Tech Lead
-    - The organizer of the SIG; responsible for the day-to-day operations including organizing meetings, answering questions, etc.
-    - Tech Leads are responsible for the management and growth of the SIG. For now, the role is taken by PingCAP members, but is hopefully extended to community developers in the future.
+  - The organizer of the SIG; responsible for the day-to-day operations including organizing meetings, answering questions, etc.
+  - Tech Leads are responsible for the management and growth of the SIG. For now, the role is taken by PingCAP members, but is hopefully extended to community developers in the future.
 
 The constitution and operation of SIGs will be detailed in later sections.
 
@@ -78,10 +80,10 @@ The SIG follows the role definitions in the Community structure. The SIG is subj
 
 - **Active Contributors**
 
-    - Active contributors will be invited to the SIG
-    - Remain active in at least one module in the SIG
-    - Continue to contribute in at least one module
-    - Can participate in the proposal and discussion in the SIG
+  - Active contributors will be invited to the SIG
+  - Remain active in at least one module in the SIG
+  - Continue to contribute in at least one module
+  - Can participate in the proposal and discussion in the SIG
 
 - **Reviewer**
 
@@ -92,15 +94,15 @@ The SIG follows the role definitions in the Community structure. The SIG is subj
 
 - **Tech Lead**
 
-    - 2 or 3 Tech Leads in an SIG are required
-    - Responsible for training members of the SIG
-    - Organize discussions and make decisions of proposal generated within the SIG
-    - Responsible for the SIG's activity and output
-    - Lead the SIG to generate more Reviewer and Commiter
-    - Follow up progress and assign task in SIG
-    - Need to participate in regular meetings
-    - Make roadmap for the SIG
-    - Weekly progress meeting requires at least one Tech Lead to participate in the discussion online
+  - 2 or 3 Tech Leads in an SIG are required
+  - Responsible for training members of the SIG
+  - Organize discussions and make decisions of proposal generated within the SIG
+  - Responsible for the SIG's activity and output
+  - Lead the SIG to generate more Reviewer and Commiter
+  - Follow up progress and assign task in SIG
+  - Need to participate in regular meetings
+  - Make roadmap for the SIG
+  - Weekly progress meeting requires at least one Tech Lead to participate in the discussion online
 
 #### Member promotion mechanism
 
@@ -121,11 +123,11 @@ After a period of inactivity, the SIG member will temporarily exit the SIG. The 
 
 - **Create**
 
-    - All SIG Technical Leads, and other roles need to be at least Active Contributors in the Community structure
-    - Follow the steps above to create an SIG constitution
-    - Create a public and private Slack Channel in tikv-wg.slack.com to discuss the SIG operation related matters
-    - Create a Zoom room for regular meetings, as well as other online discussions
-    - Announce the establishment of a new SIG in the TiKV community
+  - All SIG Technical Leads, and other roles need to be at least Active Contributors in the Community structure
+  - Follow the steps above to create an SIG constitution
+  - Create a public and private Slack Channel in tikv-wg.slack.com to discuss the SIG operation related matters
+  - Create a Zoom room for regular meetings, as well as other online discussions
+  - Announce the establishment of a new SIG in the TiKV community
 
 - **Dismiss**
 
