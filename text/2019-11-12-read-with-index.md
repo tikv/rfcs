@@ -24,11 +24,11 @@ one RTT, so the system latency can be reduced considerably.
 
 ## Detailed design
 
-### Coprocessor Requests 
+### Coprocessor Requests
 
 Add a field `applied_index` in `coprocessor.Request`:
 
-```
+```protobuf
 message coprocessor.Request {
     kvrpcpb.Context context = 1;
     // omit other fields...
