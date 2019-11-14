@@ -26,16 +26,20 @@ one RTT, so the system latency can be reduced considerably.
 
 ### Coprocessor Requests
 
-Add a field `applied_index` in `coprocessor.Request`:
+Add a field `applied_index` in `kvrpcpb.Context`:
 
 ```protobuf
 message coprocessor.Request {
     kvrpcpb.Context context = 1;
     // omit other fields...
 
+    uint64 applied_index = 5;
+}
+message kvrpcpb.Context {
+    bool replica_read = 12;
     // After a region applys to `applied_index`, we can get a
     // snapshot for the region even if the peer is follower.
-    uint64 applied_index = 5;
+    uint64 applied_index = 15;
 }
 ```
 
