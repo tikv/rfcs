@@ -112,7 +112,7 @@ When the delegate receives a `MsgBroadcast`, it might meet any scenario below:
 2. If the message declares that the delegate needs entries, just like the origin raft protocol, it first tries to append incoming entries to its unstable raft log. And if a conflict ocurrs, it sends a rejecting message to the leader and then the leader will try to pick a new delegate to re-send commissions again.
 3. If step 2 succeeds, the delegate will try to execute all the commissions by gathering correspond entries and sending them to each group member. During this time, some of commissions could be failed due to the stale progress state in the leader node. The delegate will collect all the failed commissions and send them back to the leader to trigger a new broadcast message so that Log Replication is always ongoing.
 
-All the other group members have no idea where a `MsgAppend` or `MsgSnapshot` comes from and they just handles messages as normal followers because the delegate will replace the `from` of a message with the leader ID when executing a commission.
+All the other group members have no idea whether a `MsgAppend` or `MsgSnapshot` comes from the leader or the delegate because the delegate always replaces the `from` of the message with the leader ID when executing a commission. So they finally handle these messages like normal followers.
 
 It’s significant to update the inflight of progress when the corresponding commission is generated and rollback the inflight once the leader receives failed commissions in step3 above, which also guarantees that the actual progress of group members (except the delegate) will not be stale.
 
