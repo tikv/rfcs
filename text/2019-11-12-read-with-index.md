@@ -52,7 +52,7 @@ call it directly in clients.
 If we want to get snapshots on regions' followers, we need to send `ReadIndex`
 requests to their leaders, or with this feature, wait for regions apply to
 `applied_index`s carried in read requests. This wait mechanism can be easily
-implemented with an obsrever.
+implemented with an observer.
 
 ## Drawbacks
 
