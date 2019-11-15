@@ -6,7 +6,7 @@ This RFC introduces a new mechanism in Raft Protocol which allows a follower to 
 
 ## Motivation
 
-In the origin raft protocol, a follower can only receive new raft logs and snapshots from the leader, which could be insufficient in some situations. For example, when a raft cluster is distributed in different data centers, log replication between a new node and the leader is expensive as they are located at different data centers. In this case, internal follower-to-follower transfer in one data center can be far more efficient than the traditionally stipulated leader-to-follower transfer.
+In the origin raft protocol, a follower can only receive new raft logs and snapshots from the leader, which could be insufficient in some situations. For example, when a raft cluster is distributed in different data centers, log replication between a new node and the leader is expensive as they are located at different data centers. In this case, internal follower-to-follower transfer in one data center can be far more efficient than the traditionally stipulated leader-to-follower transfer. And in a cluster with massive nodes, the leader can have lower system load due to the less operations in network transmission.
 
 ## Detailed design
 
