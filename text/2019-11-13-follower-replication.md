@@ -109,10 +109,12 @@ You can just treat a commission as the metadata of a MsgAppend or MsgSnapshot si
 When the delegate receives a `MsgBroadcast`, it might meet any scenario below:
 
 1. If the message declares that the delegate needs a snapshot, it means that all the group members are requiring snapshots. Every commission type should be Snapshot and the delegate just broadcasts to others.
-2. If the message declares that the delegate needs entries, it first tried to append incoming entries to its raft log. As the origin raft protocol. If the appending fails, it sends a rejecting message to the leader and then the leader will try to pick a new delegate to re-send commissions again.
-3. If entires appending in step 2 succeeds, the delegate will try to execute all the commissions. And some of them could be failed due to the stale progress state in the leader node. The delegate will collect all the failed commissions and send them back to the leader to trigger a new broadcast message so that Log Replication is always ongoing.
+2. If the message declares that the delegate needs entries, just like the origin raft protocol, it first tries to append incoming entries to its unstable raft log. And if a conflict ocurrs, it sends a rejecting message to the leader and then the leader will try to pick a new delegate to re-send commissions again.
+3. If step 2 succeeds, the delegate will try to execute all the commissions by gathering correspond entries and sending them to each group member. During this time, some of commissions could be failed due to the stale progress state in the leader node. The delegate will collect all the failed commissions and send them back to the leader to trigger a new broadcast message so that Log Replication is always ongoing.
 
-And it’s significant to update the inflight of progress when the corresponding commission is generated and rollback the inflight once the leader receives failed commissions in step3 above, which also guarantees that the actual progress of group members (except the delegate) will not be stale.
+All the other group members have no idea where a `MsgAppend` or `MsgSnapshot` comes from and they just handles messages as normal followers because the delegate will replace the `from` of a message with the leader ID when executing a commission.
+
+It’s significant to update the inflight of progress when the corresponding commission is generated and rollback the inflight once the leader receives failed commissions in step3 above, which also guarantees that the actual progress of group members (except the delegate) will not be stale.
 
 ## Drawbacks
 
