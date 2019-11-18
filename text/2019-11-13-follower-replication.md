@@ -77,10 +77,10 @@ Since a delegate is responsible to send entries to other group members, it must 
     2. The progress state should be `Replicate` but not `paused`
     3. The progress has the smallest `match_index`
 
-3. If no delegate is picked, the leader does Log Replication itself. Especially, if a group contains the leader it self, no delegate will be set by default except in some cases such as massively large group, which is able to be controlled by upper layer.
+3. If no delegate is picked, the leader does Log Replication itself. Especially, if a group contains the leader it self, no delegate will be set by default except in some cases like meeting a massively large group. And the feature of enabling choosing delegate of such 'leader group' can be controlled by upper layer.
 
-And let's talk about these rules carefully:
-For rule 1, It's obvious that a node requiring a snapshot is not a proper choice because its progress is too far behind and its raft logs are highly possible to be stale.
+
+For rule 1, it's obvious that a node requiring a snapshot is not a proper choice because its progress is too far behind and its raft logs are highly possible to be stale.
 
 In most cases, what `recent_active` is true means the node keeps communicating with the leader if `check_quorum` is enabled so rule 2.1 is reasonable.
 
@@ -92,7 +92,7 @@ If the delegate of a group is determined, it’ll be cached in memory for later 
 
 #### MsgBroadcast and Commission
 
-After the delegate is picked, the leader will prepare a `MsgBroadcast` message which is sent to the delegate. A MsgBroadcast just looks like a `MsgAppend` or `MsgSnapshot` to be sent to the delegate, which often only carries entries the delegate needs but also includes a collection of commissions. But if some members are requiring entries and others are requiring snapshots, the `MsgBroadcast` be generated with both entries and a snapshot.
+After the delegate is picked, the leader will prepare a `MsgBroadcast` message which is sent to the delegate. A MsgBroadcast just looks like a `MsgAppend` or `MsgSnapshot` to be sent to the delegate, which often only carries entries the delegate needs but also includes a collection of commissions. But if some members are requiring entries and others are requiring snapshots, the `MsgBroadcast` with be generated with both entries and a snapshot.
 A *commission* just describes the range of entries or a snapshot that should be sent to the target. It looks like:
 
 ```
