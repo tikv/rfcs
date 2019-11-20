@@ -14,15 +14,36 @@ For clusters deployed in multi datacenters, the system latency could mainly
 depend on the network RTT between datacenters. For example, suppose PDs are
 deployed in Beijing, and TiKVs are deployed in Beijing and Xian (for high
 availability). If a client which is near to Xian wants to read a region, it
-needs to get a transaction timestamp from PDs at in Beijing, and then sends
+needs to get a transaction timestamp from PDs (in Beijing), and then sends
 requests to TiKVs in Beijing or Xian. For the latter case, TiKVs in Xian will
-send read index requests to their leaders in Beijing internally, which still
-involves a RTT crossing datacenters. However, If the client can get timestamp
-and applied index for all target regions simultaneously, and then send read
-request to TiKVs with the timestamp and index, with the feature TiKVs can save
-one RTT, so the system latency can be reduced considerably.
+send read index requests to their leaders (in Beijing) internally, which still
+involves a RTT crossing datacenters.
+
+So, If we can add some proxies in the major datacenter, and let it help TiDBs
+in Xian to get transaction timestamp and applied indices of all target regions,
+the read latency between multi datacenter will be reduced from 2 RTT to 1 RTT.
 
 ## Detailed design
+
+### Proxy
+
+As above described, we need to add a proxy service in the major datacenter.
+Considering the proxy service is better to be high available, we can put it
+into TiKV instances. It's easy to register a new gRPC service in TiKV server.
+After that, we get a high available proxy service! The proxy has only one
+method:
+
+```protobuf
+service TsAndReadIndexProxy {
+    rpc GetTsAndReadIndex(Request) returns (Response) {}
+}
+```
+
+The implementation of `GetTsAndReadIndex` will get a timestamp from PD first,
+and then call `ReadIndex` of service `Tikv` to get applied indices of all
+regions which is carried in `Request`. If any retryable error occurs, the proxy
+will retry it internally. Finally it will return `Response` to the RPC caller,
+which contains a transaction timestamp and some applied indices.
 
 ### Coprocessor Requests
 
@@ -49,15 +70,20 @@ call it directly in clients.
 
 ### Get Snapshots With Applied Index
 
-If we want to get snapshots on regions' followers, we need to send `ReadIndex`
-requests to their leaders, or with this feature, wait for regions apply to
-`applied_index`s carried in read requests. This wait mechanism can be easily
-implemented with an observer.
+After TiKV receives a read request with `applied_index` in `Context`, it needs
+to get a snapshot with the given `applied_index`. So we also need to add a new
+field in `RaftRequestHeader`:
+
+```protobuf
+message RaftRequestHeader {
+    // omit other fields...
+    uint64 applied_index = 9;
+}
+```
+
+So TiKV can get a snapshot directly after it applys to `applied_index`.
 
 ## Drawbacks
-
-The observer needs to be implemented carefully, otherwise performance issue
-could be introduced. And, it's better to add an option to enable the feature.
 
 ## Alternatives
 
