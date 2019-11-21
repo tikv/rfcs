@@ -7,7 +7,7 @@
 
 ## Motivation
 
-目前 TiKV 集群发生热点时常用排查诊断工具 `pd-ctl`/`Prometheus`/`Grafana` 等。
+目前 `TiKV` 集群发生热点时常用排查诊断工具 `pd-ctl`/`Prometheus`/`Grafana` 等。
 这些工具有使用难度大，问题排查时间长，日志数据数据量庞大，不够直观，难以发现应用程序的 pattern，无法保证诊断正确性等问题。而且热点往往有聚集性和周期性，可视化方案很适合解决这些问题。
 
 `Google BigTable` 也遇到了类似问题。为此 Google 提供了 `BigTable KeyVisualizer`  (视频介绍) 工具并推荐用户首先使用它来自我排查应用程序问题。
@@ -95,8 +95,9 @@ export type HeatmapData = {
 #### 渲染热图
 
 获取数据后即时在前端渲染成图表。
-使用 `D3.js` 来支持时间横轴，Key 纵轴以及 Label 轴。
-使用 `OffscreenCanvas` 后台渲染，每一个像素对应一个数据格，至少可一次性显示 1000 x 1000 个热点区域。
+
+- 使用 `D3.js` 来支持时间横轴，Key 纵轴以及 Label 轴。
+- 使用 `OffscreenCanvas` 后台渲染，每一个像素对应一个数据格，至少可一次性显示 1000 x 1000 个热点区域。
 
 POC 实现效果：
 
@@ -144,7 +145,9 @@ POC 实现效果：
 - 改进点三：在合并后的数量较少时，前端每行的高度可以根据 key 数量加权
 
 - 性能问题：
+
 `Matrix` 的转换需要一些时间，特别是 `Key` 的 Decode 和 Encode 过程
+
 https://github.com/pingcap/pd/issues/1837
 
 ##### 内存利用优化
@@ -242,7 +245,7 @@ https://docs.influxdata.com/influxdb/v1.3/concepts/storage_engine/#leveldb-and-l
   - 根据 `TiDB` 的编码方式，每张表所对应的 StartKey 和 EndKey 作为边界限制。
   - Labels 信息标记为该区间所包含的表的信息。一个区间可能对应多张表。
 
-- 纯 TiKV 模式
+- 纯 `TiKV` 模式
   - 根据 Key 的 pattern 可自己实现边界规则和 Key 的 解析器
   - 比如常见的分隔符的方式：
   - `/{str1}/{str2}/{str3}` 当 `str1` 发生变化时认为发生了跨边界
