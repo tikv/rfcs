@@ -2,35 +2,37 @@
 
 ## Summary
 
-This RFC proposes a improvement about getting snapshot on followers, which is
+This RFC proposes an enhancement of getting snapshots on followers. The idea is
 if the read request carries an applied index, the peer can get snapshot locally
-wihtout any commucation with its leader, if only it has applied to the given
-index. It's useful to reduce latency if the cluster is deployed in multi
-datacenters.
+wihtout any communication with its leader as long as only only it has applied
+to the given index. It's useful to reduce latency if the cluster is deployed
+across multiple data centers.
 
 ## Motivation
 
-For clusters deployed in multi datacenters, the system latency could mainly
-depend on the network RTT between datacenters. For example, suppose PDs are
-deployed in Beijing, and TiKVs are deployed in Beijing and Xian (for high
-availability). If a client which is near to Xian wants to read a region, it
+For clusters deployed across multiple data centers, the system latency mainly
+depends on the network round-trip time (RTT) between data centers. For example,
+suppose PDs are
+deployed in Beijing, and TiKVs are deployed in Beijing and Xi'an (for high
+availability). If a client which is near to Xian wants to read a Region, it
 needs to get a transaction timestamp from PDs (in Beijing), and then sends
 requests to TiKVs in Beijing or Xian. For the latter case, TiKVs in Xian will
 send read index requests to their leaders (in Beijing) internally, which still
-involves a RTT crossing datacenters.
+involves a RTT across data centers.
 
-So, If we can add some proxies in the major datacenter, and let it help TiDBs
-in Xian to get transaction timestamp and applied indices of all target regions,
-the read latency between multi datacenter will be reduced from 2 RTT to 1 RTT.
+Therefore, if we can add some proxies in the major data center, and let it help TiDBs
+in Xi'an to get the transaction timestamp and the applied indices of all target
+Regions,
+the read latency between data centers will be reduced from 2 RTT to 1 RTT.
 
 ## Detailed design
 
 ### Proxy
 
-As above described, we need to add a proxy service in the major datacenter.
-Considering the proxy service is better to be high available, we can put it
-into TiKV instances. It's easy to register a new gRPC service in TiKV server.
-After that, we get a high available proxy service! The proxy has only one
+As described above, we need to add a proxy service in the major datacenter.
+Considering that the proxy service is better to be highly available, we can put it
+in TiKV instances. It's easy to register a new gRPC service in TiKV server.
+After that, we get a highly available proxy service! The proxy has only one
 method:
 
 ```protobuf
@@ -39,9 +41,9 @@ service TsAndReadIndexProxy {
 }
 ```
 
-The implementation of `GetTsAndReadIndex` will get a timestamp from PD first,
+The implementation of `GetTsAndReadIndex` gets a timestamp from PD first,
 and then call `ReadIndex` of service `Tikv` to get applied indices of all
-regions which is carried in `Request`. If any retryable error occurs, the proxy
+Regions that are carried in `Request`. If any retryable error occurs, the proxy
 will retry it internally. Finally it will return `Response` to the RPC caller,
 which contains a transaction timestamp and some applied indices.
 
@@ -64,8 +66,8 @@ message kvrpcpb.Context {
 }
 ```
 
-A question is how clients can knows `applied_index` for every region? The
-answer is RPC `ReadIndex` in service `Tikv`. It's already ready, so we can
+A question is how clients can know `applied_index` for every Region? The
+answer is RPC `ReadIndex` in service `Tikv`. It's already implemented, so we can
 call it directly in clients.
 
 ### Get Snapshots With Applied Index
