@@ -4,7 +4,7 @@
 
 This RFC proposes an enhancement of getting snapshots on followers. The idea is
 if the read request carries an applied index, the peer can get snapshot locally
-wihtout any communication with its leader as long as only only it has applied
+without any communication with its leader as long as only it applys Raft logs
 to the given index. It's useful to reduce latency if the cluster is deployed
 across multiple data centers.
 
@@ -60,7 +60,7 @@ message coprocessor.Request {
 }
 message kvrpcpb.Context {
     bool replica_read = 12;
-    // After a region applys to `applied_index`, we can get a
+    // After a region applys Raft logs to `applied_index`, we can get a
     // snapshot for the region even if the peer is follower.
     uint64 applied_index = 15;
 }
@@ -83,7 +83,8 @@ message RaftRequestHeader {
 }
 ```
 
-So TiKV can get a snapshot directly after it applys to `applied_index`.
+With this implementation, TiKV can get a snapshot directly after it applys Raft
+logs to `applied_index`.
 
 ## Drawbacks
 
