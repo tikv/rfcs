@@ -68,8 +68,8 @@ SUBCOMMANDS:
     unsafe-recover        Unsafely recover the cluster when the majority replicas are failed
 ```
 
-Moving `tikv-server` to a `tikv server --flags` and keeping all the `tikv-ctl *`
-commands as `tikv *` would have minimal changes for the user.
+Moving `tikv-server $ARGS` to a `tikv server $ARGS` and keeping all the `tikv-ctl $ARGS`
+commands as `tikv $ARGS` would have minimal changes for the user.
 
 This would allow the user to only have to consider one `tikv` binary. For
 a long deprecation phase we can maintain aliases at `tikv-server` and `tikv-ctl`.
