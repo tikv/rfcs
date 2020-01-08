@@ -10,7 +10,7 @@ usage patterns.
 
 ## Motivation
 
-At present, if someone wants to troubleshoot a performance issue in `TiKV`,
+At present, if someone wants to troubleshoot a performance issue in TiKV,
 he will usually make use of some existing diagnostic tools, such as `pd-ctl`,
 `Prometheus` and `Grafana`, which are hard to learn, intuitive, not
  efficient, unable to recognize the pattern of application and hard to
