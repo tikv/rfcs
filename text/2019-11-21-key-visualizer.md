@@ -1,5 +1,7 @@
 # RFC: KeyVisualizer: The visualized hotspot profiler
 
+[zh-Cn Version](https://gist.github.com/andylokandy/f4740b28192591b63501297d154717dd)
+
 ## Summary
 
 Add an enabled-by-default `KeyVisualizer` component to PD, providing
@@ -80,10 +82,10 @@ URL:  `/pd/apis/keyvisual/v1/heatmaps?`
 Request parameters:
 
 - `type`: indicating which heatmap to show
-  - `write_bytes`
-  - `read_bytes`
-  - `write_keys`
-  - `read_keys`
+  - `write_bytes`: the write throughputs in bytes per minute
+  - `read_bytes`: the read throughputs in bytes per minute
+  - `write_keys`: the written keys per minute
+  - `read_keys`: the read keys per minute
   - `startkey`: the start of the heatmap key axis
   - `endkey`:  the end of the heatmap key axis
   - `starttime`: the start of the heatmap time axis (UNIX timestamp in second)
