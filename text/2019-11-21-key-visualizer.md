@@ -115,7 +115,7 @@ Render the heatmap once data retrieved.
     when each pixel is corresponding to a data cell.
     At least 1000 x 1000 cells can be displayed in one page.
 
-POC work:
+Proof-of-concept work:
 
 > workload:
 > sysbench oltp_update_non_index -table-size=4
