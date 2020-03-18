@@ -84,11 +84,12 @@ timestamp by default, or can be specified by the user (such as the global `ts`
 obtained from the PD TSO). And the implementation is subject to further change
 if we use the user TS feature of RocksDB.
 
-For consistency, strong and weak consistency would be support. This is
-closely with the TS obtainment method, i.e. if need strong consistency, users
-should use the global PD TSO; if need weak consistency, users may use
-simple local ts method. Under weak consistency situation, the tools like
-`br` would be flexible to handle data consistency.
+For consistency (single key level linearizability), strong and weak
+consistency would be support. This is closely with the TS obtainment method,
+i.e. if need strong consistency, users should use the global PD TSO; if
+need weak consistency, users may use simple local ts method. Under weak
+consistency situation, the tools like `br` would be flexible to handle data
+consistency.
 
 The maximum number of versions in the cluster can be configured via `MaxVerNum`.
 The default value is 1. Redundant versions are removed during version
