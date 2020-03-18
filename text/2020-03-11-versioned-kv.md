@@ -77,12 +77,18 @@ VerKV is a kv-like interface similar to the RawKV interface. It hides version
 information from upper-layer services. Its data model is multi-versioned KV
 between RawKV and TxnKV.
 
-#### Data model
+#### Data model and Consistency
 
 The data model is like `key:version -> value`. The version uses the current
 timestamp by default, or can be specified by the user (such as the global `ts`
 obtained from the PD TSO). And the implementation is subject to further change
 if we use the user TS feature of RocksDB.
+
+For consistency, strong and weak consistency would be support. This is
+closely with the TS obtainment method, i.e. if need strong consistency, users
+should use the global PD TSO; if need weak consistency, users may use
+simple local ts method. Under weak consistency situation, the tools like
+`br` would be flexible to handle data consistency.
 
 The maximum number of versions in the cluster can be configured via `MaxVerNum`.
 The default value is 1. Redundant versions are removed during version
@@ -180,10 +186,10 @@ implementation of full/incremental backup and CDC services.
 
 ### Data replication
 
-- A -> B: asynchronous one-way replication; Cluster B accesses the CDC service
-of cluster A to pull or push incremental data of each period.
-- A <-> B: asynchronous two-way replication, which is equivalent to two one-way
-replication processes. Write conflicts can be resolved according to ts.
+- A -> B: asynchronous one-way replication, Cluster B accesses the CDC
+service of cluster A to pull or push incremental data of each period.
+- A <-> B: asynchronous two-way replication, which is equivalent to two
+one-way replication processes. Write conflicts can be resolved according to ts.
 
 ### Others
 
@@ -194,4 +200,4 @@ efficiency.
 
 This VerKV adds version information, so it would decrease the performance
 of data fetch interface. And the data version recycling would also add
-pressure to  system.
+pressure to system.
