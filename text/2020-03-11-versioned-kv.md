@@ -149,6 +149,10 @@ improve the performance of iterator seek. `key: ts-> delete` indicates that
 
 ### Version recycling
 
+The version recycling would recycling the redundant versions more than
+`MaxVerNum`, e.g. one key has five versions [v1 v2 v3 v4 v3], and the
+`MaxVerNum` is set to be 3, then [v1 v2] would be recycled.
+
 The design of the version recycling will affect cluster performance and the
 functional designs of incremental backup and CDC. There are two major
 approaches:
