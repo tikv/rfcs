@@ -79,17 +79,10 @@ between RawKV and TxnKV.
 
 #### Data model and Consistency
 
-The data model is like `key:version -> value`. The version uses the current
-timestamp by default, or can be specified by the user (such as the global `ts`
-obtained from the PD TSO). And the implementation is subject to further change
-if we use the user TS feature of RocksDB.
-
-For consistency (single key level linearizability), strong and weak
-consistency would be support. This is closely with the TS obtainment method,
-i.e. if need strong consistency, users should use the global PD TSO; if
-need weak consistency, users may use simple local ts method. Under weak
-consistency situation, the tools like `br` would be flexible to handle data
-consistency.
+The data model is like `key:version -> value`. The version uses the global `ts`
+obtained from the PD TSO by default . Then strong consistency (single key level
+ linearizability) would be support. And the implementation is subject to
+ further change if we use the user TS feature of RocksDB.
 
 The maximum number of versions in the cluster can be configured via `MaxVerNum`.
 The default value is 1. Redundant versions are removed during version
@@ -162,22 +155,15 @@ approaches:
   periodically starting the gc worker in the background to delete redundant
   versions of data;
 - using compaction filter via rocksdb compaction to delete redundant versions.
+  The default maximum number of versions is 1, which can default to the
+  compaction filter recycling version , so recycling efficiency is moderate.
 
 The GC method consumes CPU or storage resources, but the version recycling is
-accurate and efficient; The compaction filter method does not take up CPU or
+accurate and efficient; the compaction filter method does not take up CPU or
 storage resources. However, compaction only has a local applicable scope, so
 multi-version recycling efficiency is low.
 
-This proposal adopts a combination of the above two methods, with compaction as
-the major mechanism and GC as the supplement. The default maximum number of
-versions is 1, which can default to the compaction filter recycling version
-, so recycling efficiency is moderate. If the maximum number of versions is more
-than 1 or more efficient version recycling is required, you can dynamically
-configure GC to enable it.
-
-The compaction filter is customized based on the maximum number of versions,
-`MaxVerNum`, and delete tombstone based on key instead of key: `ts`. So only
-one `MaxVerNum` can be set for one `cf`.
+This proposal adopts GC method mainly, and could reuse the logic of TxnKV GC.
 
 ### Data increment
 
