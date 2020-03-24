@@ -80,7 +80,7 @@ between RawKV and TxnKV.
 #### Data model and Consistency
 
 The data model is like `key:version -> value`. The version uses the global `ts`
-obtained from the PD TSO by default . Then strong consistency (single key level
+obtained from the PD TSO by default. Then strong consistency (single key level
  linearizability) would be support. And the implementation is subject to
  further change if we use the user TS feature of RocksDB.
 
