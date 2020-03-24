@@ -191,6 +191,12 @@ efficiency.
 
 ## Drawbacks
 
-This VerKV adds version information, so it would decrease the performance
-of data fetch interface. And the data version recycling would also add
-pressure to system.
+Compared with RawKV, this VerKV adds version information, so it would
+ decrease the performance of data fetch interface and the version recycling
+would add pressure to the system.
+
+Migration from RawKV to VerKV cannot be done directly.  The data has to be
+migrated to a new cluster with VerKV using some extra methods.
+
+Meanwhile, introducing a new API would add maintenance burden for a period of
+time before RawKV is deprecated in the future.
