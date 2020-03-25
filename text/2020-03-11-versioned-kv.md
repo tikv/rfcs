@@ -118,13 +118,13 @@ of RawKV. In the process of scanning all versions of a key, if the maximum
 With reference to the proto interface, the following interfaces are defined as
 a new service other than tikv:
 
-- Get/BatchGet - Gets the values for latest version of the key by default
-- GetNum/BatchGetNum - Get the values for a specified number of versions of a
-  key. `version_num` must be less than or equal to `MaxVerNum`.
-- GetNumWithSV/BatchGetNumWithSV - This interface is like `GetNum/BatchGetNum`,
+- Get/BatchGet - Get the values for a specified number of versions
+  (`version_num`) of a key or keys. `version_num` must be less than or equal
+  to `MaxVerNum`.
+- GetNumWithSV/BatchGetNumWithSV - This interface is like `Get/BatchGet`,
   but add requirement about the key with versions ranging from the specified
-  start version to the current version.
-- GetWithTTL/BatchGetWithTTL - Gets the unexpired values within the TTL.
+  start version to the current version. And it would also be used to get
+  the unexpired values within TTL.
 - Scan - Scans the values of all keys of the latest version within a range
 - ScanNum - Scans the number of all keys within a range to get the
   corresponding values of a specified number of versions
@@ -135,11 +135,12 @@ a new service other than tikv:
   the current timestamp by default
 - Delete/BatchDelete - Deletes all versions of a specified key
   (`key:cur_ts -> delete`)
-- DeleteRange - Deletes all versions of key in a range using rocksdb DeleteRange
+- DeleteRange - Deletes all versions of key in a range using RocksDB DeleteRange
 
-The above fetch operations(get/scan) can use `rocksdb prefix_extractor` to
+The above fetch operations(get/scan) can use RocksDB `prefix_extractor` to
 improve the performance of iterator seek. `key: ts-> delete` indicates that
- all data before the `ts` has been deleted.
+ all data before the `ts` has been deleted. Here the `delete` is same as the
+ delete tombstone in RocksDB.
 
 ### Version recycling
 
@@ -154,7 +155,7 @@ approaches:
 - using multi-version Garbage Collection (GC) similar to TxnKV, and
   periodically starting the gc worker in the background to delete redundant
   versions of data;
-- using compaction filter via rocksdb compaction to delete redundant versions.
+- using compaction filter via RocksDB compaction to delete redundant versions.
   The default maximum number of versions is 1, which can default to the
   compaction filter recycling version , so recycling efficiency is moderate.
 
@@ -186,7 +187,7 @@ For data replication, there are two main situations:
 
 ### Others
 
-Rocksdb User Timestamp（WIP）can also be considered to improve the engine
+RocksDB User Timestamp（WIP）can also be considered to improve the engine
 efficiency.
 
 ## Drawbacks
@@ -195,7 +196,7 @@ Compared with RawKV, this VerKV adds version information, so it would
  decrease the performance of data fetch interface and the version recycling
 would add pressure to the system.
 
-Migration from RawKV to VerKV cannot be done directly.  The data has to be
+Migration from RawKV to VerKV cannot be done directly. The data has to be
 migrated to a new cluster with VerKV using some extra methods.
 
 Meanwhile, introducing a new API would add maintenance burden for a period of
