@@ -50,7 +50,7 @@ scenarios for VerKV:
   include:
 
   - Data version retrieval. For certain businesses, multiple versions of
-    historical data must be maintained for for backtracking and analysis.
+    historical data must be maintained for backtracking and analysis.
     Reliance on third-party storage and consumption of computing resources
     (user dynamic characteristics, User behavior link tracking) needs to be
     reduced, and the data processing process optimized;
