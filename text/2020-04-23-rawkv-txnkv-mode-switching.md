@@ -3,52 +3,52 @@
 ## Summary
 
 This RFC proposes to forbid users using RawKV API on the TiKV cluster by default,
-and provide a new API command to let users enable it.
+and provide a way for users to enable it.
 
 ## Motivation
 
 Some painful incidents happened before and still happening,
-because of the mixed-using of RawKV API and TransactionKV API,
-some key-values were overwritten by RawKV API,
-which originally written by TransactionKV API,
-then led to data corruption.
+because of the mixed-using of RawKV interface and TransactionKV interface,
+some key-values were overwritten by RawKV,
+which originally written by TransactionKV, then led to data corruption.
 
-We should add more warnings about this in our documents, but it's not enough,
-documents could easily be ignored.
+We should add more warnings about this in our documents,
+but it's not enough, documents could easily be ignored.
 
-Providing a switching API could prevent people from misuse without noticing,
+Disable RawKV by default could prevent people from misuse without noticing,
 when users need to step into the danger zone,
-they need to explicitly open the guarded switch.
+they need to explicitly open the guarded switch by command.
 And they could shut down the switch anytime to gain more safety.
 
 ## Detailed design
 
-This `mode` flag should be persisted,
-each member of the TiKV cluster should see the same value in the same time,
-so it should be write/read by RawKV commands.
-Or we just use the dynamic configuration feature to achieve our goal.
+Add a `kv-mode` flag to the cluster, this flag should be persisted,
+each member of the TiKV cluster should see the same value at the same time,
+so it could be:
 
-`mode` should be an enum:
+- Store in a special key in the underlying engine and use a new command
+  to manipulate it
+- Use the dynamic configuration feature to achieve our goal.
 
-- `ModeRawKV` indicate that the TxnKV commands could not be called.
+Since the dynamic configuration is already supported, it should be good for this.
+
+`kv-mode` should be an enum:
+
+- `ModeTxnKV` indicates that the RawKV commands could not be called.
   When they are called they will return errors.
-- `ModeTxnKV` indicate that the RawKV commands could not be called.
-- `ModeTxnKVRawKV` works as now.
-
-The default value of `mode` should be `TxnKV`
+  This is the default value.
+- `ModeRawKV` indicates that the TxnKV commands could not be called.
 
 Provide a config entry `mode` under `[server]` in the config file.
-It's necessary when we trying to rolling-update a cluster which already
+It might be necessary when we trying to rolling-update a cluster which already
 running mixed API.
-
-Add a pair of command `Get/SetMode(mode)` to the API.
 
 ## Drawbacks
 
-The VerKV commands should not be affected by the `mode` flag,
+The VerKV commands should not be affected by the `kv-mode` flag,
 because they use different keyspace and could be mixed-using with
 either RawKV or TxnKV commands.
-So, the semantic meaning of the `mode` flag will be a little confusing.
+So, the semantic meaning of the `kv-mode` flag will be a little confusing.
 
 ## Alternatives
 
