@@ -44,36 +44,27 @@ enum CmdType {
 }
 ```
 
-### RawKVScheduler
-
-```
-pub struct RawLatches {
-    slots: Vec<RwLock<Latch>>,
-    size: usize,
-}
-```
-
-- The key of a CheckAndSet command are hashed, then try to acquire the writer lock if the command ID is the first one of elements in the queue.
-- The key of other RawKV write commands are hashed and try to acquire the reader lock.
-
-
 ### Modify::CheckAndSet
 
 ```
 pub enum Modify {
     Delete(CfName, Key),
     Put(CfName, Key, Value),
+    // cf_name, start_key, end_key, notify_only
     DeleteRange(CfName, Key, Key, bool),
-    CheckAndSet(CfName, Key, OldValue, NewValue),
+    // CheckAndSet is not compatible with DeleteRange
+    // cf_name, key, old_value, new_value
+    CheckAndSet(CfName, Key, Value, Value),
 }
 ```
 
-### RocksDB
-- Merge Operator, the Atomic Read-Modify-Write operation in RocksDB.
+### RawKVScheduler
 
+- when a Modify::CheckAndSet command comes in the first occurrence, reject all Modify::DeleteRange commands immediately, and vice versa.
+- The key of a write command are hashed, then try to acquire the lock if the command ID is the first one of elements in the queue.
 
 ## Alternatives
 
-- Use Txn Api, get and set
+- Use Txn Api, get and set.
 
 ## Unresolved questions
