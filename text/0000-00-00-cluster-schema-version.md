@@ -120,7 +120,7 @@ in `B.z` must be released. To upgrade an `A.x` cluster to a `B.z` cluster, it
 should upgrade to `A.y` first.
 
 This requires the user an extra step to upgrade from a low version. It also
-increases the risk that the user does not follow the version constraint. 
+increases the risk that the user does not follow the version constraint.
 
 ## Unresolved questions
 
