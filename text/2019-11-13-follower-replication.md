@@ -74,12 +74,9 @@ Since a delegate is responsible to send entries to other group members, it must 
 
 1. If all the members are requiring snapshots, choose the delegate randomly.
 2. Among the members who are requiring new entries, choose the node satisfies conditions below:
-
-    1. The progress has the maximal `match_index`.
-
 3. If no delegate is picked, the leader does Log Replication itself. Especially, if a group contains the leader it self, no delegate will be set. And the feature of enabling choosing delegate of such 'leader group' can be controlled by upper layer.
 
-If the delegate of a group is determined, it’ll be cached in memory for later usage until Groups configuration is changed or the delegate is evicted by rejection message. And the flow control should be valid for any cached delegate.
+If the delegate of a group is determined, it’ll be cached in memory for later usage until `Groups` configuration is changed or the delegate is evicted by rejection message. And the flow control should be valid for any cached delegate.
 
 #### How delegate does replication
 
@@ -88,6 +85,19 @@ We can add a new field into `Message`: `BcastTargets`, which is a list of peer I
 You can just treat a commission as the metadata of a MsgAppend or MsgSnapshot since the `last_index` and `log_term` are set by the leader according to its progress set.
 
 Peers can know whether a `MsgAppend` comes from a delegate or the leader according to `delegate` value in the message. If a peer receives a `MsgAppend` from a delegate, it needs to response to both the leader and the delegate to sync the `Progress` on them.
+
+#### Compatibility
+A node in a group will send its `group_id` in msg and the receiver will update the sender's group info based on it. The leader only picks a delegate when the group info is enough. In a rolling-upgrade/downgrade situation, This can introduce several cases:
+
+##### Upgrade
+- If only the leader uses follower replication, it can only know the group info until followers finish upgrading and send their `group_id` so that the leader uses origin log replication at this point
+- If only a follower or part of them use follower replication, the leader will just ignore the `group_id` in the msg so no delegate will be picked and origin log replication keeps processing
+
+##### Downgrade
+- If only the leader use origin log replication, the case is just like common raft cluster and nothing special happens (pick a delegate, broadcast appends)
+- If a follower is downgraded and stop informing the leader its `group_id`, the leader will remove it from the group system and send entries directly to it
+
+By such a design, the compatibility can be guaranteed when nodes in the cluster use either origin log replication or follower replication
 
 ## Drawbacks
 
