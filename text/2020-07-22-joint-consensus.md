@@ -18,7 +18,7 @@ there are still two peers up.
 
 The design and implementation of joint consensus algorithm is not included in
 this RFC. It should be covered by raft paper and the design in
-etcd-io/etcd#7625. And the implementation has been ported to our fork
+[etcd-io/etcd#7625](https://github.com/etcd-io/etcd/issues/7625). And the implementation has been ported to our fork
 tikv/raft-rs.
 
 This RFC focus on how to use and test raft-rs's support of joint consensus in
@@ -75,7 +75,7 @@ PD should not propose ChangePeerV2 until all nodes are upgraded to supporting
 versions.
 
 When using joint consensus to remove a Voter, PD should make it into a learner
-first, and then remove it as discussed in etcd-io/etcd#7625.
+first, and then remove it as discussed in [etcd-io/etcd#7625](https://github.com/etcd-io/etcd/issues/7625).
 
 PD can use both `ChangePeer` and `ChangePeerV2` at the same time. When using
 `ChangePeerV2`, it's also required to propose an empty `ChangePeerV2` to exit
