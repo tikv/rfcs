@@ -18,10 +18,10 @@ there are still two peers up.
 
 The design and implementation of joint consensus algorithm is not included in
 this RFC. It should be covered by raft paper and the design in
-[etcd-io/etcd#7625](https://github.com/etcd-io/etcd/issues/7625). And the implementation has been ported to our fork
-tikv/raft-rs.
+[etcd-io/etcd#7625](https://github.com/etcd-io/etcd/issues/7625). And the
+implementation has been ported to our fork tikv/raft-rs.
 
-This RFC focus on how to use and test raft-rs's support of joint consensus in
+This RFC focuses on how to use and test raft-rs's support of joint consensus in
 TiKV.
 
 ### Protocol
