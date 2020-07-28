@@ -111,12 +111,12 @@ DemotingVoter | Illegal | Illegal | Illegal
 `None` means not exist or removing directly. Illegal means rejecting during
 propose and panicking during apply.
 
-When proposing `ChangePeerV2`, leader should ensures the request is illegal
+When proposing `ChangePeerV2`, leader should ensure the request is legal
 besides a healthy quorum. `ChangePeerV2` should be transformed to
 `ConfChangeV2` before proposing. The format of the two messages are similar
 except `transition`. The `transition` field should always be set to
 `ConfChangeTransition::Explicit`. Note even a `ChangePeerV2` has only single
-change, leader should still propose it as `ConfChangeV2`. Because applying
+change, leader should still propose it as `ConfChangeV2`, because applying
 `AddLearnerNode` on a Voter is illegal in `ChangePeer` command. An empty
 `ChangePeerV2` means exit joint state. It should be transformed into an empty
 `ConfChangeV2`.
