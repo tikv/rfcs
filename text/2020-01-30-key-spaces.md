@@ -8,43 +8,49 @@ When multiple applications store data in TiKV, we need a clear pattern for avoid
 TiKV is a monolithic KV store, so each application must choose a key prefix.
 Key Spaces formalizes this process by registering a key space for an application in TiKV itself.
 
-When combined with authentication (not part of this proposal), this can secure an application's key space.
+When combined with authentication (not part of this proposal), this can secure an application's data.
 
-Additionally, key spaces make it possible for TiKV to avoid conflicts during a data restore by changing the key prefix assigned to a key space.
+Additionally, key spaces make it possible for TiKV to avoid conflicts when an application is restored into a different cluster by changing the key prefix assigned to a key space.
 
 ## Motivation
 
-The use case for this is running multiple applications against TiKV (not just a single TiDB).
-Note that we may be motivated to run multiple instances of a single application such as TiDB.
+The use case for this is running multiple applications against TiKV (not just a single TiDB application).
+This gives the user 2 potential benefits:
+* Reduce maitenance burden by operating a single cluster.
+* Reduce cost and otherwise make TiDB more feasible for smaller data sets
 
-* Avoiding even accidental conflicting use of key space in TiKV is currently ad-hoc and unreliable
-* Securing data in TiKV is difficult. A necessary first step is clearly defining the boundaries of data.
+The second point is critical for TiDB to be able to serve a broader set of users.
+
+The problem with running multiple applications is conflicting, unsecured key spaces.
+* Avoiding accidental conflicting use of a key space in TiKV is currently ad-hoc and unreliable
+* Securing data in TiKV against privilege escalation. If one TiKV client is hacked, effectively all are hacked.
 
 Once key spaces are in place, all applications and TiKV itself should understand what data belongs to whom and how to avoid key space conflict.
+An auth implementation can then secure the key spaces to provide security against privilege escalation.
 
 ## Detailed design
 
-#### Terminology
-
-This proposal allows the total TiKV key space to be divided into individudal key spaces for applications.
-To refer to the total TiKV key space we will use the terminology "total TiKV key space".
-
 #### Scope
 
-This RFC will not propose "sub spaces", which would be a key space within a key space.
-I think this is a good idea, but I also think it can simply be proposed independently, although it may be better to discuss after the key spaces RFC is accepted so that it can leverage some of the key space implementation.
+This RFC will not propose "sub spaces", which is a key space within a key space.
+This can be proposed independently, although it may be better to discuss after the key spaces RFC is accepted so that it can leverage some of the key spaces implementation.
 
 This RFC will not discuss authentication.
-Authentication is necessary to provide any meaningful security for key spaces, but I can start a separate RFC for this.
+Authentication is necessary to provide any meaningful security for key spaces.
+
+This RFC will not discuss resource isolation.
+Key spaces will be an important tool for resource isolation to leverage.
 
 #### Client view
 
-When a client first connects to the TiKV system, it will register itself to get a key space.
-This happens in the metadata component (PD).
-All requests to the storage component (TiKV) will include the key space.
-The TiKV storage component will transparently convert the key space into a key prefix that TiKV uses for its operations.
+When a client first connects to the TiKV system, it will register itself to get a key space prefix.
+The client can register for additional key spaces, but normally one application will have one key space.
 
-The client can register for additional key spaces.
+All key spaces operations take place in the metadata component (PD) which stores a registry of key spaces.
+
+The TiKV component does not know about key spaces. All requests to the storage component (TiKV) will include the key space prefix.
+Please see [this separate proposal that helps with sending key prefixes to TiKV](https://github.com/tikv/rfcs/pull/56).
+
 
 #### Metadata operations
 
@@ -52,67 +58,57 @@ POST /keyspaces
 
 requires:
 
+* key space name
 * application name
 
 optional:
 
-* key space name
 * description
+
+system generated:
+
 * prefix
 
-This API will return the key space object, which includes an ID. Key spaces have an ID to allow their name to be changed.
-Clients are recommended to provide a key space name, but the API can also auto-generate one.
+This API will return the key space object. The key space name is the id of the keyspace and cannot be changed.
+The usage of an application name as an identity may end up being a de-normalization of data in a future iteration when true identity with authentication is added.
+The prefix that is generated is a binary sequence. This will start with a single byte sequence: this optimizes for the fact that few TiKV installations will have more than 255 applications.
+The sequence starts with 0x01 and increment by 1. The 0x00 prefix will remain reserved.
+A byte sequence containing 0xFF for all bytes is not a valid prefix because this is the end of the range. When a sequence contains just 0xFF, a byte of 0x00 is appended and the byte sequence is now one byte longer. This pattern allows us to start with just a 1 byte sequence but allows expansion to any length.
 
-The usage of an application name as an identity may end up being a de-normalization of data in a future iteration when identity is added for authentication and there are identity ids.
-I suggest that we can add an identity id as an alternative field to an application name. Similarly, the output key space object can include the identity id.
+
+POST /keyspaces/{id}
+
+requires id and description. Only the description field can be updated.
 
 Addtional GET APIs will also return keyspace objects
 
 * Lookup by ID, key space name
 * List all key spaces
 
-POST /keyspaces/{id}
-
-requires id and description. Only the description field can be updated.
-
 DELETE /keyspaces/{id}
 
-requires id. A key space may only be deleted after all its used keys are deleted.
-Before the delete operation is completed, it requires PD to first notify all TiKV that would receive requests for the key space of the deletion.
+requires id. Deletion is background task. This DELETE API sets the time of the API call in a field `deleted_at`.
+When deletion is completed, it will set a field `delete_completed_at` and the prefix may be re-used in a new key space.
 
-#### TiKV storage operations
+Note that in a token-based auth system deletion will need to wait until client tokens expire.
 
-Requests to TiKV will have a new field "key space", which is filled with the key space id.
-TiKV looks up the key space id in PD to translate it to a key prefix.
-TiKV will then prepend the key prefix to all key usage in the request.
-It will strip the prefix from returned keys.
-Note that this lookup with PD will be cached.
-The cache can only expire if the key space is deleted because the key space id and prefix do not change.
+
 
 #### Key Prefix specification or compression
 
-Normally, a client registers for a keyspace with a name, but the actual key prefix is transparently assigned, known only to TiKV.
-This allows TiKV to change the prefix when doing a restore and also allows it to perform key prefix compression.
-Note that some storage engines may already be able to perform prefix compression.
-For backwards compatibility purposes, a client is also allowed to be registered with an explicit key prefix.
-
-#### The default key space
-
-A TiKV client may ignore key spaces. In a fresh TiKV deployment with this feature in place, that client will be using the default key space.
-A configuration option `disable-default-key-space` when set to `true` forces clients to specify a key space rather than using the default key space. 
+PD generates key prefixes. PD will generate a 4 byte prefix. The first byte will be set to 0xFF
+A client registers for a keyspace with a name, but the actual key prefix is different.
+This allows TiKV to change the prefix when doing a restore and also allows for a short key prefix to be generated.
 
 #### Backwards compatibility
 
-For an existing deployment we will need an upgrade process.
-We can have a configuration flag "allow-unmanaged-key-space".
-For a fresh deployment this will be `false`, but if there is an existing deployment it should be `true`.
-When true, clients that do not specify a key space will continue using the key space the same way they do now.
-When false, clients that do not specify a key space will use the default key space.
+Please see [this separate proposal that helps with sending key prefixes to TiKV](https://github.com/tikv/rfcs/pull/56).
+This includes a backwards compatibility plan.
+If that RFC is not adopted we would likely do something similar in this RFC (but particular to key spaces rather than prefixes).
 
-Clients can be transitioned over to the keyspace system by registering them for a key space and specifying that the current key prefix that they use must be used. 
-At that point they can begin to use the registered key space and stop prepending a prefix.
+Otherwise this RFC provides no help with backwards compatibility. Applications not using the key spaces feature will stay the same.
+The auth proposal will provide a mechanism to secure access for an application that did not start by using the key spaces feature.
 
-Once all clients are transitioned, "allow-unmanaged-key-space" can be set to `false`.
 
 #### Backup and Restore
 
@@ -120,7 +116,7 @@ A full backup should backup all the keyspace metadata.
 A backup of a single key space should backup the information about the associated keyspace.
 A restore that has associated key space metadata must also ensure that after the restore there are key space metadata entries in PD.
 
-When restoring, TiKV may choose to alter the key prefix.
+When restoring, TiKV may choose to alter the key prefix to avoid conflicts. A conflict could happen when moving an application from one cluster to another.
 Suggested best behavior for restore is to be conservative about conflicts and to let the user handle conflicts:
 
 * check to see if the key prefix for the key space is already in use. If so, this is an error
@@ -130,7 +126,8 @@ Suggested best behavior for restore is to be conservative about conflicts and to
 
 The intent of key spaces is to declare an owner of a key space.
 There can only be one owner.
-This does not preclude another application from making use of a key space.
+This does not preclude cooperation among applications, for example having read access to another key space.
+
 It would be possible for this proposal to attempt to formalize this as well by documenting read-only access, etc.
 However, I believe that because currently we have no way to secure access it is better to tackle this problem when we implement authentication.
 More specifically, there are alternative designs for this that make more sense when authentication is present, and one that I currently favor is access delegation.
@@ -139,7 +136,7 @@ More specifically, there are alternative designs for this that make more sense w
 
 The upgrade path is a little complicated and might be confusing.
 Teaching users to use this new feature and attempting to integrate it into client libraries will take effort.
-key space overwriting is still possible by accidentally copy & pasting a key space name to a new application instead of creating a new one.
+key space overwriting is still possible until auth is implemented.
 
 ## Alternatives
 
