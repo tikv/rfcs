@@ -111,20 +111,23 @@ By default, a token will have no access.
 Token data will include the fields:
 * admin: an object with fields
   * Allowed (boolean): If true, user is allowed admin API access
-* AllKeys: an object with fields
-  * Allowed (boolean): If true, the user is allowed access to all keys that the application has access to
-  * Mode: (string). Currently supported are:
-    * Full
-    * readonly
-  * Ranges: a list of allowed key range accesses (currently unsupported)
+* Ranges: a list of allowed key range accesses (currently unsupported)
+  * Each range in the list has fields
+    * Start
+    * End
+    * Mode: (string). Currently supported are:
+      * Full
+      * readonly
+  
 
-When TiKV receives an administrative API request, it decrypts the token and checks for the admin field.
-For a non-administrative API request, it decrypts the token and looks at the mode field of the all object.
-If the mode is readonly, it will not allow access to write APIs. 
+When TiKV receives an API request, it decrypts the token and checks the permissions.
+For an API request it checks the admin field.
+For a non-administrative API request, it checks that the keys in the API request are within the start and end of the range.
+If the mode is readonly, it will not allow access to write APIs.
 
 
 ## Tooling changes
-TiSpark, TiFlash, and user tools must be adopted to perform token login for a user to be able to require auth.
+TiSpark, TiFlash, and user tools must be adopted to perform a delegated token login.
 
 
 ## Encryption
@@ -172,6 +175,5 @@ We could also move the TiDB part into TiDB where it belongs (PD shouldn't be exe
 
 
 # Future Additions
-* Integrate with Key spaces for multiple users
-* Support restrictions on allowed key range access
+* Integrate with Key spaces for multiple applications
 * Additional ways to prevent replay attacks (confirm ip address, blacklist the jti field)
