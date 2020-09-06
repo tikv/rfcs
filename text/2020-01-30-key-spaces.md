@@ -71,9 +71,6 @@ system generated:
 
 This API will return the key space object. The key space name is the id of the keyspace and cannot be changed.
 The usage of an application name as an identity may end up being a de-normalization of data in a future iteration when true identity with authentication is added.
-The prefix that is generated is a binary sequence. This will start with a single byte sequence: this optimizes for the fact that few TiKV installations will have more than 255 applications.
-The sequence starts with 0x01 and increment by 1. The 0x00 prefix will remain reserved.
-A byte sequence containing 0xFF for all bytes is not a valid prefix because this is the end of the range. When a sequence contains just 0xFF, a byte of 0x00 is appended and the byte sequence is now one byte longer. This pattern allows us to start with just a 1 byte sequence but allows expansion to any length.
 
 
 POST /keyspaces/{id}
@@ -94,11 +91,17 @@ Note that in a token-based auth system deletion will need to wait until client t
 
 
 
-#### Key Prefix specification or compression
+#### Key Prefix specification
 
-PD generates key prefixes. PD will generate a 4 byte prefix. The first byte will be set to 0xFF
-A client registers for a keyspace with a name, but the actual key prefix is different.
-This allows TiKV to change the prefix when doing a restore and also allows for a short key prefix to be generated.
+The prefix that is generated is a binary sequence. This will start with a single byte sequence: this optimizes for the fact that few TiKV installations will have more than 255 applications.
+The sequence starts with 0x01 and increment by 1. The 0x00 prefix will remain reserved.
+A byte sequence containing 0xFF for all bytes is not a valid prefix because this is the end of the range. When a sequence contains just 0xFF, a byte of 0x00 is appended and the byte sequence is now one byte longer. This pattern allows us to start with just a 1 byte sequence but allows expansion to any length.
+
+
+#### Region storage
+
+A Region must not span multiple key spaces. This helps to ensure data security and confidentiality of key spaces.
+PD will need to ensure that region key ranges stay with their key space and that regions from different key spaces are not merged together.
 
 #### Backwards compatibility
 
