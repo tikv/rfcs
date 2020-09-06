@@ -15,9 +15,9 @@ This will also reduce the payload sent to TiKV.
 ### Prefix Manipulation
 
 TiKV already adds a first byte prefix to all keys.
-TiKV adds a 'z' first byte prefix to all data keys. Other prefixes are used for metadata.
+TiKV adds a first byte prefix (currently 'z') to all data keys. Other prefixes are used for metadata.
 
-When the factored prefix is used, TiKV prepends the first byte prefix to the factored prefix sent by the client and prepends that to all keys that are sent.
+When the factored prefix is used, TiKV prepends a first byte prefix to the factored prefix sent by the client and prepends that to all keys that are sent.
 All keys are returned with the first byte prefix and factored prefix stripped.
 
 A factored prefix of 0x00 is not allowed. This helps avoid accidentally using null as a factored prefix.
@@ -30,11 +30,13 @@ So it is set as a GRPC header "TIKV-PREFIX" with the value set to the key prefix
 ### Backwards compatibility
 
 Currently applications do not formally claim a prefix and there is no way to know what prefixes they might use.
-We can refert to these applications as V1 (version 1) applications. We can refer to applications that use the prefix as V2 (version 2).
+We can refer to these applications as V1 (version 1) applications. We can refer to applications that use the prefix as V2 (version 2).
 We must avoid mixing the usage of V1 and V2 applications.
 
 V1 applications store their data under a 'z' first byte prefix
 V2 applications will store their data under a 'y' first byte prefix
+
+A factored prefix of 0x01 is reserved for V1 applications. When the prefix 0x01 is sent, the 'z' first byte prefix will be used'. This allows a V1 application to upgrade to using the V2 API without having to rewrite its data.
 
 If a V1 application sets "TIKV-PREFIX", this is an error.
 A V2 application is one which sets "TIKV-PREFIX".
@@ -46,8 +48,6 @@ A configuration setting will be added to TiKV: "prefix-only". If this setting is
 
 
 ## Drawbacks
-
-It is not possible to query both V1 and V2 applications: in other words to query the 'z' first byte prefix and the 'y' first byte prefix.
 
 This proposal was created to aid the existing key spaces proposals. Without implementing key spaces this feature may not get used by users.
 
