@@ -2,8 +2,8 @@
 
 ## Motivation
 
-Currently, TiKV and TiDB see an enum as a string. In this RFC,
-we want to discuss adding real enum support in TiKV coprocessor.
+Currently, TiKV and TiDB see an enum and a set as a string. In this RFC,
+we want to discuss adding real enum and sets support in TiKV coprocessor.
 
 ## Representation of Enum and Set
 
@@ -51,7 +51,7 @@ This design leads to an enum chunk vector and a set chunk vector, which
 efficiently stores an enum column.
 
 ```rust
-pub ChunkedVecEnum {
+pub struct ChunkedVecEnum {
     var_offset: Vec<usize>,
     enum_data: Vec<u8>,
     bitmap: BitVec,
@@ -60,7 +60,7 @@ pub ChunkedVecEnum {
 ```
 
 ```rust
-pub ChunkedVecSet {
+pub struct ChunkedVecSet {
     var_offset: Vec<usize>,
     set_data: Vec<u8>,
     bitmap: BitVec,
