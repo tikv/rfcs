@@ -93,9 +93,17 @@ Note that in a token-based auth system deletion will need to wait until client t
 
 #### Key Prefix specification
 
-The prefix that is generated is a binary sequence. This will start with a single byte sequence: this optimizes for the fact that few TiKV installations will have more than 255 applications.
-The sequence starts with 0x01 and increment by 1. The 0x00 prefix will remain reserved.
-A byte sequence containing 0xFF for all bytes is not a valid prefix because this is the end of the range. When a sequence contains just 0xFF, a byte of 0x00 is appended and the byte sequence is now one byte longer. This pattern allows us to start with just a 1 byte sequence but allows expansion to any length.
+Few TiKV installations will have more than 100 applications so we can use a variable length encoding that will use a single byte when there are few applications.
+
+The prefix that is generated is a binary sequence.
+The most significant bit will be reserved to indicate that there is an additional byte in the sequence.
+This is the same design as the [varint encoding used in some protocols](https://golang.org/src/encoding/binary/varint.go).
+The binary sequence starts with 0x01 and increment by 1. The 0x00 prefix will remain reserved.
+
+So the prefix will be 1 byte from 1-127 and 2 bytes afterward.
+2 bytes can then fit over thousands of applications: (7 bits * 2 bytes) ^ 2 = 16384
+3 bytes will fit millions: (7 bits * 3 bytes) ^ 2 = 2097152
+This pattern can continue to add an infinite amount of additional bytes but it is unlikely that a real world deployment could use more than 4 bytes.
 
 
 #### Region storage
