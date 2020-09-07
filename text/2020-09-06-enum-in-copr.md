@@ -1,4 +1,4 @@
-# Enum and Set support in TiKV coprocessor
+# Enum and Set support in TiKV Coprocessor
 
 ## Motivation
 
@@ -6,6 +6,8 @@ Currently, TiKV and TiDB see an enum as a string. In this RFC,
 we want to discuss adding real enum support in TiKV coprocessor.
 
 ## Representation of Enum and Set
+
+### Chunk Format of Enum and Set
 
 Enum column stores a finite set of string values. To represent one enum column,
 we first need to introduce a chunk format for the enum column.
@@ -16,6 +18,7 @@ example, we have the following column from MySQL reference manual:
 
 ```text
 size ENUM('x-small', 'small', 'medium', 'large', 'x-large')
+col SET('a', 'b', 'c', 'd')
 ```
 
 First, we store all possible values sequentially in one byte vector. We use an
@@ -26,6 +29,8 @@ Byte vector: x-smallsmallmediumlargex-large
 Offset array: 0, 7, 12, 18, 23, 30
 ```
 
+This also applies to set.
+
 Then, we have a bitmap and usize array to store each element. We take “small”,
 “medium”, NULL as an example.
 
@@ -34,7 +39,16 @@ Bitmap: 110 (=6)
 Array: 2, 3, 0
 ```
 
-This design leads to an enum chunk vector, which efficiently stores an enum column.
+And for set, we store `BitVec` inside array. We take “('a,d'), ('a'), ('')” as
+an example.
+
+```text
+Bitmap: 111 (=7)
+Array: 11B, 01B, 00B
+```
+
+This design leads to an enum chunk vector and a set chunk vector, which
+efficiently stores an enum column.
 
 ```rust
 pub ChunkedVecEnum {
@@ -42,6 +56,15 @@ pub ChunkedVecEnum {
     enum_data: Vec<u8>,
     bitmap: BitVec,
     values: Vec<usize>
+}
+```
+
+```rust
+pub ChunkedVecSet {
+    var_offset: Vec<usize>,
+    set_data: Vec<u8>,
+    bitmap: BitVec,
+    values: Vec<BitVec>
 }
 ```
 
@@ -68,6 +91,14 @@ pub struct Enum {
 }
 ```
 
+```rust
+pub struct Set {
+    var_offset: Vec<usize>,
+    set_data: Vec<u8>,
+    value: BitVec
+}
+```
+
 To represent reference to an enum value, we could use `EnumRef` structure.
 Typically, `var_offset` and `enum_values` refers to the same fields in
 `ChunkedVecEnum`.
@@ -77,6 +108,14 @@ pub struct EnumRef <'a> {
     var_offset: &'a[usize],
     enum_data: &'a[u8],
     index: usize
+}
+```
+
+```rust
+pub struct SetRef <'a> {
+    var_offset: &'a[usize],
+    enum_data: &'a[u8],
+    value: BitVec
 }
 ```
 
