@@ -168,20 +168,21 @@ Like `Bytes` and `Json`, an enum vectorized function accepts `EnumRef` as parame
 pub fn cast_enum_to_int(data: EnumRef) -> Result<Option<Int>>;
 ```
 
-## Add Cast Functions for Enum and Set
+## Add Vectorized Functions for Enum and Set
 
-From [MySQL docs](https://dev.mysql.com/doc/refman/8.0/en/enum.html), we can find
-all possible usage of enum column.
+### Cast Functions
 
-For enums, as we only accept them as inputs of vectorized functions, the only functions
-we need to implement are casting functions. For other functions that may use enum
-as input, we could always first convert enums to `Bytes` or `Int`, and then use the
-casting result as inputs.
+Enum could be casted to `Bytes` and `Int`. In these functions, enums and sets
+are only used as inputs. Therefore, in TiKV coprocessor, we will need to
+implement `cast_enum_to_bytes` and `cast_enum_to_int`, etc.
 
-Enum could be casted to `Bytes` and `Int`. Therefore, in TiKV coprocessor, we will
-need to implement `cast_enum_to_bytes` and `cast_enum_to_int`.
+### Control Functions
 
-## Aggregators for Enum and Set
+For `IF` and `CASE` functions, the output vector and input vectors should have
+the same ranges of values. We will need to modify the coprocessor `rpn_fn` macro
+to support this kind of functions.
+
+### Aggregators
 
 For other SQL functions, such as `MAX`, `MIN`, and so on, we could implement them
 as aggregators. This can be done by modifying current implemented aggregators.
