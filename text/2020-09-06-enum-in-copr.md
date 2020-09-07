@@ -148,6 +148,7 @@ Currently, TiDB treat enum and set as (name, value) pair. To enable full support
 for enum functions, TiDB also need to be refactored. This may include:
 
 * Change EvalType and FieldType in tipb
+* Add new signatures in tipb
 * Cast enum to string and enum to int in SQL plan
 * Implement enum and set Chunk vector on TiDB side
 * decode new chunk format in LazyColumn
