@@ -132,7 +132,8 @@ pub enum VectorValue {
     DateTime(ChunkedVecSized<DateTime>),
     Duration(ChunkedVecSized<Duration>),
     Json(ChunkedVecJson),
-    Enum(ChunkedVecEnum)
+    Enum(ChunkedVecEnum),
+    Set(ChunkedVecSet)
 }
 ```
 
@@ -143,7 +144,8 @@ pub enum ScalarValueRef<'a> {
     // ... other fixed-size types ...
     Bytes(Option<BytesRef<'a>>),
     Json(Option<JsonRef<'a>>),
-    Enum(Option<EnumRef<'a>>)
+    Enum(Option<EnumRef<'a>>),
+    Set(Option<SetRef<'a>>)
 }
 ```
 
@@ -157,7 +159,8 @@ pub enum ScalarValue {
     DateTime(Option<super::DateTime>),
     Duration(Option<super::Duration>),
     Json(Option<super::Json>),
-    Enum(Option<super::Enum>)
+    Enum(Option<super::Enum>),
+    Set(Option<super::Set>)
 }
 ```
 
