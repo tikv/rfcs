@@ -168,7 +168,7 @@ Like `Bytes` and `Json`, an enum vectorized function accepts `EnumRef` as parame
 pub fn cast_enum_to_int(data: EnumRef) -> Result<Option<Int>>;
 ```
 
-## Add Cast Functions for Enum
+## Add Cast Functions for Enum and Set
 
 From [MySQL docs](https://dev.mysql.com/doc/refman/8.0/en/enum.html), we can find
 all possible usage of enum column.
@@ -180,6 +180,11 @@ casting result as inputs.
 
 Enum could be casted to `Bytes` and `Int`. Therefore, in TiKV coprocessor, we will
 need to implement `cast_enum_to_bytes` and `cast_enum_to_int`.
+
+## Aggregators for Enum and Set
+
+For other SQL functions, such as `MAX`, `MIN`, and so on, we could implement them
+as aggregators. This can be done by modifying current implemented aggregators.
 
 ## Integration with TiDB (future work)
 
