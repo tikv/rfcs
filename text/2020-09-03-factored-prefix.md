@@ -7,8 +7,8 @@ TiKV provides a facility where the client can set a key prefix that will be used
 ## Motivation
 
 TiKV users need to use key prefixes to avoid conflicts.
-In keeping with DRY we should not require a program to add the same prefix everywhere.
-This will also reduce the payload sent to TiKV.
+In keeping with DRY (Don't Repeat Yourself) we should not require a program to add the same prefix everywhere.
+This proposal aids the key spaces proposal.
 
 ## Detailed design
 
