@@ -32,21 +32,21 @@ An auth implementation can then secure the key spaces to provide security agains
 
 #### Scope
 
-This RFC will not propose "sub spaces", which is a key space within a key space.
-This can be proposed independently, although it may be better to discuss after the key spaces RFC is accepted so that it can leverage some of the key spaces implementation.
-
 This RFC will not discuss authentication.
 Authentication is necessary to provide any meaningful security for key spaces.
 
 This RFC will not discuss resource isolation.
 Key spaces will be an important tool for resource isolation to leverage.
 
+This RFC will not propose "sub spaces", which is a key space within a key space.
+
+
 #### Client view
 
 When a client first connects to the TiKV system, it will register itself to get a key space prefix.
 The client can register for additional key spaces, but normally one application will have one key space.
 
-All key spaces operations take place in the metadata component (PD) which stores a registry of key spaces.
+All key space operations take place in the metadata component (PD) which stores a registry of key spaces.
 
 The TiKV component does not know about key spaces. All requests to the storage component (TiKV) will include the key space prefix.
 Please see [this separate proposal that helps with sending key prefixes to TiKV](https://github.com/tikv/rfcs/pull/56).
@@ -56,6 +56,8 @@ Please see [this separate proposal that helps with sending key prefixes to TiKV]
 
 POST /keyspaces
 
+Create a key space
+
 requires:
 
 * key space name
@@ -64,6 +66,7 @@ requires:
 optional:
 
 * description
+* prefix
 
 system generated:
 
@@ -72,8 +75,13 @@ system generated:
 This API will return the key space object. The key space name is the id of the keyspace and cannot be changed.
 The usage of an application name as an identity may end up being a de-normalization of data in a future iteration when true identity with authentication is added.
 
+Normally the request does not include a prefix and allows the system to generate it.
+The request may include a prefix: this is designed to support backwards compatibility. The prefix should be encoded as the system does, as explained in Key Prefix specification.
 
-POST /keyspaces/{id}
+
+PUT /keyspaces/{id}
+
+Update a key space
 
 requires id and description. Only the description field can be updated.
 
@@ -87,7 +95,7 @@ DELETE /keyspaces/{id}
 requires id. Deletion is background task. This DELETE API sets the time of the API call in a field `deleted_at`.
 When deletion is completed, it will set a field `delete_completed_at` and the prefix may be re-used in a new key space.
 
-Note that in a token-based auth system deletion will need to wait until client tokens expire.
+In a token-based auth system (proposed in another RFC) deletion will need to wait until client tokens expire before it can begin deletion.
 
 
 
@@ -109,16 +117,15 @@ This pattern can continue to add an infinite amount of additional bytes but it i
 #### Region storage
 
 A Region must not span multiple key spaces. This helps to ensure data security and confidentiality of key spaces.
-PD will need to ensure that region key ranges stay with their key space and that regions from different key spaces are not merged together.
+PD will need to ensure that region key ranges stay within their key space and that regions from different key spaces are not merged together.
 
 #### Backwards compatibility
 
-Please see [this separate proposal that helps with sending key prefixes to TiKV](https://github.com/tikv/rfcs/pull/56).
-This includes a backwards compatibility plan.
-If that RFC is not adopted we would likely do something similar in this RFC (but particular to key spaces rather than prefixes).
+Lets call an application not using key spaces a V1 application and one using key spaces a V2 application.
 
-Otherwise this RFC provides no help with backwards compatibility. Applications not using the key spaces feature will stay the same.
-The auth proposal will provide a mechanism to secure access for an application that did not start by using the key spaces feature.
+A V1 application upgrades by reserving the key spaces it uses. For example, an existing TiDB deployment would create both an 'm' and a 't' prefix. Note that a new TiDB application would use just a single prefix (it would append 'm' or 't' to that).
+
+A V1 application may continue to operate as normal without reserving key spaces (but it risks collisions). The auth proposal will provide a mechanism to require key space authenticated access.
 
 
 #### Backup and Restore
@@ -139,13 +146,15 @@ The intent of key spaces is to declare an owner of a key space.
 There can only be one owner.
 This does not preclude cooperation among applications, for example having read access to another key space.
 
+One application can be an owner of multiple key spaces. This pattern is not encouraged (instead self-management is), but it is used to upgrade TiDB.
+
 It would be possible for this proposal to attempt to formalize this as well by documenting read-only access, etc.
 However, I believe that because currently we have no way to secure access it is better to tackle this problem when we implement authentication.
 More specifically, there are alternative designs for this that make more sense when authentication is present, and one that I currently favor is access delegation.
 
 ## Drawbacks
 
-The upgrade path is a little complicated and might be confusing.
+The upgrade path is not completely smooth: there is a differnce between old and new TiDB deployments.
 Teaching users to use this new feature and attempting to integrate it into client libraries will take effort.
 key space overwriting is still possible until auth is implemented.
 
@@ -153,8 +162,8 @@ key space overwriting is still possible until auth is implemented.
 
 #### FoundationDB directories
 
-The database I know of that is operationally similar to TiKV is FoundationDB. FoundationDB has had this feature for a long time.
-FoundationDB has a tuple layer which is a convenience for creating key prefixes. On top of that, they have subspaces, which is specifically designed for prefixes for key space managment.
+FoundationDB (FDB) is operationally similar to TiKV. FDB has had this feature for a long time.
+FDB has a tuple layer which is a convenience for creating key prefixes. On top of that, they have subspaces, which is specifically designed for prefixes for key space managment.
 In addition, they have a directory layer.
 The directory layer abstracts away actual key prefixes, usess a compressed key prefix, and has some hierarcrhy abilities for organizing data.
 
@@ -164,14 +173,13 @@ Fundamentally use of this layer requires an extra database read or the use of a 
 So this proposal is similar to FoundationDB directories, but
 
 * does not attempt to add hierachical organization
-* is implemented directly in the TiKV system to avoid network overhead
+* implements immutable key spaces to avoid overhead from checking for staleness
 
-I believe that if the hierarchy feature is desired it can be added on to this key space implementation.
-In a database, it is very important to avoid abstractions that make performance worse, so I believe this is a feature that should not be implemented as a (network-isolated) layer.
+If the hierarchy feature is desired it can be added on to this key space implementation.
 
 FoundationDB subspaces are little more than a convenience in client libraries for using key prefixes.
 Etcd namespaces seem equivalent.
-We may also want to add such a feature to TiKV clients independently on this RFC.
+We may also want to add subspaces to TiKV clients independently of this RFC.
 
 #### Running lots of TiKVs
 
