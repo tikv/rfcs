@@ -64,6 +64,15 @@ impl MemoryTraceManager {
 `register_provider` will store the provider and `snapshot` will create a trace
 using all the information from registered providers.
 
+### Output
+
+A trace is a rust struct, when dumping the result, it needs to be transformed
+into some readable format. For best readability, it can be output as a
+framegraph using the real name. It can also support the existing format from
+[minitrace][1] to utilize more existing UI front end.
+
+[1]: https://github.com/pingcap-incubator/minitrace-rust
+
 ### Implementation example
 
 #### Tracing memory used by peer fsm
