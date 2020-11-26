@@ -43,13 +43,13 @@ This RFC will not propose "sub spaces", which is a key space within a key space.
 
 #### Client view
 
-When a client first connects to the TiKV system, it will register itself to get a key space prefix.
-The client can register for additional key spaces, but normally one application will have one key space.
+A client is initialized with a keyspace name. When it first connects to the TiKV system, it will check for the existence of the keyspace name and either use that keyspace or create it if it does not exist.
+The client can operate on multiple key spaces, but normally one application will have one key space.
 
 All key space operations take place in the metadata component (PD) which stores a registry of key spaces.
 
-The TiKV component does not know about key spaces. All requests to the storage component (TiKV) will include the key space prefix.
-Please see [this separate proposal that helps with sending key prefixes to TiKV](https://github.com/tikv/rfcs/pull/56).
+The TiKV component does not know about key spaces. All requests to the storage component (TiKV) will prepend the key space prefix.
+It is also possible to send the key prefix separately as in [this proposal](https://github.com/tikv/rfcs/pull/56).
 
 
 #### Metadata operations
@@ -121,12 +121,20 @@ PD will need to ensure that region key ranges stay within their key space and th
 
 #### Backwards compatibility
 
-Lets call an application not using key spaces a V1 application and one using key spaces a V2 application.
+Lets call an application not using key spaces a V1 application and one that explicitly uses key spaces a V2 application.
+A V2 application is inititialized with a key space name whereas a V1 application is not.
 
-A V1 application upgrades by reserving the key spaces it uses. For example, an existing TiDB deployment would create both an 'm' and a 't' prefix. Note that a new TiDB application would use just a single prefix (it would append 'm' or 't' to that).
 
-A V1 application may continue to operate as normal without reserving key spaces (but it risks collisions). The auth proposal will provide a mechanism to require key space authenticated access.
+The administrator is responsible for during the upgrade process pre-registering any keyspace names already in use. The upgrade process is:
+1) upgrade the server with keyspace disabled for client interaction. By default the configuration `keyspace-api-enabled` will be set to false.
+2) register the existing prefixes in use as keyspaces in PD. For example (m,t) for TiDB
+3) enable the keyspace feature on the server for client interaction by setting the configuration `keyspace-api-enabled=true`
+4) (optional) set V2 applications to require that the keyspace API exists
 
+A V1 application may continue to operate before, during, and after the upgrade without being upgraded to a V2 application (but it risks collisions).
+A V2 application may continue to operate before, during, and after the upgrade without issue.
+
+By default a V2 application will detect whether the PD API is available. If it is not available it must choose its own default prefix the same way a V1 application does. After setting a V2 application to require that the keyspace API exists, if the API does not exist the V2 application will fail.
 
 #### Backup and Restore
 
