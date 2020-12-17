@@ -160,6 +160,22 @@ It would be possible for this proposal to attempt to formalize this as well by d
 However, I believe that because currently we have no way to secure access it is better to tackle this problem when we implement authentication.
 More specifically, there are alternative designs for this that make more sense when authentication is present, and one that I currently favor is access delegation.
 
+
+#### Creating a new keyspace
+
+The safest way to use key spaces is:
+* An administrator can creates a keyspace ahead of time with a name
+* Then that key space name is configured in the client deployment
+
+However, both of these steps create inconvenience. This can be overcome with self-registration.
+A TiKV client is deployed with a keyspace name for it to use. If the keyspace does not yet exist,
+by default the client will fail. Instead of failing the client may request to create the keyspace.
+This requires self-registration to be enabled on the server (by default it is).
+
+When upgrading a client from V1 to V2 the client can continue to not use keyspaces (this is useful if the keyspace API is not yet available on the server).
+The V2 client can also use keyspaces. Either the administrator must create it ahead of time or the client can self-register it.
+
+
 ## Drawbacks
 
 The upgrade path is not completely smooth: there is a differnce between old and new TiDB deployments.
