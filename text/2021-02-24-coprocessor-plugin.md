@@ -2,13 +2,13 @@
 
 ## Summary
 
-Add a general and plugable coprocessor framework for RawKV mode.
+Add a general and pluggable coprocessor framework for RawKV mode.
 
 ## Motivation
 
 TiKV is the storage component in the TiDB ecosystem, however, the distribution computation principle suggests that computation should be as close to the data source as possible. Therefore, TiKV has embedded a subset of the TiDB executor framework to push down some computation tasks when applicable.
 
-But TiKV's capability should be far beyond that, as many distributed components can be built on top of TiKV, such as cache, full text search engine, gragh database and NoSQL database. And same as TiDB, these product will also like to push down specific computation to TiKV, which requires the coprocessor to be customizable, aka plugable.
+But TiKV's capability should be far beyond that, as many distributed components can be built on top of TiKV, such as cache, full text search engine, graph database and NoSQL database. And same as TiDB, these product will also like to push down specific computation to TiKV, which requires the coprocessor to be customizable, aka pluggable.
 
 ## Detailed design
 
@@ -46,11 +46,11 @@ Web Assembly is chosen to host the dynamic plugin. There was alternatives like d
 
 - eBPF
 
-    Berkeley Packet Filter has been experimented in Hackthon. It requires the plugin to be written in C, which is not capable to migrate `tidb_query` eventually. And also, eBPF is not turning-complete, which is unacceptable.
+    Berkeley Packet Filter has been experimented in Hackathon. It requires the plugin to be written in C, which is not capable to migrate `tidb_query` eventually. And also, eBPF is not turing-complete, which is unacceptable.
 
 - WASM
 
-    Web Assembly has also been experimented in Hackthon. As the result, it made the performance score around 50% to 80% to the statically linked one. Good work for `Wasmer`! Besides, WASM can be written in many languages and has great safety guarantee.
+    Web Assembly has also been experimented in Hackathon. As the result, it made the performance score around 50% to 80% to the statically linked one. Good work for `Wasmer`! Besides, WASM can be written in many languages and has great safety guarantee.
 
     The Rust binding for WASM plugin should be first-class supported.
 
