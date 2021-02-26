@@ -10,6 +10,20 @@ TiKV is the storage component in the TiDB ecosystem, however, the distribution c
 
 But TiKV's capability should be far beyond that, as many distributed components can be built on top of TiKV, such as cache, full text search engine, graph database and NoSQL database. And same as TiDB, these product will also like to push down specific computation to TiKV, which requires the coprocessor to be customizable, aka pluggable.
 
+For instance, a full-text seraching engine will persist the origin document and n-gram index on TiKV. It'll be a waste of resource if we read back and then update the index from a client. In contrary, the coprocessor plugin can generate the index from the origin document, and update the index inplace. What's more, the coprocessor plugin can perform index scan directly on TiKV.
+
+The goals of the coprocessor plugin are:
+
+- Do what client can do (on single region)
+- Provide more guarantee than client does on RawKV
+    - Raft transaction on RawKV
+- Easy to use
+    - Out of box
+    - Easy to deploy
+- Robust
+    - Easy to debug
+    - Log support, metrics support
+
 ## Detailed design
 
 ### Dynamic vs statically
@@ -28,7 +42,7 @@ They have both pros and cons:
 | X Build very slow | ◯ Build fast |
 | X Hard to debug | ◯ Easy to debug |
 
-Ideally, we'd like to develop a plugin in dynamic mode, and eventually, to distribute the statically linked one in release. So there is an interesting research area that designing a plugin framework that can write the plugin once, and compile to the dynamic one and the static one with duplicate code. Anyway, this is an ambitious target but sort of out of scope, so we may explore the possibility when marching on.
+Ideally, we'd like to develop a plugin in dynamic mode, and eventually, to distribute the statically linked one in release. So there is an interesting research area that designing a plugin framework that can write the plugin once, and compile to the dynamic one and the static one without duplicate code. Anyway, this is an ambitious target but sort of out of scope, so we may explore the possibility when marching on.
 
 So initially, in this RFC, we'll only focus on the dynamic plugin framework that works in RawKV mode.
 
@@ -52,11 +66,10 @@ Web Assembly is chosen to host the dynamic plugin. There was alternatives like d
 
     Web Assembly has also been experimented in Hackathon. As the result, it made the performance score around 50% to 80% to the statically linked one. Good work for `Wasmer`! Besides, WASM can be written in many languages and has great safety guarantee.
 
-    The Rust binding for WASM plugin should be first-class supported.
+### Plugin runtime
 
-### Keyspace
-
-Keyspace[[RFC]](https://github.com/tikv/rfcs/pull/39)[[The most updated design doc]](https://docs.google.com/document/d/1x17-urAqToDo8TVXJroEHtc76fdssFaoANjSaNDhjKg/edit) is an incoming feature of TiKV that is highly related to coprocessor plugin. Keyspace determines whether a range of key should only be used in transaction mode or in RawKV mode. Since coprocessor works in either RawKV mode or txn mode, surely coprocessor plugin framework should aware of Keyspace. The details is TBD.
+The path of the WASM plugin should be specified in the config file. When TiKV starts up the plugin will be loaded.
+The Rust binding for WASM plugin should be first-class supported.
 
 ### Multi-plugin
 
@@ -67,6 +80,8 @@ Currently TiKV has only one coprocessor `tidb_query`. However, without further w
 To reduce the learning overhead, it'll be better that the API of the coprocessor plugin get closer to the client. Thus, it'll looks like the `RawClient` in the [Rust Client](https://github.com/tikv/client-rust) with extra txn-like methods e.g. `commit` and `lock`.
 
 ```rust
+use std::ops::Range;
+
 pub type Key = Vec<u8>;
 pub type Value = Vec<u8>;
 
@@ -95,19 +110,25 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[async_trait]
 pub trait RawTransaction: Send {
-    /// Acquire memory lock for a key. All other trivial rpc requests or coprocessor
-    /// lock acquire to the same key will be blocked by this lock. This lock will be
-    /// released when the transaction is committed or dropped.
-    async fn lock(&self, key: Key) -> Result<()>;
+    /// Acquire memory lock for keys. All other trivial rpc requests and
+    /// coprocessor accessing the same key will be blocked by this lock. This
+    /// lock will be released when the transaction is committed or dropped.
+    ///
+    /// Will get a new `Snapshot` from RaftKV after the memory lock is acquired.
+    async fn lock_keys(&self, keys: Vec<Key>) -> Result<()>;
 
+    /// Get the value to the key. Will acquire the lock.
     async fn get(&self, key: Key) -> Result<Option<Value>>;
-    async fn scan(&self, key_range: Range<Key>) -> Vec<Value>;
+    /// Scan the kvpair in range. Will acquire the lock for the range.
+    async fn scan(&self, key_range: Range<Key>) -> Result<Vec<Value>>;
 
+    /// Put mutations into the write batch.
     async fn put(&mut self, key: Key, value: Value) -> Result<()>;
     async fn delete(&mut self, key: Key) -> Result<()>;
     async fn delete_range(&mut self, key_range: Range<Key>) -> Result<()>;
 
-    /// Returns when Raft message applied successfully.
+    /// Commit the write batch to RaftKV.
+    /// Returns when the Raft message is successfully applied.
     async fn commit(self) -> Result<()>;
 }
 
@@ -116,9 +137,15 @@ pub trait Coprocessor: Send + Sync {
         &self,
         region: Region,
         request: Vec<u8>,
-        transaction: Box<RawTransaction>,
+        transaction: Box<dyn RawTransaction>,
     ) -> Result<Vec<u8>>;
 ```
+
+The raw transaction invariant is similar to the pessimistic transaction, except for on only one region.
+
+### Keyspace
+
+Keyspace[[RFC]](https://github.com/tikv/rfcs/pull/39)[[The most updated design doc]](https://docs.google.com/document/d/1x17-urAqToDo8TVXJroEHtc76fdssFaoANjSaNDhjKg/edit) is an incoming feature of TiKV that is highly related to coprocessor plugin. Keyspace determines whether a range of key should only be used in transaction mode or in RawKV mode. Since coprocessor works in either RawKV mode or txn mode, surely coprocessor plugin framework should aware of Keyspace. The details is TBD.
 
 ## Future work
 
@@ -136,7 +163,7 @@ Two reasons for that:
 
 Transaction mode is way more complicated than the RawKV mode. The current picture of txn plugin is an 'interactive' component with the client, which means, the client and the coprocessor will talk to each others during the request being processed. This is especially for resolving locks and coordinating the transaction among multiple coprocessors in multiple TiKV nodes.
 
-### Static plugin
+### Static mode
 
 Discussed in the section above.
 
