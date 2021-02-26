@@ -68,12 +68,39 @@ Web Assembly is chosen to host the dynamic plugin. There was alternatives like d
 
 ### Plugin runtime
 
-The path of the WASM plugin should be specified in the config file. When TiKV starts up the plugin will be loaded.
-The Rust binding for WASM plugin should be first-class supported.
+The plugin runtime is a new component settling in `tikv::server::service::kv::Service`. It runs the WASM module in a `Wasmer` sandbox, dispatches coprocessor request to the sandbox, and convertes data between the WASM interface and the `Engine` trait instance.
+
+The path of the WASM plugin should be specified in the config file and be loaded at TiKV startup.
+
+### Plugin SDK
+
+The plugin SDK is a standalone rust library that defines the glues for types that plugin framework could pass through the WASM boundary. And also, it should setup the proper build process of the WASM module. In addition, a minimal plugin boilerplate would be nice.
 
 ### Multi-plugin
 
 Currently TiKV has only one coprocessor `tidb_query`. However, without further work on statically linked plugin and txn mode support, we can't strip it from official release. So, multiple coprocessor has to be supported. Basically, we may need to add a `gPRC` rpc for coprocessor v2 request, in which coprocessor name and version is given, so that TiKV will be able to dispatch the request to the proper coprocessor, as well as to reject the request on version mismatch.
+
+### Protobuf design
+
+```proto
+message RawCoprocessorRequest {
+    kvrpcpb.Context context = 1;
+
+    string copr_name = 2;
+    string copr_version_request = 3;
+
+    bytes data = 4;
+}
+
+message RawCoprocessorResponse {
+    bytes data = 1;
+
+    errorpb.Error region_error = 2;
+    string other_error = 3;
+
+    repeated span.SpanSet spans = 4;
+}
+```
 
 ### API design
 
