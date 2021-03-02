@@ -42,39 +42,17 @@ They have both pros and cons:
 | X Build very slow | ◯ Build fast |
 | X Hard to debug | ◯ Easy to debug |
 
-Ideally, we'd like to develop a plugin in dynamic mode, and eventually, to distribute the statically linked one in release. So there is an interesting research area that designing a plugin framework that can write the plugin once, and compile to the dynamic one and the static one without duplicate code. Anyway, this is an ambitious target but sort of out of scope, so we may explore the possibility when marching on.
-
-So initially, in this RFC, we'll only focus on the dynamic plugin framework that works in RawKV mode.
-
-### Web Assembly
-
-Web Assembly is chosen to host the dynamic plugin. There was alternatives like dynamic lib, lua and bpf. So in this section, I'll explain the tradeoff between them and why WASM is the most appropriate choice for TiKV:
-
-- Dynamic Library
-
-    Previously, a proof-of-concept plugin experiment [[repo]](https://github.com/andylokandy/plugin) is done. As a result, we found that Rust's unstable ABI is a risk in safety. It's hard to guarantee that the TiKV and the plugin has absolutely the same ABI version, and is also hard to debug such a plugin.
-
-- Lua
-
-    TOO SLOW
-
-- eBPF
-
-    Berkeley Packet Filter has been experimented in Hackathon. It requires the plugin to be written in C, which is not capable to migrate `tidb_query` eventually. And also, eBPF is not turing-complete, which is unacceptable.
-
-- WASM
-
-    Web Assembly has also been experimented in Hackathon. As the result, it made the performance score around 50% to 80% to the statically linked one. Good work for `Wasmer`! Besides, WASM can be written in many languages and has great safety guarantee.
+In this RFC, we'll only focus on the dynamic plugin framework that works in RawKV mode.
 
 ### Plugin runtime
 
-The plugin runtime is a new component settling in `tikv::server::service::kv::Service`. It runs the WASM module in a `Wasmer` sandbox, dispatches coprocessor request to the sandbox, and convertes data between the WASM interface and the `Engine` trait instance.
+The plugin runtime is a new component settling in `tikv::server::service::kv::Service`. It loads the dylib plugin, dispatches coprocessor request to the plugin, and proxy the API calls from plugin to the [`Storage`](https://tikv.github.io/doc/tikv/storage/struct.Storage.html).
 
-The path of the WASM plugin should be specified in the config file and be loaded at TiKV startup.
+The path of the plugin should be specified in the config file and be loaded at TiKV startup.
 
 ### Plugin SDK
 
-The plugin SDK is a standalone rust library that defines the glues for types that plugin framework could pass through the WASM boundary. And also, it should setup the proper build process of the WASM module. In addition, a minimal plugin boilerplate would be nice.
+The plugin SDK is a standalone rust library that help setup the build process for the plugin.
 
 ### Multi-plugin
 
@@ -87,7 +65,7 @@ message RawCoprocessorRequest {
     kvrpcpb.Context context = 1;
 
     string copr_name = 2;
-    string copr_version_request = 3;
+    string copr_version_constraint = 3;
 
     bytes data = 4;
 }
@@ -97,8 +75,6 @@ message RawCoprocessorResponse {
 
     errorpb.Error region_error = 2;
     string other_error = 3;
-
-    repeated span.SpanSet spans = 4;
 }
 ```
 
@@ -111,6 +87,7 @@ use std::ops::Range;
 
 pub type Key = Vec<u8>;
 pub type Value = Vec<u8>;
+pub type KvPair = (Key, Value);
 
 #[derive(Debug)]
 pub struct Region {
@@ -129,34 +106,21 @@ pub struct RegionEpoch {
 #[derive(Debug)]
 pub enum Error {
     KeyNotInRegion { key: Key, region: Region },
-    Deadlock { key: Key },
     // More
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[async_trait]
-pub trait RawTransaction: Send {
-    /// Acquire memory lock for keys. All other trivial rpc requests and
-    /// coprocessor accessing the same key will be blocked by this lock. This
-    /// lock will be released when the transaction is committed or dropped.
-    ///
-    /// Will get a new `Snapshot` from RaftKV after the memory lock is acquired.
-    async fn lock_keys(&self, keys: Vec<Key>) -> Result<()>;
-
-    /// Get the value to the key. Will acquire the lock.
+pub trait RawStorage: Send {
     async fn get(&self, key: Key) -> Result<Option<Value>>;
-    /// Scan the kvpair in range. Will acquire the lock for the range.
+    async fn batch_get(&self, keys: Vec<Key>) -> Result<Vec<KvPair>>;
     async fn scan(&self, key_range: Range<Key>) -> Result<Vec<Value>>;
-
-    /// Put mutations into the write batch.
     async fn put(&mut self, key: Key, value: Value) -> Result<()>;
+    async fn batch_put(&mut self, kv_pairs: Vec<KvPair>) -> Result<()>;
     async fn delete(&mut self, key: Key) -> Result<()>;
+    async fn batch_delete(&mut self, keys: Vec<Key>) -> Result<()>;
     async fn delete_range(&mut self, key_range: Range<Key>) -> Result<()>;
-
-    /// Commit the write batch to RaftKV.
-    /// Returns when the Raft message is successfully applied.
-    async fn commit(self) -> Result<()>;
 }
 
 pub trait Coprocessor: Send + Sync {
@@ -164,11 +128,9 @@ pub trait Coprocessor: Send + Sync {
         &self,
         region: Region,
         request: Vec<u8>,
-        transaction: Box<dyn RawTransaction>,
+        storage: Box<dyn RawStorage>,
     ) -> Result<Vec<u8>>;
 ```
-
-The raw transaction invariant is similar to the pessimistic transaction, except for on only one region.
 
 ### Keyspace
 
