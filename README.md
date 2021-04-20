@@ -18,10 +18,9 @@ stakeholders can be confident about the direction the project is evolving in.
 
 ## Timeline of an RFC
 
-1. An RFC is submitted as a PR.
+1. An RFC is submitted as a PR, and a tracking issue is created for the RFC.
 2. Discussion takes place, and the text is revised in response.
-3. The PR is merged or closed when at least two project maintainers reach
-   consensus.
+3. The PR is merged or closed when at least two project maintainers reach consensus.
 
 ## Style of an RFC
 
