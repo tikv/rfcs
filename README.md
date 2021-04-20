@@ -12,7 +12,7 @@ stakeholders can be confident about the direction the project is evolving in.
 
 ## How to submit an RFC
 
-1. Copy `template.md` into `text/YYYY-MM-DD-my-feature.md`.
+1. Copy `template.md` into `text/PRID-my-feature.md`.
 2. Write the document and fill in the blanks.
 3. Submit a pull request.
 
