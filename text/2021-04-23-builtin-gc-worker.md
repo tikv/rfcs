@@ -35,7 +35,7 @@ Three new concepts will be introduced by this proposal:
 
 3. `GC Safepoint`
 
-	PD calculates `GC Safepoint` by `min(Transaction Safepoint Status) - 1`, resolves locks earlier than `GC Safepoint`, then synchronizes it to TiKV and TiFlash via `StoreHeartbeatResponse`. And finally, TiKV and TiFlash are safe to delete MVCC data earlier than `GC Safepoint`.
+    PD calculates `GC Safepoint` by `min(Transaction Safepoint Status) - 1`, resolves locks earlier than `GC Safepoint`, then synchronizes it to TiKV and TiFlash via `StoreHeartbeatResponse`. And finally, TiKV and TiFlash are safe to delete MVCC data earlier than `GC Safepoint`.
 
 ![GC Worker](../media/gc-worker.png)
 
