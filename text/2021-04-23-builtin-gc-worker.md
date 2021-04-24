@@ -44,6 +44,11 @@ According to the design above, several fields will be added to `pdpb.proto`:
 ```diff
   // `pdpb.proto
 
+  message StoreHeartbeatRequest {
+      RequestHeader header = 1;
+      StoreStats stats = 2;
+  }
+
   message StoreStats {
   …
 +     uint64 txn_safepoint = 15;
