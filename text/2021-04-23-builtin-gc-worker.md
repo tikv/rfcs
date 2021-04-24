@@ -10,7 +10,7 @@ GC worker is an important component for TiKV that deletes outdated MVCC data so 
 
 ## Background
 
-According to the [documentation]((https://docs.pingcap.com/tidb/stable/garbage-collection-overview)) for the **current** GC worker, the GC worker processes the following steps in a GC cycle:
+According to the [documentation](https://docs.pingcap.com/tidb/stable/garbage-collection-overview) for the **current** GC worker, the GC worker processes the following steps in a GC cycle:
 
 1. Calculate the minimal timestamp among all living SQL sessions, earlier than which are safe to GC, called `Service Safepoint`.
 2. [Upload](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L73) the `Service Safepoint` to PD, and get the minimal `Service Safepoint` among all Tools (e.g. CDC) from the response.
@@ -31,7 +31,7 @@ Three new concepts will be introduced by this proposal:
 
 2. `Transaction Safepoint`
 
-    TiKV and TiFlash guarantee that no read or write will happen on the data earlier than `Transaction Safepoint`. PD calculates `Transaction Safepoint Proposal` by `min(GC Barriers) - 1` and proposes it to TiKV and TiFlash via the `StoreHeartbeatResponse`. Therefore, TiKV and TiFlash will reject all requests using timestamp earlier than the `Transaction Safepoint`. In the next following `StoreHeartbeatRequest` TiKV and TiFlash will report their latest `Transaction Safepoint Status` to PD.
+    TiKV and TiFlash guarantee that no read or write will happen on the data earlier than `Transaction Safepoint`. PD calculates `Transaction Safepoint Proposal` by `min(GC Barriers) - 1` and proposes it to TiKV and TiFlash via the `StoreHeartbeatResponse`. Therefore, TiKV and TiFlash will reject all requests with timestamp earlier than the `Transaction Safepoint`. In the next following `StoreHeartbeatRequest` TiKV and TiFlash will report their latest `Transaction Safepoint Status` to PD.
 
 3. `GC Safepoint`
 
@@ -107,9 +107,17 @@ Aslo, RPC `SetGCBarrier` and `GetGCStatus` will be added:
 
 ### Backward compatibility
 
+#### Rolling update
+
 During the rolling update, the GC worker will not function and the new TiDB will not try to be elected as a GC leader. Once the rolling update is completed, the GC worker in PD will start to work.
 
-The RPCs used by the GC model before this proposal should still work, which are: `GetGCSafePoint`, `UpdateGCSafePoint` and `UpdateServiceGCSafePoint`, and they should be just a thin wrapper on top of the new `GetGCStatus` and `SetGCBarrier`.
+The RPC `GetGCSafePoint` and `UpdateServiceGCSafePoint`, which are used by the GC model before this proposal should still work for keep compatible with tools and they should be just a thin wrapper on top of the new `GetGCStatus` and `SetGCBarrier`.
+
+`UpdateGCSafePoint` should only work before rolling update completes, once the rolling update finishes, PD will reject requests to this RPC.
+
+#### TiDB unsafe delete range
+
+In the model described above, we didn't specify when TiDB should unsafe delete range. Because the step of resolving lock is controled by PD and unsafe delete range is only allowed after `GC Safepoint` is pushed ahead of the timestamp of `DROP TABLE`, TiDB has to passively listen to the `GC Safepoint` (fetch by interval), and perform unsafe delete range when appropriate.
 
 ## Reference
 
