@@ -12,14 +12,15 @@ GC worker is an important component for TiKV that deletes outdated MVCC data so 
 
 According to the [documentation](https://docs.pingcap.com/tidb/stable/garbage-collection-overview) for the **current** GC worker, the GC worker processes the following steps in a GC cycle:
 
-1. Calculate the minimal timestamp among all living SQL sessions, earlier than which are safe to GC, called `Service Safepoint`.
-2. [Upload](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L73) the `Service Safepoint` to PD, and get the minimal `Service Safepoint` among all Tools (e.g. CDC) from the response.
-3. Resolve all locks whose timestamp is earlier than the `Minimal Service Safepoint`.
-4. [Push](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L71) the `Minimal Service Safepoint` as `GCSafepoint` to PD.
+1. Calculate the minimal timestamp among all living SQL sessions, earlier than which are safe to GC, called `Session Safepoint`.
+2. [Fetch](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L73) the `Service Safepoint` from PD, which is the minimal snapshot timestamp requirement among all tools (e.g. CDC, BR).
+3. Calculate `GC Safepoint = min(Service Safepoint, Session Safepoint, now - gc_life_time)`.
+3. Resolve all locks whose timestamp is earlier than the `GC Safepoint`.
+4. [Push](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L71) the `GC Safepoint` to PD.
 
 After the `GCSafepoint` being uploaded, TiKV will pull it from PD by interval, then TiKV will automatically delete all records earlier than `GCSafepoint`.
 
-Yet another tricky part is that TiDB has a shortcut to GC a range of keys after `DROP TABLE` or `DROP INDEX`: parallel with step 3 and step 4, TiDB will directly invoke `UnsafeDeleteRange` to TiKV which will delete the range of key-values regardless of locks or timestamp. To make it safe, TiDB will guarantee that the deleted range will never be used again.
+Yet another tricky part is that TiDB has a shortcut to GC a range of keys after `DROP TABLE` or `DROP INDEX`, etc: parallel with step 3 and step 4, TiDB will directly invoke `UnsafeDeleteRange` to TiKV which will delete the range of key-values regardless of locks or timestamp. To make it safe, TiDB will guarantee that the deleted range will never be used again.
 
 ## Detailed design
 
@@ -27,11 +28,13 @@ Three new concepts will be introduced by this proposal:
 
 1. `GC Barrier`
 
-    PD guarantees that the GC process will not affect the data with a timestamp later than any `GC Barrier`. TiKV users (e.g. TiDB / CDC / Client) can put GC Barriers into PD so as to make sure the data they are using will not be GC.
+    PD guarantees it will be valid for a snapshot with timestamp later than any `GC Barrier` to read and write . TiKV users (e.g. TiDB / CDC / Client) can put GC Barriers into PD so as to make sure the data they are using will not be GC.
 
 2. `Transaction Safepoint`
 
-    TiKV and TiFlash guarantee that no read or write will happen on the data earlier than `Transaction Safepoint`. PD calculates `Transaction Safepoint Proposal` by `min(GC Barriers) - 1` and proposes it to TiKV and TiFlash via the `StoreHeartbeatResponse`. Therefore, TiKV and TiFlash will reject all requests with timestamp earlier than the `Transaction Safepoint`. In the next following `StoreHeartbeatRequest` TiKV and TiFlash will report their latest `Transaction Safepoint Status` to PD.
+    TiKV and TiFlash guarantee that no read or write will happen on the snapshot earlier than `Transaction Safepoint`. PD calculates `Transaction Safepoint` by `min(GC Barriers, now - gc_life_time) - 1` and proposes it to TiKV and TiFlash via the `StoreHeartbeatResponse`. Therefore, TiKV and TiFlash will reject all requests with timestamp earlier than the `Transaction Safepoint`. In the next following `StoreHeartbeatRequest` TiKV and TiFlash will report their latest `Transaction Safepoint` to PD.
+
+    Note that `Transaction Safepoint` on TiKV, TiFlash and PD must be non-decreasing.
 
 3. `GC Safepoint`
 
