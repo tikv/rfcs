@@ -61,7 +61,9 @@ According to the design above, several fields will be added to `pdpb.proto`:
 
 + message Safeline {
 +   repeated bytes split_keys = 1;
-+   // The item count of should be exactly one more than `split_keys`, e.g., a split key 'a' generates two key ranges: `..'a'` and `'a'..`, then `range_timestamp` should specify the safepoint for each key range.
++   // The item count of should be exactly one more than `split_keys`, e.g., a split
++   // key 'a' generates two key ranges: `..'a'` and `'a'..`, then `range_timestamp`
++   // should specify the safepoint for each key range.
 +   repeated uint64 range_timestamp = 2;
 + }
 
