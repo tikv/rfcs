@@ -12,11 +12,11 @@ GC worker is an important component for TiKV that deletes outdated MVCC data so 
 
 According to the [documentation](https://docs.pingcap.com/tidb/stable/garbage-collection-overview) for the **current** GC worker, the GC worker processes the following steps in a GC cycle:
 
-1. Calculate the minimal timestamp among all living SQL sessions, earlier than which are safe to GC, called `Session Safepoint`.
-2. [Fetch](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L73) the `Service Safepoint` from PD, which is the minimal snapshot timestamp requirement among all tools (e.g. CDC, BR).
-3. Calculate `GC Safepoint = min(Service Safepoint, Session Safepoint, now - gc_life_time)`.
-3. Resolve all locks whose timestamp is earlier than the `GC Safepoint`.
-4. [Push](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L71) the `GC Safepoint` to PD.
+1. Calculate the minimal timestamp among all living SQL sessions, earlier than which are safe to GC, called `Session Safepoint`. Then calculate the `Service Safepoint` for id `gc_worker` by `min(Session Safepoint, now - gc_life_time)`.
+2. [Push](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L73) the `gc_worker Service Safepoint` to PD. At the meanwhile, other tools (e.g. CDC, BR) has also pushed their `Service Safepoint` for minimal snapshot timestamp requirement.
+3. Get the minimal `Service Safepoint` among all services from the response of step 2, which is `GC Safepoint`.
+4. Resolve all locks whose timestamp is earlier than the `GC Safepoint`.
+5. [Push](https://github.com/pingcap/kvproto/blob/8ecb5e46d7f5f7952a1a8d262b54f61dc8de1ef3/proto/pdpb.proto#L71) the `GC Safepoint` to PD.
 
 After the `GCSafepoint` being uploaded, TiKV will pull it from PD by interval, then TiKV will automatically delete all records earlier than `GCSafepoint`.
 
