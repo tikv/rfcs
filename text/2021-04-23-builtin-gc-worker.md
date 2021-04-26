@@ -32,7 +32,7 @@ Three new concepts will be introduced by this proposal:
 
 2. `Transaction Safepoint`
 
-    TiKV and TiFlash guarantee that no read or write will happen on the snapshot earlier than `Transaction Safepoint`. PD calculates `Transaction Safepoint` by `min(GC Barriers, now - gc_life_time) - 1` and proposes it to TiKV and TiFlash via the `StoreHeartbeatResponse`. Therefore, TiKV and TiFlash will reject all requests with timestamp earlier than the `Transaction Safepoint`. In the next following `StoreHeartbeatRequest` TiKV and TiFlash will report their latest `Transaction Safepoint` to PD.
+    TiKV and TiFlash guarantee that no read or write will happen on the snapshot earlier than `Transaction Safepoint`. PD calculates `Transaction Safepoint` by `min(GC Barriers, now - gc_life_time)` and proposes it to TiKV and TiFlash via the `StoreHeartbeatResponse`. Therefore, TiKV and TiFlash will reject all requests with timestamp earlier than the `Transaction Safepoint`. In the next following `StoreHeartbeatRequest` TiKV and TiFlash will report their latest `Transaction Safepoint` to PD.
 
     Note that `Transaction Safepoint` on TiKV, TiFlash and PD must be non-decreasing.
 
