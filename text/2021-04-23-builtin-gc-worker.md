@@ -36,13 +36,13 @@ Four new concepts will be introduced by this proposal:
 
 2. `GC Barrier`
 
-    PD guarantees that using a timestamp later than the `GC Barrier` to read and write on the range within the `GC Barrier` will be always be valid. TiKV users (e.g. TiDB / CDC / Client) can put GC Barriers into PD so as to make sure the data they are using will not be GC.
+    PD guarantees that using a timestamp later than the `GC Barrier` to read and write on the range within the key range of `GC Barrier` will always be valid. TiKV users (e.g. TiDB / CDC / Client) can put GC Barriers into PD so as to make sure the data they are using will not be GC.
 
     ![GC Barrier](../media/gc-barrier.png)
 
 3. `Transaction Safeline`
 
-    TiKV and TiFlash guarantee that no read or write request should success using the timestamp earlier than (above) `Transaction Safeline`. PD calculates the timestamp for each key range of `Transaction Safeline` by `min(GC Barriers, now - gc_life_time)` and then proposes the `Transaction Safeline` to TiKV and TiFlash via the `StoreHeartbeatResponse`. Therefore, TiKV and TiFlash will reject all requests with timestamp earlier than (above) the `Transaction Safeline`. In the next following `StoreHeartbeatRequest` TiKV and TiFlash will report their latest `Transaction Safeline` to PD.
+    TiKV and TiFlash guarantee that no read or write request should success using the timestamp earlier than (above) `Transaction Safeline`. PD calculates the timestamp for each key range of `Transaction Safeline` by `min(GC Barriers)` and then proposes the `Transaction Safeline` to TiKV and TiFlash via the `StoreHeartbeatResponse`. Therefore, TiKV and TiFlash will reject all requests with timestamp earlier than (above) the `Transaction Safeline`. In the next following `StoreHeartbeatRequest` TiKV and TiFlash will report their latest `Transaction Safeline` to PD.
 
 4. `GC Safeline`
 
@@ -54,18 +54,73 @@ The graph below illustrates the GC process on an individual key.
 
 Note that both `Transaction Safeline` and `GC Safeline` must be non-regressive on TiKV, TiFlash and PD.
 
-According to the design above, several fields will be added to `pdpb.proto`:
+According to the design above, `gcpb.proto` will be added:
+
+```proto
+// gcpb.proto
+
+message Safeline {
+    repeated bytes split_keys = 1;
+    // The item count of `range_timestamp` should be exactly one more than `split_keys`, e.g.,
+    // a split key 'a' generates two key ranges: `..'a'` and `'a'..`, then `range_timestamp`
+    // should specify two safepoints for two key ranges.
+    repeated uint64 range_timestamp = 2;
+}
+
+message SafelineStatus {
+    uint64 txn_safeline_version = 1;
+    uint64 gc_safeline_version = 2;
+
+    // Safeline will be set only if it's in `StoreHeartbeatResponse` and the `safeline_version`
+    // in `StoreHeartbeatRequest` is not the latest.
+    bool has_txn_safeline = 3;
+    Safeline txn_safeline = 4;
+    bool has_gc_safeline = 5;
+    Safeline gc_safeline = 6;
+}
+
+service GCWorker {
+   rpc GetGCStatus(GetGCStatusRequest) returns (GetGCStatusResponse) {}
+   rpc PutGCBarrier(SetGCBarrierRequest) returns (SetGCBarrierResponse) {}
+}
+
+message GCBarrier {
+   bytes id = 1;
+   // Set to 0 to delete barrier
+   uint32 barrier_ttl_seconds = 2;
+
+   // Two modes for a GCBarrier. Only one can be set.
+   uint64 fixed_timestamp = 3;
+   uint32 seconds_before = 4;
+
+   bytes start_key = 5;
+   bytes end_key = 6;
+}
+
+message GetGCStatusRequest {
+   RequestHeader header = 1;
+}
+
+message GetGCStatusResponse {
+   ResponseHeader header = 1;
+   repeated GCBarriers gc_barriers = 2;
+   SafelineStatus safeline_status = 3;
+}
+
+message PutGCBarrierRequest {
+   RequestHeader header = 1;
+   GCBarrier gc_barrier = 2;
+}
+
+message PutGCBarrierResponse {
+   ResponseHeader header = 1;
+}
+```
+
+Also, a few fields will be added to `pdpb.proto`:
 
 ```diff
-  // `pdpb.proto
-
-+ message Safeline {
-+   repeated bytes split_keys = 1;
-+   // The item count of should be exactly one more than `split_keys`, e.g., a split
-+   // key 'a' generates two key ranges: `..'a'` and `'a'..`, then `range_timestamp`
-+   // should specify the safepoint for each key range.
-+   repeated uint64 range_timestamp = 2;
-+ }
+  // pdpb.proto
 
   message StoreHeartbeatRequest {
       RequestHeader header = 1;
@@ -73,73 +128,29 @@ According to the design above, several fields will be added to `pdpb.proto`:
   }
 
   message StoreStats {
-      …
-+     Safeline txn_safeline = 15;
-+     Safeline gc_safeline = 16;
+      ...
++     gcpb.SafelineStatus safeline_status = 15;
   }
 
   message PutStoreResponse {
       ResponseHeader header = 1;
       replication_modepb.ReplicationStatus replication_status = 2;
-+     Safeline txn_safeline = 3;
-+     Safeline gc_safeline = 4;
++     gcpb.SafelineStatus safeline_status = 3;
   }
 
   message StoreHeartbeatResponse {
      ResponseHeader header = 1;
      replication_modepb.ReplicationStatus replication_status = 2;
      string cluster_version = 3;
-+    Safeline txn_safeline = 4;
-+    Safeline gc_safeline = 5;
++    gcpb.SafelineStatus safeline_status = 4;
   }
-```
-
-Aslo, RPC `SetGCBarrier` and `GetGCStatus` will be added:
-
-```diff
-  // `pdpb.proto
-
-  service PD {
-  ...
-+    rpc SetGCBarrier(SetGCBarrierRequest) returns (SetGCBarrierResponse) {}
-+    rpc GetGCStatus(GetGCStatusRequest) returns (GetGCStatusResponse) {}
-  }
-
-+ message GCBarrier {
-+    bytes id = 1;
-+    // Set to 0 to delete existing barrier
-+    uint64 ttl = 2;
-+    uint64 timestamp = 3;
-+    bytes start_key = 4;
-+    bytes end_key = 5;
-+ }
-
-+ message PutGCBarrierRequest {
-+    RequestHeader header = 1;
-+    GCBarrier gc_barrier = 2;
-+ }
-
-+ message PutGCBarrierResponse {
-+    ResponseHeader header = 1;
-+ }
-
-+ message GetGCStatusRequest {
-+    RequestHeader header = 1;
-+ }
-
-+ message GetGCStatusResponse {
-+    ResponseHeader header = 1;
-+    repeated GCBarriers gc_barriers = 2;
-+    Safeline txn_safeline = 3;
-+    Safeline gc_safeline = 4;
-+ }
 ```
 
 ### Backward compatibility
 
 #### Rolling update
 
-During the rolling update, the GC worker will not function and the new TiDB will not try to be elected as a GC leader. Once the rolling update is completed, the GC worker in PD will start to work.
+During the rolling update, the GC worker should not function and the new TiDB should not try to be elected as a GC leader. Once the rolling update is completed, the GC worker in PD will start to work.
 
 The RPC `GetGCSafePoint` and `UpdateServiceGCSafePoint`, which are used by the GC model before this proposal should still work for keep compatible with tools and they should be just a thin wrapper on top of the new `GetGCStatus` and `PutGCBarrier`.
 
@@ -147,10 +158,12 @@ The RPC `GetGCSafePoint` and `UpdateServiceGCSafePoint`, which are used by the G
 
 #### TiDB unsafe delete range
 
-In the model described above, we didn't specify when TiDB should unsafe delete range. Because the step of resolving lock is controled by PD and unsafe delete range is only allowed after `GC Safepoint` is pushed ahead of the timestamp of `DROP TABLE`, TiDB has to passively listen to the `GC Safepoint` (fetch by interval), and perform unsafe delete range when appropriate.
+In the model described above, we didn't specify when TiDB should unsafe delete range. Because the step of resolving lock is controlled by PD and unsafe delete range is only allowed after `GC Safepoint` is pushed ahead of the timestamp of `DROP TABLE`, TiDB has to passively listen to the `GC Safepoint` (fetch by interval), and perform unsafe delete range when appropriate.
 
 ## Reference
 
 <https://docs.google.com/document/d/1jA3lK9QbYlwsvn67wGsSuusD1Dzx7ANq_vya384RBIg/edit#heading=h.rr3hcmc7ejb8>
 
 <https://docs.pingcap.com/tidb/stable/garbage-collection-overview>
+
+<https://www.cockroachlabs.com/docs/v20.1/configure-replication-zones#create-a-replication-zone-for-a-table>
