@@ -10,7 +10,7 @@
 
 1. GC worker is an important component for TiKV that deletes outdated MVCC data so as to not explode the storage. But currently, the GC worker is implemented in TiDB, which makes TiKV not usable without TiDB.
 
-2. Flashback is an feature under design for TiDB which allows querying SQL using an specified timestamp. By specifying GC deadline for different tables we can enlarge the use case that allowing arbitrary early timestamp (currently 10 mins) in flashback as long as a proper GC deadline is set for the table.
+2. Flashback is a feature under design for TiDB which allows querying SQL using a specified timestamp. By specifying GC deadline for different tables we can enlarge the use case that allowing arbitrary early timestamp (currently 10 mins) in flashback as long as a proper GC deadline is set for the table.
 
 ## Background
 
