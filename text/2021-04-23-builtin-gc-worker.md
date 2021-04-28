@@ -24,7 +24,8 @@ Yet another tricky part is that TiDB has a shortcut to GC a range of keys after 
 
 ## Detailed design
 
-Three new concepts will be introduced by this proposal:
+Four new concepts will be introduced by this proposal:
+
 
 1. `GC Barrier`
 
@@ -36,16 +37,72 @@ Three new concepts will be introduced by this proposal:
 
     Note that `Transaction Safepoint` on TiKV, TiFlash and PD must be non-decreasing.
 
-3. `GC Safepoint`
+3. `Delete Safepoint`
 
-    PD calculates `GC Safepoint` by `min(Transaction Safepoint Status) - 1`, resolves locks earlier than `GC Safepoint`, then synchronizes it to TiKV and TiFlash via `StoreHeartbeatResponse`. And finally, TiKV and TiFlash are safe to delete MVCC data earlier than `GC Safepoint`.
+    PD calculates `Delete Safepoint` by `min(Transaction Safepoint in heartbeat response)`, resolves locks earlier than `Delete Safepoint`, then synchronizes it to TiKV and TiFlash via `StoreHeartbeatResponse`. And finally, TiKV and TiFlash should automatically delete MVCC data earlier than the `Delete Safepoint`.
+
+The graph below illustrates the GC process on an individual key.
 
 ![GC Worker](../media/gc-worker.png)
 
-According to the design above, several fields will be added to `pdpb.proto`:
+According to the design above, `gcpb.proto` will be added:
+
+```proto
+// gcpb.proto
+
+message GCStatus {
+    uint64 txn_safepoint = 1;
+    uint64 delete_safepoint = 2;
+}
+
+service GCWorker {
+   rpc GetGCStatus(GetGCStatusRequest) returns (GetGCStatusResponse) {}
+   rpc GetGCBarrier(GetGCBarrierRequest) returns (GetGCBarrierResponse) {}
+   rpc PutGCBarrier(PutGCBarrierRequest) returns (PutGCBarrierResponse) {}
+}
+
+message GCBarrier {
+   bytes id = 1;
+   // Set to 0 to delete barrier
+   uint32 barrier_ttl_seconds = 2;
+
+   // Two modes for a GCBarrier. Only one can be set.
+   uint64 fixed_timestamp = 3;
+   uint32 seconds_before = 4;
+}
+
+message GetGCStatusRequest {
+   RequestHeader header = 1;
+}
+
+message GetGCStatusResponse {
+   ResponseHeader header = 1;
+   SafelineStatus safeline_status = 2;
+}
+
+message GetGCBarrierRequest {
+   RequestHeader header = 1;
+}
+
+message GetGCBarrierResponse {
+   ResponseHeader header = 1;
+   repeated GCBarriers gc_barriers = 2;
+}
+
+message PutGCBarrierRequest {
+   RequestHeader header = 1;
+   GCBarrier gc_barrier = 2;
+}
+
+message PutGCBarrierResponse {
+   ResponseHeader header = 1;
+}
+```
+
+Also, a few fields will be added to `pdpb.proto`:
 
 ```diff
-  // `pdpb.proto
+  // pdpb.proto
 
   message StoreHeartbeatRequest {
       RequestHeader header = 1;
@@ -53,79 +110,37 @@ According to the design above, several fields will be added to `pdpb.proto`:
   }
 
   message StoreStats {
-  …
-+     uint64 txn_safepoint = 15;
-+     uint64 gc_safepoint = 16;
+      ...
++     gcpb.GCStatus gc_status = 15;
   }
 
   message PutStoreResponse {
       ResponseHeader header = 1;
       replication_modepb.ReplicationStatus replication_status = 2;
-+     uint64 txn_safepoint = 3;
-+     uint64 gc_safepoint = 4;
++     gcpb.GCStatus gc_status = 3;
   }
 
   message StoreHeartbeatResponse {
      ResponseHeader header = 1;
      replication_modepb.ReplicationStatus replication_status = 2;
      string cluster_version = 3;
-+    uint64 txn_safepoint = 4;
-+    uint64 gc_safepoint = 5;
++    gcpb.GCStatus gc_status = 4;
   }
-```
-
-Aslo, RPC `SetGCBarrier` and `GetGCStatus` will be added:
-
-```diff
-  // `pdpb.proto
-
-  service PD {
-  ...
-+    rpc SetGCBarrier(SetGCBarrierRequest) returns (SetGCBarrierResponse) {}
-+    rpc GetGCStatus(GetGCStatusRequest) returns (GetGCStatusResponse) {}
-  }
-
-+ message GCBarrier {
-+    bytes id = 1;
-+    // Set to 0 to delete existing barrier
-+    uint64 ttl = 2;
-+    uint64 timestamp = 3;
-+ }
-
-+ message SetGCBarrierRequest {
-+    RequestHeader header = 1;
-+    GCBarrier gc_barrier = 2;
-+ }
-
-+ message SetGCBarrierResponse {
-+    ResponseHeader header = 1;
-+ }
-
-+ message GetGCStatusRequest {
-+    RequestHeader header = 1;
-+ }
-
-+ message GetGCStatusResponse {
-+    ResponseHeader header = 1;
-+    repeated GCBarriers gc_barriers = 2;
-+    uint64 txn_safepoint = 3;
-+    uint64 gc_safepoint = 4;
-+ }
 ```
 
 ### Backward compatibility
 
 #### Rolling update
 
-During the rolling update, the GC worker will not function and the new TiDB will not try to be elected as a GC leader. Once the rolling update is completed, the GC worker in PD will start to work.
+During the rolling update, the GC worker should not function and the new TiDB should not try to be elected as a GC leader. Once the rolling update is completed, the GC worker in PD will start to work.
 
-The RPC `GetGCSafePoint` and `UpdateServiceGCSafePoint`, which are used by the GC model before this proposal should still work for keep compatible with tools and they should be just a thin wrapper on top of the new `GetGCStatus` and `SetGCBarrier`.
+The RPC `GetGCSafePoint` and `UpdateServiceGCSafePoint`, which are used by the GC model before this proposal should still work for keep compatible with tools and they should be just a thin wrapper on top of the new `GetGCStatus` and `PutGCBarrier`.
 
 `UpdateGCSafePoint` should only work before rolling update completes, once the rolling update finishes, PD will reject requests to this RPC.
 
 #### TiDB unsafe delete range
 
-In the model described above, we didn't specify when TiDB should unsafe delete range. Because the step of resolving lock is controled by PD and unsafe delete range is only allowed after `GC Safepoint` is pushed ahead of the timestamp of `DROP TABLE`, TiDB has to passively listen to the `GC Safepoint` (fetch by interval), and perform unsafe delete range when appropriate.
+In the model described above, we didn't specify when TiDB should unsafe delete range. Because the step of resolving lock is controlled by PD and unsafe delete range is only allowed after `Delete Safepoint` is pushed ahead of the timestamp of `DROP TABLE`, TiDB has to passively listen to the `Delete Safepoint` (fetch by interval), and then perform unsafe delete range when appropriate.
 
 ## Reference
 
