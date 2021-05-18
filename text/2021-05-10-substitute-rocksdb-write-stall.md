@@ -1,14 +1,16 @@
 # Substitute rocksdb write stall
 
+- RFC PR: https://github.com/tikv/rfcs/pull/67
+- Tracking Issue: https://github.com/tikv/tikv/issues/10137
+
 ## Motivation
 
-![](../media/substitute-write-stall-1.png)
-![](../media/substitute-write-stall-2.png)
+![substitute-write-stall-1](../media/substitute-write-stall-1.png)
+![substitute-write-stall-2](../media/substitute-write-stall-2.png)
 
 It is easily for TiKV to encounter the case that QPS changes dramatically due to KvDB's write stall when the disk press is high. Users suffers a lot from it, and ask for our help to solve it. Judging from the past situation, the write stall mostly are caused by too many pending compaction bytes.
 
 To alleviate it, we need to turn off the write stall mechanism of RocksDB, and add a limiter in the very beginning of TiKV to throttle write flow more smoothly. We can tolerate long-time higher request duration, while latency spike is not what we want.
-
 
 ## Background
 
@@ -29,10 +31,11 @@ Here is the write stall condition:
 When write stall happens, the max speed of write rate `max_delayed_write_rate` is limited to the speed of compaction `rate_bytes_per_sec`. If `rate_bytes_per_sec` is not set, `16MB/s` will be set for `max_delayed_write_rate` by default. In write stall state, the foreground write sleep for a while which is calculated by the limiter based on `delayed_write_rate`, and blocks all following writes.
 
 Every time new SST files are generated, meaning the factors of write stall condition may change, it will rejudge whether it is write stall state. If it is still in write stall, the `delayed_write_rate` is adjusted following the rules:
+
 - set to 0.6x of current `delayed_write_rate` if any of them meets
   - still in write stop state
   - L0 is the last two files from stopping
-  - If the distance to pending compaction bytes hard limit is less than 1/4 of the gap between soft and hard bytes limit 
+  - If the distance to pending compaction bytes hard limit is less than 1/4 of the gap between soft and hard bytes limit
 - set to 0.8x of current `delayed_write_rate` if pending compaction bytes keep increasing
 - set to 1.2x of current `delayed_write_rate` if pending compaction bytes is decreasing
 
@@ -54,12 +57,14 @@ In general, it is to disable the current write stall mechanism of RaftDB and KvD
 In addition, considering that TiDB retries with backoff for `ServerIsBusy` error, the backoff time will be longer after multiple times of retry. After recovering from the write stall state, there may be not fill TiKV at full speed in time, so it needs to quickly feedback to TiDB at this time, so that those requests can be retried immediately.
 
 The specific flow control is still based on the previous indicators of RocksDB, but the algorithm for the delayed write rate is not the same which is described later. Apart from that, other situations should also be considered:
+
 - Disk usage, reject all write requests when the disk is almost full
 - Memory usage, regarding the case where there is no write stall but the request accumulates on the apply worker side due to high write latency and eventually leads to OOM. We'll introduce memory quota mechanism then, and it can be used to feedback limiter to do flow control.
 
 As for the write traffic from the follower, it is not considered to be limited for now:
+
 - A slow follower shouldn't block the process of the whole Raft group, otherwise the write rate is determined by the slowest one.
-- In most cases, it should be sufficient to only limit the leader traffic on one store. If there is a store only having follower traffic without any leader traffic, hotspot scheduler should ensure the read and write traffic and the number of hotspot leader in each store is close, so the traffic should eventually be evened. 
+- In most cases, it should be sufficient to only limit the leader traffic on one store. If there is a store only having follower traffic without any leader traffic, hotspot scheduler should ensure the read and write traffic and the number of hotspot leader in each store is close, so the traffic should eventually be evened.
 - If there is a specific scnario, let's handle it then. For now the write traffic of follower is not the first consideration.
 
 ## Algorithm
@@ -70,7 +75,7 @@ RaftDB completely disables the write stall mechanism, because RaftDB is mainly f
 
 ### KvDB
 
-KvDB disables the write stall corresponding to L0 files and memtables, and sets the threshold of pending compaction bytes to a very high value, e.g. 1000GB as a fallback, given that follower traffic is not controlled. 
+KvDB disables the write stall corresponding to L0 files and memtables, and sets the threshold of pending compaction bytes to a very high value, e.g. 1000GB as a fallback, given that follower traffic is not controlled.
 
 KvDB will treat L0 files/memtables and pending compaction bytes in different ways:
 
@@ -80,20 +85,20 @@ Pending compaction bytes is an estimated value, which is very inaccurate. Theref
 
 Here we directly discard the requests instead of of letting them delay in TiKV for a while, because the pending compaction bytes is already accumulated at high level when the threshold is reached, and a short delay doesn't make any effort.
 
-Our purpose is mainly to eliminate the trend of increasing pending compaction bytes. We don't consider too much about the speed of falling back to threshold, as long as it can eventually meet this. 
+Our purpose is mainly to eliminate the trend of increasing pending compaction bytes. We don't consider too much about the speed of falling back to threshold, as long as it can eventually meet this.
 
 So the main consideration is that the change rate of write rate should be smooth to prevent large latency jitters. Let the request discard be y, and pending compaction bytes be x. A continuous function can be used to map the pending compaction bytes to the discard rate. The [sigmoid](https://zh.wikipedia.org/wiki/S%E5%87%BD%E6%95%B0) function is selected here to smooth the changes from softlimit to hardlimit.
 
-![](../media/substitute-write-stall-3.png)
+![substitute-write-stall-3](../media/substitute-write-stall-3.png)
 (Note: here we need to standardize x and softlimit from the domain [softlimit, hardlimit] to the domain [-5,5])
 
-![](../media/substitute-write-stall-4.jpg)
+![substitute-write-stall-4](../media/substitute-write-stall-4.jpg)
 
 As you can see on the function image, starting from softlimit, we randomly discard requests. The discard rate is not very high at the beginning to make the limit not too obvious. The smooth transition from full speed will not cause severe latency jitter. When it comes to intermediate stage, it indicates that the previous rate cannot well control the trend of growth of pending compaction bytes, so the discard rate increases rapidly as pending compaction bytes rises. Finally, since the discard rate cannot exceed 1.0, the rate is tends to 100%.
 
 But there is still a problem here. The changes of pending compaction bytes itself is not continuous, and it may also have drastic changes, leading to drastic changes in the discard rate. Therefore, [EMA(Exponential Moving Average)](https://zh.wikipedia.org/wiki/%E7%A7%BB%E5%8B%95%E5%B9%B3%E5%9D%87#%E6%8C%87%E6%95%B8%E7%A7%BB%E5%8B%95%E5%B9%B3%E5%9D%87) is introduced to smooth the change in discard rate.
 
-![](../media/substitute-write-stall-5.png)
+![substitute-write-stall-5](../media/substitute-write-stall-5.png)
 
 The EMA is actually an infinite series, that is, no matter how old the data is, it will play a certain role in calculating the current EMA value, but the weight of the data that is too far away from the current is very low, so their effect can often be ignore. Among them 𝛂 represents the attenuation degree of the weight, and the value is between 0 and 1. The larger 𝛂 value, the faster the past observations will decay.
 
