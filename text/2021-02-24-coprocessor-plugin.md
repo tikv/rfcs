@@ -10,14 +10,11 @@ TiKV is the storage component in the TiDB ecosystem, however, the distribution c
 
 But TiKV's capability should be far beyond that, as many distributed components can be built on top of TiKV, such as cache, full text search engine, graph database and NoSQL database. And same as TiDB, these product will also like to push down specific computation to TiKV, which requires the coprocessor to be customizable, aka pluggable.
 
-For instance, a full-text seraching engine will persist the origin document and n-gram index on TiKV. It'll be a waste of resource if we read back and then update the index from a client. In contrary, the coprocessor plugin can generate the index from the origin document, and update the index inplace. What's more, the coprocessor plugin can perform index scan directly on TiKV.
+For instance, a full-text seraching engine will persist the origin document and n-gram index on TiKV. It'll be a waste of resource if we read back and then update the index from a client. On the contrary, the coprocessor plugin can generate the index from the origin document, and update the index inplace. What's more, the coprocessor plugin can perform index scan directly on TiKV.
 
 The goals of the coprocessor plugin are:
 
-- Do what client can do (on single region)
-
-- Provide more guarantee than client does on RawKV
-  - Raft transaction on RawKV
+- Do what client can do
 
 - Easy to use
   - Out of box
