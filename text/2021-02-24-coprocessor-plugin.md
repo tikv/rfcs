@@ -81,7 +81,7 @@ message RawCoprocessorResponse {
 }
 ```
 
-### API design
+### Plugin API design
 
 ```rust
 use std::ops::Range;
@@ -191,6 +191,28 @@ pub enum PluginError {
     /// If such an error appears, plugins can run some cleanup code and return early from the
     /// request. The error will be passed to the client and the client might retry the request.
     Other(Box<dyn Any>),
+}
+```
+
+### Client API design
+
+User should provide a list of key range that the coprocessor request should send to, then the client will shard the key range by region and generate request to every single region by the builder function provided by user. The client will rebuild the request on region error, e.g. network unstable, region split or region merge, so the plugin must be idempotent on every single key. Note that a request might replay on a key on different server (leader changed) within different key range (region splitted).
+
+```rust
+pub struct RawClient { /* ... fields obmitted */ }
+
+impl RawClient {
+  pub async fn coprocessor(
+    &self,
+        copr_name: String,
+        copr_version_req: String,
+        ranges: impl IntoIterator<Item = impl Into<BoundRange>>,
+        request_builder: impl Fn(Vec<Range<Key>>, Region) -> Vec<u8> + Send + Sync + 'static,
+    ) -> Result<Vec<(Vec<u8>, Vec<Range<Key>>)>> {
+      unimplemented!()
+    }
+
+    // ... other methods
 }
 ```
 
