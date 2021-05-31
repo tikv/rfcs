@@ -65,76 +65,134 @@ message RawCoprocessorRequest {
     kvrpcpb.Context context = 1;
 
     string copr_name = 2;
-    string copr_version_constraint = 3;
+    // Coprorcessor version constraint following SEMVER definition.
+    string copr_version_req = 3;
 
-    bytes data = 4;
+    repeated KeyRange ranges = 4;
+    bytes data = 5;
 }
 
 message RawCoprocessorResponse {
-    bytes data = 1;
-
-    errorpb.Error region_error = 2;
-    string other_error = 3;
+    errorpb.Error region_error = 1;
+    // Error message for cases like if no coprocessor with a matching name is found
+    // or on a version mismatch between plugin_api and the coprocessor.
+    string error = 2;
+    bytes data = 3;
 }
 ```
 
 ### API design
 
-To reduce the learning overhead, it'll be better that the API of the coprocessor plugin get closer to the client. Thus, it'll looks like the `RawClient` in the [Rust Client](https://github.com/tikv/client-rust) with extra txn-like methods e.g. `commit` and `lock`.
-
 ```rust
 use std::ops::Range;
 
+/// A raw key in the storage.
 pub type Key = Vec<u8>;
+/// A raw value from the storage.
 pub type Value = Vec<u8>;
+/// A pair of a raw key and its value.
 pub type KvPair = (Key, Value);
 
-#[derive(Debug)]
-pub struct Region {
-    id: u64,
-    start_key: Key,
-    end_key: Key,
-    region_epoch: RegionEpoch,
-}
+/// Raw bytes of the request payload from the client to the coprocessor.
+pub type RawRequest = Vec<u8>;
+/// The response from the coprocessor encoded as raw bytes that are sent back to the client.
+pub type RawResponse = Vec<u8>;
 
-#[derive(Debug)]
-pub struct RegionEpoch {
-    pub conf_ver: u64,
-    pub version: u64,
-}
-
-#[derive(Debug)]
-pub enum Error {
-    KeyNotInRegion { key: Key, region: Region },
-    // More
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[async_trait]
-pub trait RawStorage: Send {
-    async fn get(&self, key: Key) -> Result<Option<Value>>;
-    async fn batch_get(&self, keys: Vec<Key>) -> Result<Vec<KvPair>>;
-    async fn scan(&self, key_range: Range<Key>) -> Result<Vec<Value>>;
-    async fn put(&mut self, key: Key, value: Value) -> Result<()>;
-    async fn batch_put(&mut self, kv_pairs: Vec<KvPair>) -> Result<()>;
-    async fn delete(&mut self, key: Key) -> Result<()>;
-    async fn batch_delete(&mut self, keys: Vec<Key>) -> Result<()>;
-    async fn delete_range(&mut self, key_range: Range<Key>) -> Result<()>;
-}
-
-pub trait Coprocessor: Send + Sync {
+/// A plugin that allows users to execute arbitrary code on TiKV nodes.
+///
+/// If you want to implement a custom coprocessor plugin for TiKV, your plugin needs to implement
+/// the [`CoprocessorPlugin`] trait.
+///
+/// Plugins can run setup code in their constructor and teardown code by implementing
+/// [`std::ops::Drop`].
+pub trait CoprocessorPlugin: Send + Sync {
+    /// Handles a request to the coprocessor.
+    ///
+    /// The data in the `request` parameter is exactly the same data that was passed with the
+    /// `RawCoprocessorRequest` in the `data` field. Each plugin is responsible to properly decode
+    /// the raw bytes by itself.
+    /// The same is true for the return parameter of this function. Upon successful completion, the
+    /// function should return a properly encoded result as raw bytes which is then sent back to
+    /// the client.
+    ///
+    /// Most of the time, it's a good idea to use Protobuf for encoding/decoding, but in general you
+    /// can also send raw bytes.
+    ///
+    /// Plugins can read and write data from the underlying [`RawStorage`] via the `storage`
+    /// parameter.
     fn on_raw_coprocessor_request(
         &self,
-        region: Region,
-        request: Vec<u8>,
-        storage: Box<dyn RawStorage>,
-    ) -> Result<Vec<u8>>;
+        ranges: Vec<Range<Key>>,
+        request: RawRequest,
+        storage: &dyn RawStorage,
+    ) -> PluginResult<RawResponse>;
+}
+
+/// Storage access for coprocessor plugins.
+///
+/// [`RawStorage`] allows coprocessor plugins to interact with TiKV storage on a low level.
+///
+/// Batch operations should be preferred due to their better performance.
+#[async_trait(?Send)]
+pub trait RawStorage {
+    /// Retrieves the value for a given key from the storage on the current node.
+    /// Returns [`Option::None`] if the key is not present in the database.
+    async fn get(&self, key: Key) -> PluginResult<Option<Value>>;
+
+    /// Same as [`RawStorage::get()`], but retrieves values for multiple keys at once.
+    async fn batch_get(&self, keys: Vec<Key>) -> PluginResult<Vec<KvPair>>;
+
+    /// Same as [`RawStorage::get()`], but accepts a `key_range` such that values for keys in
+    /// `[key_range.start, key_range.end)` are retrieved.
+    /// The upper bound of the `key_range` is exclusive.
+    async fn scan(&self, key_range: Range<Key>) -> PluginResult<Vec<Value>>;
+
+    /// Inserts a new key-value pair into the storage on the current node.
+    async fn put(&self, key: Key, value: Value) -> PluginResult<()>;
+
+    /// Same as [`RawStorage::put()`], but inserts multiple key-value pairs at once.
+    async fn batch_put(&self, kv_pairs: Vec<KvPair>) -> PluginResult<()>;
+
+    /// Deletes a key-value pair from the storage on the current node given a `key`.
+    /// Returns [`Result::Ok]` if the key was successfully deleted.
+    async fn delete(&self, key: Key) -> PluginResult<()>;
+
+    /// Same as [`RawStorage::delete()`], but deletes multiple key-value pairs at once.
+    async fn batch_delete(&self, keys: Vec<Key>) -> PluginResult<()>;
+
+    /// Same as [`RawStorage::delete()`], but deletes multiple key-values pairs at once
+    /// given a `key_range`. All records with keys in `[key_range.start, key_range.end)`
+    /// will be deleted. The upper bound of the `key_range` is exclusive.
+    async fn delete_range(&self, key_range: Range<Key>) -> PluginResult<()>;
+}
+
+/// Result returned by operations on [`RawStorage`].
+pub type PluginResult<T> = std::result::Result<T, PluginError>;
+
+/// Error returned by operations on [`RawStorage`].
+///
+/// If a plugin wants to return a custom error, e.g. an error in the business logic, the plugin should
+/// return an appropriately encoded error in [`RawResponse`]; in other words, plugins are responsible
+/// for their error handling by themselves.
+#[derive(Debug)]
+pub enum PluginError {
+    KeyNotInRegion {
+        key: Key,
+        region_id: u64,
+        start_key: Key,
+        end_key: Key,
+    },
+    Timeout(Duration),
+    Canceled,
+
+    /// Errors that can not be handled by a coprocessor plugin but should instead be returned to the
+    /// client.
+    ///
+    /// If such an error appears, plugins can run some cleanup code and return early from the
+    /// request. The error will be passed to the client and the client might retry the request.
+    Other(Box<dyn Any>),
+}
 ```
-
-### Keyspace
-
-Keyspace[[RFC]](https://github.com/tikv/rfcs/pull/39)[[The most updated design doc]](https://docs.google.com/document/d/1x17-urAqToDo8TVXJroEHtc76fdssFaoANjSaNDhjKg/edit) is an incoming feature of TiKV that is highly related to coprocessor plugin. Keyspace determines whether a range of key should only be used in transaction mode or in RawKV mode. Since coprocessor works in either RawKV mode or txn mode, surely coprocessor plugin framework should aware of Keyspace. The details is TBD.
 
 ## Future work
 
