@@ -15,14 +15,17 @@ For instance, a full-text seraching engine will persist the origin document and 
 The goals of the coprocessor plugin are:
 
 - Do what client can do (on single region)
+
 - Provide more guarantee than client does on RawKV
-    - Raft transaction on RawKV
+  - Raft transaction on RawKV
+
 - Easy to use
-    - Out of box
-    - Easy to deploy
+  - Out of box
+  - Easy to deploy
+
 - Robust
-    - Easy to debug
-    - Log support, metrics support
+  - Easy to debug
+  - Log support, metrics support
 
 ## Detailed design
 
