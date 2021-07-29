@@ -94,7 +94,25 @@ Below table show data size per day and per month in 5,10,15 minutes record inter
   | 328              | 5                    | 90.08789063              | 2702.636719                |
   | 328              | 10                   | 45.04394531              | 1351.318359                |
   | 328              | 15                   | 30.02929688              | 900.8789063                |
+  
+### Design in PD
+1. Timed write：
 
+  The `leader` of `PD` will periodically encrypt  `start_key` and `end_key`  in data,and write data into `Leveldb`.The write interval can be configured. The write field has `store_id`,`region_id`,`start_key`, `end_key`,`type`,`max_hot_degree`,`flow_bytes`,`key_rate`,`query_rate`,`update_time`.
+2. Timed delete
+
+   `PD` runs the delete check periodically, and deletes the `Hot_Degree` data that exceeds the configured storage time.
+3. Pull interface
+
+  `PD` takes out the data in `LevleDB`, decodes the data and returns it to `TiDB`.
+### Design in TiDB
+1. Added memory data table `TiDB_Hot_Dgree History`：
+
+   Add a new `table` to the existing `information_schema` library, name it `TiDB_Hot_Dgree_History`, and add corresponding fields.
+
+1. Add pull function：
+
+   Pull  the data from all  `PD` servers, combine  the data in different `PD` servers together, and add fields like `db_name`,`table_name` , `table_id`, `index_name`, `index_id` according to the `start_key` and `end_key` in`region`.
 ### New Options
 
 There are two config options could be add in PD’s `config.go`:
@@ -103,17 +121,24 @@ There are two config options could be add in PD’s `config.go`:
 * `HisHotRegionKeepDay`: maximum hold day for his hot region.
 
 
-## Drawbacks
-
-Why should we not do this?
 
 ## Alternatives
+Write to `TiDB` like a normal table
+* Reuse complete push-down function
+* Data is written into `TiKV` to provide disaster tolerance.
+* The `Owner` election solves the problem of who pulls data from PD.
+* Can not support in using only tikv scenarios
+**Write solution**
+1. Create a table in the mysql library:
+   * advantage:
+     * Reuse complete push-down function
+     * Insert, query and delete can reuse the existing functions of `Tidb`
+   * shortcoming
+     * The content in `information_schema` is stored in the mysql library, which feels strange.
+2. Create a table in `infotmation_schema`:
 
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not
-  choosing them?
-- What is the impact of not doing this?
-
-## Unresolved questions
-
-What parts of the design are still to be determined?
+   * advantage:
+     * No need to change the query entry.
+     * It is more unified in design in this library.
+   * shortcoming:
+     * The creation of the `init()` function itself involves a lot and is difficult to transform.
