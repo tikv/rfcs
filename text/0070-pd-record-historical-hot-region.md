@@ -1,6 +1,6 @@
 # Record history hotspot information in TiDB_HOT_REGIONS_HISTORY
 
-- RFC PR: https://github.com/tikv/rfcs/pull/0000
+- RFC PR: https://github.com/tikv/rfcs/pull/0070
 - Tracking Issue: https://github.com/pingcap/tidb/issues/25281
 
 ## Summary
