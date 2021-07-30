@@ -2,6 +2,7 @@
 
 - RFC PR: https://github.com/tikv/rfcs/pull/0070
 - Tracking Issue: https://github.com/pingcap/tidb/issues/25281
+- Proposal Documention: https://docs.google.com/document/d/1KqjYBWhJ-YlupyDvBlObkCl-9P8WyUPL6VgYpO-LRiw/
 
 ## Summary
 
@@ -88,6 +89,7 @@ The memory table retriever processes the following steps to fetch current hotspo
   * Remove `REGION_COUNT` for disuse and repeat with `STORE_ID`.
 
 2. Data size estimation
+
     one record size: 8 * 8B(bitint) + 1 * 8B(datetime) + 4 * 64B(varchar(64)) = 328B
     Below table show data size per day and per month in 5,10,15 minutes record interval respectively given the maximum number of hotspot regions  is 1000:
 
@@ -98,11 +100,11 @@ The memory table retriever processes the following steps to fetch current hotspo
   | 328              | 15                   | 30.02929688              | 900.8789063                |
 
 ### Design in PD
-1. Timed write：
+1. Timing write：
 
      The leader of PD will periodically encrypt  `start_key` and `end_key`  in data,and write hotspot region data into `LevelDB`.The write interval can be configured. The write fieldes are: `region_id`, `type`,  `max_hot_degree`, `flow_bytes`, `key_rate`, `query_rate`, `store_id`, `update_time`, `start_key`,  `end_key`.
 
-2. Timed delete
+2. Timing delete
 
    PD runs the delete check task periodically, and deletes the hotspot region data that exceeds the configured TTL time.
 
