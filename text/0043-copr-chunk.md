@@ -1,4 +1,7 @@
-# RFC: Using chunk format in coprocessor framework
+# Using chunk format in coprocessor framework
+
+* RFC PR: https://github.com/tikv/rfcs/pull/43
+* Tracking Issue: https://github.com/tikv/tikv/issues/7724
 
 ## Summary
 
