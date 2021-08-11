@@ -125,7 +125,7 @@ pub trait RawStorage {
 }
 ```
 
-Build the plugin and you will find the dylib in `target/debug` or `target/release`. Next, copy the `.so` (Linux) or `.dylib` (MacOS) file to the `coprocessors/` folder next to `tikv-server`, and then TiKV will load it automatically on startup or even while running. The `coprocessors/` folder is configurable by TiKV config file:
+Build the plugin **using the same `rustc` as TiKV are built** and then you will find the dylib in `target/debug` or `target/release`. Next, copy the `.so` (Linux) or `.dylib` (MacOS) file to the `coprocessors/` folder next to `tikv-server`, and then TiKV will load it automatically on startup or even while running. The `coprocessors/` folder is configurable by TiKV config file:
 
 ```toml
 [coprocessor-v2]
