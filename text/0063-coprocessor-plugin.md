@@ -24,25 +24,125 @@ The goals of the coprocessor plugin are:
   - Easy to debug
   - Log support, metrics support
 
-## Detailed design
+## Document-level design
 
-### Dynamic vs statically
+You can develop a plugin using Rust which have full read and write access to the data in TiKV node when you send a `RawCoprocessor` request from the client. The client and the plugin communitcates in raw bytes so you can build your own protocol on top of it.
 
-Generally, there are two strategies to build a plugin framework: dynamically and statically, which means to load the plugin on startup or to embed in the binary on compilation.
+To develop a plugin, intialized a Rust library project, and, in `Cargo.toml`, add the following lines:
 
-![Plugin Arch](../media/plugin-arch.png)
+```toml
+[lib]
+crate-type = ["dylib"]
 
-They have both pros and cons:
+[dependencies]
+coprocessor_plugin_api = { git = "https://github.com/tikv/tikv.git" }
+```
 
-| Static | Dynamic |
-| -- | -- |
-| ◯ High performance | X Relatively slower |
-| ◯ Easy to deploy | X Complexify the deploy process |
-| X Build the entire TiKV | ◯ Easy to build |
-| X Build very slow | ◯ Build fast |
-| X Hard to debug | ◯ Easy to debug |
+Then, in `src/lib.rs`, implement the following:
 
-In this RFC, we'll only focus on the dynamic plugin framework that works in RawKV mode.
+```rust
+use coprocessor_plugin_api::*;
+use std::ops::Range;
+
+#[derive(Default)]
+struct ExamplePlugin;
+
+impl CoprocessorPlugin for ExamplePlugin {
+    fn on_raw_coprocessor_request(
+        &self,
+        ranges: Vec<Range<Key>>,
+        request: Vec<u8>,
+        storage: &dyn RawStorage,
+    ) -> PluginResult<Vec<u8>> {
+        unimplemented!()
+    }
+}
+
+declare_plugin!(ExamplePlugin::default());
+```
+
+`on_raw_coprocessor_request` will be invoked when you call `RawClient::coprocessor` on the client:
+
+```rust
+impl RawClient {
+  pub async fn coprocessor(
+    &self,
+        copr_name: String,
+        copr_version_req: String,
+        ranges: impl IntoIterator<Item = impl Into<BoundRange>>,
+        request_builder: impl Fn(Vec<Range<Key>>, Region) -> Vec<u8> + Send + Sync + 'static,
+    ) -> Result<Vec<(Vec<u8>, Vec<Range<Key>>)>>;
+}
+```
+
+The request will send to plugin with exact same name and matchable version of `SEMVER 2.0`. The name and version of the coprocessor plugin is inherited from the plugin's library name and version in `Cargo.toml`, otherwise, you can explictly specify the name and version in `declare_plugin!()`:
+
+```rust
+declare_plugin!("example_plugin", "0.1.0", ExamplePlugin::default());
+```
+
+You should specify the key range you will like to read or write and then the client will shard the key range by region and generate request to every single region by the builder function provided by user. The client will rebuild the request on region retry, e.g. network unstable, region split or region merge, so the plugin must be idempotent on every single key. Note that a request to a key might replay on different server (e.g. leader changed) within different key range.
+
+In `on_raw_coprocessor_request` plugin will get the reference to `&dyn RawStorage`, by which you can access the raw data in the region:
+
+```rust
+/// Storage access for coprocessor plugins.
+///
+/// [`RawStorage`] allows coprocessor plugins to interact with TiKV storage on a low level.
+///
+/// Batch operations should be preferred due to their better performance.
+#[async_trait(?Send)]
+pub trait RawStorage {
+    /// Retrieves the value for a given key from the storage on the current node.
+    /// Returns [`Option::None`] if the key is not present in the database.
+    async fn get(&self, key: Key) -> PluginResult<Option<Value>>;
+
+    /// Same as [`RawStorage::get()`], but retrieves values for multiple keys at once.
+    async fn batch_get(&self, keys: Vec<Key>) -> PluginResult<Vec<KvPair>>;
+
+    /// Same as [`RawStorage::get()`], but accepts a `key_range` such that values for keys in
+    /// `[key_range.start, key_range.end)` are retrieved.
+    /// The upper bound of the `key_range` is exclusive.
+    async fn scan(&self, key_range: Range<Key>) -> PluginResult<Vec<Value>>;
+
+    /// Inserts a new key-value pair into the storage on the current node.
+    async fn put(&self, key: Key, value: Value) -> PluginResult<()>;
+
+    /// Same as [`RawStorage::put()`], but inserts multiple key-value pairs at once.
+    async fn batch_put(&self, kv_pairs: Vec<KvPair>) -> PluginResult<()>;
+
+    /// Deletes a key-value pair from the storage on the current node given a `key`.
+    /// Returns [`Result::Ok]` if the key was successfully deleted.
+    async fn delete(&self, key: Key) -> PluginResult<()>;
+
+    /// Same as [`RawStorage::delete()`], but deletes multiple key-value pairs at once.
+    async fn batch_delete(&self, keys: Vec<Key>) -> PluginResult<()>;
+
+    /// Same as [`RawStorage::delete()`], but deletes multiple key-values pairs at once
+    /// given a `key_range`. All records with keys in `[key_range.start, key_range.end)`
+    /// will be deleted. The upper bound of the `key_range` is exclusive.
+    async fn delete_range(&self, key_range: Range<Key>) -> PluginResult<()>;
+}
+```
+
+Build the plugin and you will find the dylib in `target/debug` or `target/release`. Next, copy the `.so` (Linux) or `.dylib` (MacOS) file to the `coprocessors/` folder next to `tikv-server`, and then TiKV will load it automatically on startup or even while running. The `coprocessors/` folder is configurable by TiKV config file:
+
+```toml
+[coprocessor-v2]
+## Path to the directory where compiled coprocessor plugins are located.
+## Plugins in this directory will be automatically loaded by TiKV.
+coprocessor-plugin-directory = "./coprocessors"
+```
+
+### Multi-plugin
+
+Multiple plugin can be load at the same time as long as the plugins have different names or versions.
+
+### Auto loading
+
+TiKV will watch the plugin directory and load new plugin when new plugin file is created. New plugin should have new file name and should not have the same plugin name and version number as the already loaded plugin.
+
+## Reference-level design
 
 ### Plugin runtime
 
@@ -50,13 +150,13 @@ The plugin runtime is a new component settling in `tikv::server::service::kv::Se
 
 The path of the plugin should be specified in the config file and be loaded at TiKV startup.
 
-### Plugin SDK
+### Auto Loading
 
-The plugin SDK is a standalone rust library that help setup the build process for the plugin.
+It should be convenient to be able to hot reload the plugin without restarting TiKV. But due to the dylib constraints described in [`rust-hot-reload`](https://github.com/irh/rust-hot-reloading#avoiding-thread-local-storage):
 
-### Multi-plugin
+> Any use of TLS will prevent hot-reloading from working, even with the unique copy trick.
 
-Currently TiKV has only one coprocessor `tidb_query`. However, without further work on statically linked plugin and txn mode support, we can't strip it from official release. So, multiple coprocessor has to be supported. Basically, we may need to add a `gPRC` rpc for coprocessor v2 request, in which coprocessor name and version is given, so that TiKV will be able to dispatch the request to the proper coprocessor, as well as to reject the request on version mismatch.
+The hot-reload plugin should have new filename to avoid conflict with the existing plugins, which means the plugins will never be unload by TiKV, but you can register a new plugin with new version number or new name.
 
 ### Protobuf design
 
@@ -194,27 +294,9 @@ pub enum PluginError {
 }
 ```
 
-### Client API design
+### Alloaction
 
-User should provide a list of key range that the coprocessor request should send to, then the client will shard the key range by region and generate request to every single region by the builder function provided by user. The client will rebuild the request on region error, e.g. network unstable, region split or region merge, so the plugin must be idempotent on every single key. Note that a request might replay on a key on different server (leader changed) within different key range (region splitted).
-
-```rust
-pub struct RawClient { /* ... fields obmitted */ }
-
-impl RawClient {
-  pub async fn coprocessor(
-    &self,
-        copr_name: String,
-        copr_version_req: String,
-        ranges: impl IntoIterator<Item = impl Into<BoundRange>>,
-        request_builder: impl Fn(Vec<Range<Key>>, Region) -> Vec<u8> + Send + Sync + 'static,
-    ) -> Result<Vec<(Vec<u8>, Vec<Range<Key>>)>> {
-      unimplemented!()
-    }
-
-    // ... other methods
-}
-```
+Allacation on plugin frameworks is nasty problem for a long time now. We won't talk about other alternatives but focus on the solution we finally choose. The problem is that how the objects (e.g. `String`) alloacted by the plugin should be freed after being passed to the host, or vise versa. Thanks that the plugin and TiKV are both built in Rust, we can share the same allcator for them to solve this problem. In practice, TiKV will pass its function pointer `fn alloc()` `fn dealloc()` to the plugin, therefore the plugin can proxy its `fn alloc()` `fn dealloc()` to the host.
 
 ## Future work
 
