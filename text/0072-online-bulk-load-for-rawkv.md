@@ -31,10 +31,8 @@ The solution proposed in this RFC is as follows:
 and encode the trained data into Key Value format,
 2. sample the Key Value pairs, calculate the region split points, and call
 `split region and scatter` API
-3. repartition the Key Value pairs RDD according to the new Regions, sort inside each partition,
-use the [Import SST API](https://github.com/pingcap/kvproto/blob/release-5.0/proto/import_sstpb.proto#L34)
-to concurrently send the Key-Value pairs to the TiKV server and generate SST
-files on the TiKV server,
+3. repartition the Key-Value pairs RDD according to the new Regions boundaries, and sort the Key-Value pairs of each partition,
+use the [ImportSST.RawWrite](#proto) to concurrently send the Key-Value pairs to the TiKV server and generate SST files on the TiKV server,
 4. use the [Ingest API](https://github.com/pingcap/kvproto/blob/release-5.0/proto/import_sstpb.proto#L53)
 to ingest the generated SST files into TiKV.
 
