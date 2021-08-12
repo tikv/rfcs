@@ -10,8 +10,8 @@ Let RawKV support Online Bulk Load.
 
 ## Motivation
 
-In the use use of `Feature Store`, every day machine learning jobs will train a
-large amount of data which need to load to TiKV for online serving.
+In the use use of `Feature Store`, everyday machine learning jobs will train a
+large amount of data that needs to load to TiKV for online serving.
 
 ![Feature Store](../media/feature-store-tikv.png)
 
@@ -20,7 +20,8 @@ which should meet the following requirements:
 
 1. the loading process should be as fast as possible,
 2. the impact to the online serving (P99 latency) should be under control,
-3. the loading framework should be able to process Big Data (500GB ~ 5TB).
+3. the loading speed can be improved in a linear way by adding more tikv instances,
+4. the loading framework should be able to process Big Data (500GB ~ 5TB) in a short period (from minutes to several hours).
 
 ## Detailed design
 
@@ -101,3 +102,7 @@ The loading framework should be able to process Big Data (500GB ~ 5TB), so we ne
 ## Drawbacks
 
 Learning spark has a certain cost.
+
+## Others
+
+A new repository (`tikv/migration`) is needed to store the spark-related codes.
