@@ -29,14 +29,17 @@ The solution proposed in this RFC is as follows:
 
 1. use distributed computing framework `Spark` to read the source files, convert
 and encode the trained data into Key Value format,
-2. sample the Key Value pairs, calculate the region split points, and call
-`split region and scatter` API
+2. sample the Key Value pairs, calculate the region split points, and call `split region and scatter` API
 3. repartition the Key-Value pairs RDD according to the new Regions boundaries, and sort the Key-Value pairs of each partition,
 use the [ImportSST.RawWrite](#proto) to concurrently send the Key-Value pairs to the TiKV server and generate SST files on the TiKV server,
 4. use the [Ingest API](https://github.com/pingcap/kvproto/blob/release-5.0/proto/import_sstpb.proto#L53)
 to ingest the generated SST files into TiKV.
 
 ![Bulk Load](../media/bulk-load.png)
+
+###  Why `split region and scatter`
+
+There may be a situation that all the data to load belongs to one Region. In such case only one tikv-server instance will be used to process the bulk load requests. Before doing bulk load, we need to sample the Key Value pairs, calculate the region split points, and call `split region and scatter` API, so that most of the tikv-server instances can be used to process the bulk load requests.
 
 ### Proto
 
@@ -103,4 +106,4 @@ Learning spark has a certain cost.
 
 ## Others
 
-A new repository (`tikv/migration`) is needed to store the spark-related codes.
+A new repository is required to hold the spark-related codes. I propose it be named `migration`.
