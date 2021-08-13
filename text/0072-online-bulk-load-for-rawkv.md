@@ -93,12 +93,57 @@ Users can use `io-rate-limit` to limit Disk Write of the `import` module:
 If the total disk write < max-bytes-per-sec, the `import` module will not be limited.
 If the total disk write >= max-bytes-per-sec, the `import` module will be limited.
 
+
+### How to measure the performance impact to the online services
+
+One target of the bulk load proposal is that the impact to the online serving (P99 latency) should be under control. The performance impact to the online services can be mesasured as follows:
+
+1. Run stress testing program to simulate the business logic, in which `Raw Get`, `Raw Put`, `Raw Batch Put`... will be called continuously.
+2. Measure the lagency (P99, AVG) on the client side or server side (on TiKV Grafana).
+3. Run the bulk load program to load a large amount of data.
+4. Measure the lagency during Step 3.
+5. Compare the results of Setp 2 and Step 4.
+
+### Checksum
+
+#### Check on server side using RawChecksum
+
+[RawChecksum](https://github.com/pingcap/kvproto/blob/317f69fb54b44619271df82ec163764032184a85/proto/tikvpb.proto#L54) can be used if the following condition is satisfied:
+
+- there is no old data in the key range to be loaded, or
+- all the old data in the key range to be loaded is updated by the bulk load
+
+#### Check on client side using BatchGet
+
+If the `RawChecksum` condition is not satisfied, users can do checksum on client side as follows:
+
+1. Calculate all the Key-Value pairs.
+2. Using `BatchGet` to fetch the current values from TiKV.
+3. Compare the Values from Step 1 and Step 2.
+
 ### Why Spark
 
 The loading framework should be able to process Big Data (500GB ~ 5TB), so we need to use a distributed calculation engine. Spark is chosen because:
 
 1. Spark is widely used in major companies,
 2. Spark is very good at doing this kind of job.
+
+### Pluggable API
+
+Every company’s infrastructure is different. In order that users with different infrastructures can use the bulk load framework, we propose a pluggable API as follows.
+
+![Pluggable API](../media/bulk-load-pluggable-api.png)
+
+We provide 3 components:
+
+1. Data Location & File Format: Spark itself covers almost all the cases. Users can also implement their own [Data Srouce Reader](https://spark.apache.org/docs/2.3.0/api/java/index.html?org/apache/spark/sql/sources/v2/DataSourceV2.html).
+2. Encoder: encoder a Row to Key-Value pair. Users can implement the encoder by themself or choose from implemented ones. Users can implement their own encoder by implementing this function `(byte[], byte[]) encode(row: Row)`.
+3. Ingest API: provide RawKV and TxnKV ingest API as default. Users do not need to implment there own version.
+
+There are some usecases:
+
+1. Load parquet from S3 to RawKV: Location=S3, FileFormat=Parquet, Encoder=TableEncoder, IngestAPI=RawKV
+2. Load CSV from HDFS to TxnKV: Location=HDFS, FileFormat=CSV, Encoder=TiDBEncoder, IngestAPI=TxnKV
 
 ## Drawbacks
 
