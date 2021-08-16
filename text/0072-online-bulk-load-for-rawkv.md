@@ -10,7 +10,7 @@ Let RawKV support Online Bulk Load.
 
 ## Motivation
 
-In the use use of `Feature Store`, everyday machine learning jobs will train a
+In the use case of `Feature Store`, everyday machine learning jobs will train a
 large amount of data that needs to load to TiKV for online serving.
 
 ![Feature Store](../media/feature-store-tikv.png)
@@ -27,13 +27,10 @@ which should meet the following requirements:
 
 The solution proposed in this RFC is as follows:
 
-1. use distributed computing framework `Spark` to read the source files, convert
-and encode the trained data into Key Value format,
-2. sample the Key Value pairs, calculate the region split points, and call `split region and scatter` API
-3. repartition the Key-Value pairs RDD according to the new Regions boundaries, and sort the Key-Value pairs of each partition,
-use the [ImportSST.RawWrite](#proto) to concurrently send the Key-Value pairs to the TiKV server and generate SST files on the TiKV server,
-4. use the [Ingest API](https://github.com/pingcap/kvproto/blob/release-5.0/proto/import_sstpb.proto#L53)
-to ingest the generated SST files into TiKV.
+1. read and convert the source file to key-value pairs, which can be done via [Apache Spark](https://spark.apache.org/).
+2. calculate the region boundaries by sampling the generated key-value pairs, split and scatter new TiKV regions in advance to reduce bulk load time and avoid hotspot issues.
+3. repartition and sort the key-value pairs in each RDD according to the boundaries of the new regions, send the sorted key-value pairs in each RDD to TiKV servers to generate SST files for each region via the [ImportSST.RawWrite](#proto) API.
+4. ingest the generated SST files via the [ImportSST.MultiIngest](https://github.com/pingcap/kvproto/blob/release-5.0/proto/import_sstpb.proto#L53) API.
 
 ![Bulk Load](../media/bulk-load.png)
 
@@ -136,9 +133,9 @@ Every company’s infrastructure is different. In order that users with differen
 
 We provide 3 components:
 
-1. Data Location & File Format: Spark itself covers almost all the cases. Users can also implement their own [Data Srouce Reader](https://spark.apache.org/docs/2.3.0/api/java/index.html?org/apache/spark/sql/sources/v2/DataSourceV2.html).
-2. Encoder: encoder a Row to Key-Value pair. Users can implement the encoder by themself or choose from implemented ones. Users can implement their own encoder by implementing this function `(byte[], byte[]) encode(row: Row)`.
-3. Ingest API: provide RawKV and TxnKV ingest API as default. Users do not need to implment there own version.
+1. Data Location & File Format: Spark itself covers almost all the cases. Users can also implement their own [Data Source Reader](https://spark.apache.org/docs/2.3.0/api/java/index.html?org/apache/spark/sql/sources/v2/DataSourceV2.html).
+2. Encoder: encodes a Row to a Key-Value pair. Users can implement the encoder by themself or choose from implemented ones. Users can implement their own encoder by implementing this function `(byte[], byte[]) encode(row: Row)`.
+3. Ingest API: provide RawKV and TxnKV ingest API as default. Users do not need to implement their own version.
 
 There are some usecases:
 
