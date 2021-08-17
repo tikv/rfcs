@@ -113,11 +113,11 @@ In addition, hot regions can also be obtained directly through [pd-ctl](https://
     one record size: 8 * 8B(bitint) + 1 * 8B(datetime) + 4 * 64B(varchar(64)) = 328B
     Below table show data size per day and per month in 5,10,15 minutes record interval respectively given the maximum number of hotspot regions  is 1000:
 
-  | Record Length (B)| Time Interval (Min)  | Data Size Per Day (MB)   | Data Size Per Month (MB)   |
-  | ---------------- | -------------------- | ------------------------ | -------------------------- |
-  | 328              | 5                    | 90.08789063              | 2702.636719                |
-  | 328              | 10                   | 45.04394531              | 1351.318359                |
-  | 328              | 15                   | 30.02929688              | 900.8789063                |
+    | Record Length (B) | Time Interval (Min) | Data Size Per Day (MB) | Data Size Per Month (MB) |
+    | ----------------- | ------------------- | ---------------------- | ------------------------ |
+    | 328               | 5                   | 90.08789063            | 2702.636719              |
+    | 328               | 10                  | 45.04394531            | 1351.318359              |
+    | 328               | 15                  | 30.02929688            | 900.8789063              |
 
 ### Design in PD
 1. Timing write：
@@ -137,7 +137,17 @@ In addition, hot regions can also be obtained directly through [pd-ctl](https://
    There are two config options need to be add in PD’s `config.go`:
 
    * `HisHotRegionSaveInterval`:  time interval for pd to record hotspot region information, default: 15 minutes.
-   * `HisHotRegionTTL`: maximum hold day for his hot region, default: 30 days.
+   * `HisHotRegionTTL`: maximum hold day for his hot region, default: 30 days. 0 means close.
+   
+5. GC
+
+     The amount of data stored for one month is as follows.
+
+     | Time Interval (Min) | Only Insert Data Size Per Month (MB) | Insert And Delete Data Size Per Month (MB) |
+     | ------------------- | ------------------------------------ | ------------------------------------------ |
+     | 10                  | 550                                  | 880                                        |
+
+     If the data survival time exceeds the preservation time,it will be delete from LevelDB,every month we will compact the data that store in LevelDB to reduce space usage.This work takes 1.7s to complete
 
 ### Design in TiDB
 
