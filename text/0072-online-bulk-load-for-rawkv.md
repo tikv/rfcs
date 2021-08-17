@@ -95,7 +95,7 @@ If the total disk write >= max-bytes-per-sec, the `import` module will be limite
 
 One target of the bulk load proposal is that the impact to the online serving (P99 latency) should be under control. The performance impact to the online services can be mesasured as follows:
 
-1. Run stress testing program to simulate the business logic, in which `Raw Get`, `Raw Put`, `Raw Batch Put`... will be called continuously.
+1. Run [YCSB Workload B: Read mostly workload](https://tikv.org/docs/5.1/deploy/performance/instructions/#step-3-run-a-ycsb-workload) to simulate the business logic similar to `Feature Store Online Serving`.
 2. Measure the lagency (P99, AVG) on the client side or server side (on TiKV Grafana).
 3. Run the bulk load program to load a large amount of data.
 4. Measure the lagency during Step 3.
