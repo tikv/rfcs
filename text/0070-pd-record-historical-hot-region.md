@@ -6,17 +6,33 @@
 
 ## Summary
 
-Create a new table `TIDB_HOT_REGIONS_HISTORY` in the `INFORMATION_SCHEMAT` database to retrieve history hotspot information stored by PD periodically.  
+Create a new table `TIDB_HOT_REGIONS_HISTORY` in the `INFORMATION_SCHEMAT` schema to retrieve history hotspot regions stored by PD periodically.  
 
 ## Motivation
 
-TiDB has a memory table `TIDB_HOT_REGIONS` that provides information about hotspot regions. 
-But it only shows the current hotspot information. This leads to the fact that when DBAs want to query historical hotspot details, 
-they have no way to find the corresponding hotspot information.
+TiDB has a memory table `TIDB_HOT_REGIONS` that provides information about hotspot regions. But it only shows the current hotspot information. This leads to the fact that when DBAs want to query historical hotspot details, they have no way to find the corresponding hotspot information.
 
 ## Background
-According to the [documentation](https://docs.pingcap.com/tidb/stable/information-schema-tidb-hot-regions) for the current `TIDB_HOT_REGIONS` table, 
-the table provides information about hotspot regions shown in the following table: 
+According to the [documentation](https://docs.pingcap.com/tidb/stable/information-schema-tidb-hot-regions) for the current `TIDB_HOT_REGIONS` table,  it can only provides information about recent hotspot regions calculated by PD according to the heartbeat from tikv.  It is inconvenient to obtain hotspot regions of past time, and locate which store the region is. For ease of use, we can store extened hotspot region infomation in PD. The DBA can query hotspot regions within a specified period in such statement in TiDB:
+
+```SQL
+SElECT * FROM information_schema.tidb_hot_regions_history WHERE update_time>='2019-04-01 00:00:00' and update_time<='2019-04-01 00:01:00';
+```
+
+The result is shown below:
+
+```sql
++---------------------+---------+------------+----------+------------+----------+-----------+----------+---------+-------+------------+------------+------------+------------+
+| UPDATE_TIME         | DB_NAME | TABLE_NAME | TABLE_ID | INDEX_NAME | INDEX_ID | REGION_ID | STORE_ID | PEER_ID | TYPE  | HOT_DEGREE | FLOW_BYTES | KEY_RATE   | QUERY_RATE |
++---------------------+---------+------------+----------+------------+----------+-----------+----------+---------+-------+------------+------------+------------+------------+
+| 2019/04/01 00:00:00 | MYSQL   | USER       |        5 | PRIMARY    |        1 |         5 |        6 |      50 | READ  |         23 |  86.264363 |  70.001240 | 37.675487  |
++---------------------+---------+------------+----------+------------+----------+-----------+----------+---------+-------+------------+------------+------------+------------+
+```
+
+## Detailed design
+### Existing TIDB_HOT_REGIONS
+
+Before we introduce `TIDB_HOT_REGIONS_HISTORY`, let's see how `TIDB_HOT_REGIONS` works.
 
 ```SQL
 +----------------+-------------+------+------+---------+-------+
@@ -35,12 +51,12 @@ the table provides information about hotspot regions shown in the following tabl
 +----------------+-------------+------+------+---------+-------+
 10 rows in set (0.00 sec)
 ```
-There are two types of hotspot regions: read and write. 
-The memory table retriever processes the following steps to fetch current hotspot regions from PD server:
+There are two types of hotspot regions: `read` and `write`. The memory table retriever processes the following steps to fetch current hotspot regions from PD server:
 
 1. TiDB send an HTTP request to the PD to obtain the hotspot regions information of the current cluster. 
-    `pd/api/v1/hotspot/regions/read` for read hotspot and `pd/api/v1/hotspot/regions/write` for write hotspot. 
-    PD returns the following fields：
+   
+1. PD returns the following fields：
+
     ```go
       // HotPeerStatShow records the hot region statistics for output
     type HotPeerStatShow struct {
@@ -54,41 +70,45 @@ The memory table retriever processes the following steps to fetch current hotspo
       LastUpdateTime time.Time `json:"last_update_time"`
     }
     ```
-1. Parse response and fetch the start key and end key of the hot region from region cache or PD by `REGION_ID` to calculate the region's corresponding schema information like：`TABLE_ID`, `TABLE_NAME`, `DB_NAME`, `INDEX_ID`, `INDEX_NAME`.
-1. Return the hotspot information to the upper call.
 
-## Detailed design
+1. After TiDB catch the response, it  fetch the `START_KEY` and `END_KEY` of the hot region from region cache or PD by `REGION_ID` to decode the corresponding schema information like：`DB_NAME`, `TABLE_NAME`,  `TABLE_ID`,  `INDEX_NAME`, `INDEX_ID`.
+
+1. TiDB return the hotspot region row to the upper caller.
+
+In addition, hot regions can also be obtained directly through [pd-ctl](https://docs.pingcap.com/zh/tidb/stable/pd-control#health).  
 
 ### Table Header Design
 1. New table header
   ```SQL
-  +----------------+-------------+------+------+---------+-------+
-  | Field          | Type        | Null | Key  | Default | Extra |
-  +----------------+-------------+------+------+---------+-------+
-  | TABLE_ID       | bigint(21)  | YES  |      | NULL    |       |
-  | INDEX_ID       | bigint(21)  | YES  |      | NULL    |       |
-  | DB_NAME        | varchar(64) | YES  |      | NULL    |       |
-  | TABLE_NAME     | varchar(64) | YES  |      | NULL    |       |
-  | INDEX_NAME     | varchar(64) | YES  |      | NULL    |       |
-  | REGION_ID      | bigint(21)  | YES  |      | NULL    |       |
-  | TYPE           | varchar(64) | YES  |      | NULL    |       |
-  | MAX_HOT_DEGREE | bigint(21)  | YES  |      | NULL    |       |
-  | FLOW_BYTES     | bigint(21)  | YES  |      | NULL    |       |
-  // New fields
-  | KEY_RATE       | bigint(21)  | YES  |      | NULL    |       |
-  | QUERY_RATE     | bigint(21)  | YES  |      | NULL    |       |
-  | STORE_ID       | bigint(21)  | YES  |      | NULL    |       |
-  | UPDATE_TIME    | datetime    | YES  |      | NULL    |       |
-  // Deleted fields
-  | REGION_COUNT   | bigint(21)  | YES  |      | NULL    |       |
-  +----------------+-------------+------+------+---------+-------+
+  > USE information_schema;
+  > DESC tidb_hot_regions_history;
+  +-------------+-------------+------+------+---------+-------+
+  | Field       | Type        | Null | Key  | Default | Extra |
+  +-------------+-------------+------+------+---------+-------+
+  | UPDATE_TIME | varchar(64) | YES  |      | NULL    |       | // new
+  | DB_NAME     | varchar(64) | YES  |      | NULL    |       |
+  | TABLE_NAME  | varchar(64) | YES  |      | NULL    |       |
+  | TABLE_ID    | bigint(21)  | YES  |      | NULL    |       |
+  | INDEX_NAME  | varchar(64) | YES  |      | NULL    |       |
+  | INDEX_ID    | bigint(21)  | YES  |      | NULL    |       |
+  | REGION_ID   | bigint(21)  | YES  |      | NULL    |       | 
+  | STORE_ID    | bigint(21)  | YES  |      | NULL    |       | // new
+  | PEER_ID     | bigint(21)  | YES  |      | NULL    |       | // new
+  | TYPE        | varchar(64) | YES  |      | NULL    |       |
+  | HOT_DEGREE  | bigint(21)  | YES  |      | NULL    |       | // rename to HOT_DEGREE
+  | FLOW_BYTES  | double      | YES  |      | NULL    |       |
+  | KEY_RATE    | double      | YES  |      | NULL    |       | // new
+  | QUERY_RATE  | double      | YES  |      | NULL    |       | // new
+  +-------------+-------------+------+------+---------+-------+
+  | REGION_COUNT| bigint(21)  | YES  |      | NULL    |       | // Deleted fields
   ```
-  * Add `STORE_ID` to track the machine of region.
   * Add `UPDATE_TIME` to support history.
+  * Add `STORE_ID` and `PEER_ID`to track the machine of region.
+  * Rename `MAX_HOT_DEGREE`  to `HOT_DEGREE` for precise meaning in history scenario.
   * Add `KEY_RATE` and `QUERY_RATE` for future expansion in hotspot determination dimensions.
   * Remove `REGION_COUNT` for disuse and repeat with `STORE_ID`.
 
-2. Data size estimation
+2. Data size estimation 
 
     one record size: 8 * 8B(bitint) + 1 * 8B(datetime) + 4 * 64B(varchar(64)) = 328B
     Below table show data size per day and per month in 5,10,15 minutes record interval respectively given the maximum number of hotspot regions  is 1000:
@@ -102,7 +122,7 @@ The memory table retriever processes the following steps to fetch current hotspo
 ### Design in PD
 1. Timing write：
 
-     The leader of PD will periodically encrypt  `start_key` and `end_key`  in data,and write hotspot region data into `LevelDB`.The write interval can be configured. The write fieldes are: `region_id`, `type`,  `max_hot_degree`, `flow_bytes`, `key_rate`, `query_rate`, `store_id`, `update_time`, `start_key`,  `end_key`.
+     The leader of PD will periodically encrypt  `START_KEY` and `END_KEY`  in data,and write hotspot region data into `LevelDB`.The write interval can be configured. The write fieldes are: `REGION_ID`, `TYPE`,  `HOT_DEGREE`, `FLOW_BYTES`, `KEY_RATE`, `QUERY_RATE`, `STORE_ID`, `PEER_ID`, `UPDATE_TIME`, `START_KEY`,  `END_KEY`.
 
 2. Timing delete
 
@@ -123,11 +143,30 @@ The memory table retriever processes the following steps to fetch current hotspo
 
 1. Add memory table `TIDB_HOT_REGIONS_HISTORY`：
 
-   Create a new memory table `TIDB_HOT_REGIONS_HISTORY` to the existing `INFORMATION_SCHEMA` database.
+   Create a new memory table `TIDB_HOT_REGIONS_HISTORY` with fileds discussed above in `INFORMATION_SCHEMA` schema.
 
-1. Add pull function：
+1. Add `HotRegionsHistoryTableExtractor` to push down some predicates to PD in order to  reduce network IO.
 
-   Pull  and combine the data from all  PD servers,  and add fields like `table_id`, `index_id`, `db_name`, `table_name`, `index_name` according to the `start_key` and `end_key`  of the hotspot region.
+   ```go
+   type HistoryHotRegionsRequest struct {
+   	StartTime      int64    `json:"start_time,omitempty"`
+   	EndTime        int64    `json:"end_time,omitempty"`
+   	RegionIDs      []uint64 `json:"region_ids,omitempty"`
+   	StoreIDs       []uint64 `json:"store_ids,omitempty"`
+   	PeerIDs        []uint64 `json:"peer_ids,omitempty"`
+   	HotRegionTypes []string `json:"hot_region_types,omitempty"`
+   	LowHotDegree   int64    `json:"low_hot_degree,omitempty"`
+   	HighHotDegree  int64    `json:"high_hot_degree,omitempty"`
+   	LowFlowBytes   float64  `json:"low_flow_bytes,omitempty"`
+   	HighFlowBytes  float64  `json:"high_flow_bytes,omitempty"`
+   	LowKeyRate     float64  `json:"low_key_rate,omitempty"`
+   	HighKeyRate    float64  `json:"high_key_rate,omitempty"`
+   	LowQueryRate   float64  `json:"low_query_rate,omitempty"`
+   	HighQueryRate  float64  `json:"high_query_rate,omitempty"`
+   }
+   ```
+   
+1. Add `hotRegionsHistoryRetriver` to fetch hotspot regions from all  PD servers by HTTP request,  then supplement fields like `DB_NAME`, `TABLE_NAME`,  `TABLE_ID`,  `INDEX_NAME`, `INDEX_ID` according to the `START_KEY` and `END_KEY`of the hotspot region, and merge the results.
 
 ## DrawBack
 
