@@ -90,6 +90,11 @@ Users can use `io-rate-limit` to limit Disk Write of the `import` module:
 If the total disk write < max-bytes-per-sec, the `import` module will not be limited.
 If the total disk write >= max-bytes-per-sec, the `import` module will be limited.
 
+#### config rocksdb.rate-bytes-per-sec
+
+[rocksdb.rate-bytes-per-sec](https://docs.pingcap.com/tidb/stable/tikv-configuration-file#rate-bytes-per-sec): The maximum rate permitted by RocksDB's compaction rate limiter.
+
+Users can use `rocksdb.rate-bytes-per-sec` to limit RocksDB's compaction rate, so that the impact to online serving can be controlled.
 
 ### How to measure the performance impact to the online services
 
