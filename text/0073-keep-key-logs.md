@@ -44,7 +44,7 @@ Despite the design of key logs, it is still possible we abuse key logs and make 
 
 The principle is that availability should be never sacrificed. So we must not block the sender on overflow, nor use an unbounded channel which has the risk of OOM. But we still hope to keep the key logs.
 
-The fallback solution is to write logs to a file synchronously.
+The fallback solution is to write logs to a file directly in the working threads.
 
 If key logs fail to be sent to the channel, they are formatted at the sender thread and written to the fallback log file. Without disk syncing, these writes should finish with very small latency and reasonable throughput. Then the working threads will not be badly affected and we do not really drop any key logs.
 
