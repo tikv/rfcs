@@ -147,6 +147,15 @@ There are some usecases:
 1. Load parquet from S3 to RawKV: Location=S3, FileFormat=Parquet, Encoder=TableEncoder, IngestAPI=RawKV
 2. Load CSV from HDFS to TxnKV: Location=HDFS, FileFormat=CSV, Encoder=TiDBEncoder, IngestAPI=TxnKV
 
+### Import mode & pause merge checker
+
+When ingesting, TiKV should be switched to import mode. Also, merge to empty regions created by repartition operation should be prevented. To achieve this, a PD REST API to pause checkers (including merge checker) should be added. Pause-checker API should be called periodically to keep checker in paused status.
+
+| URL | body | |
+|---|:---:|---|
+| POST /pd/api/v1/checker/{name} | `{ "delay": <seconds> }` | Pause or resume a checker |
+| GET /pd/api/v1/checker/{name} | -- | Check if a checker is paused |
+
 ## Drawbacks
 
 Learning spark has a certain cost.
