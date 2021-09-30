@@ -149,7 +149,7 @@ There are some usecases:
 
 ### Import mode & pause merge checker
 
-When ingesting, TiKV should be switched to import mode. Also, merge to empty regions created by repartition operation should be prevented. To achieve this, a PD REST API to pause checkers (including merge checker) should be added. Pause-checker API should be called periodically to keep checker in paused status.
+When ingesting, TiKV should be switched to import mode. Also, merge the empty regions split by Spark should be prevented. To achieve this, a PD REST API to pause checkers (including merge checker) should be added. Pause-checker API should be called periodically to keep checker in paused status.
 
 | URL | body | |
 |---|:---:|---|
