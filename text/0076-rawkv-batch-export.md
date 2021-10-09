@@ -54,7 +54,7 @@ As HDFS Client is implemented using java, a problem occures: "how to call java i
 
 We will add some new configration items:
 
-1. `HADOOP_HOME`: let TiKV know how to find the hdfs shell command.
+1. `HADOOP_HOME`: let TiKV know how to find the hdfs shell command. TiKV will use the executable `$HADOOP_HOME/bin/hdfs`.
 2. `HADOOP_LINUX_USER`: TiKV will run the hdfs shell command under this linux user. TiKV will use the current linux user if not provided.
 
 The configration can be passed by
