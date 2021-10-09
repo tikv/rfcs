@@ -83,6 +83,40 @@ message HDFS {
 }
 ```
 
+### SST Decoder
+
+TiKV (RawKV) adds a prefix `z` to the key before writing to SST. So when decoding from SST, we shoud remove the prefix `z`.
+
+RocksDB provides a java API [SstFileReader](https://github.com/facebook/rocksdb/blob/6.23.fb/java/src/main/java/org/rocksdb/SstFileReader.java) to decode SST to Key-Value pairs. We can wrapper this API in [client-java](https://github.com/tikv/client-java) as follows:
+
+```
+package org.tikv.raw;
+
+import java.util.Iterator;
+import org.tikv.kvproto.Kvrpcpb;
+
+public class SSTDecoder {
+  public Iterator<Kvrpcpb.KvPair> decodeRawKV(String filePath) {
+      ...
+  }
+}
+```
+
+Besides, in order to support decoding SST files parallelly, a Spark DataSource library `SSTDataSource` will be implemented in [TiKV migration Repo](https://github.com/tikv/migration) as follows:
+
+```
+class SSTDataSource extends FileDataSourceV2 {
+    ...
+}
+```
+
+Users can simplly use the folowing code to decode SST files by Spark:
+
+```
+val path = "hdfs:///path/to/sst/files/"
+val keyValueDF = spark.read.format("sst").load(path)
+```
+
 ### Rate Limit
 
 We want to control the impact to the online serving (P99 latency) during the batch export, so `Rate Limit` is an important component.
