@@ -163,3 +163,11 @@ Learning spark has a certain cost.
 ## Others
 
 A new repository is required to hold the spark-related codes. I propose it be named `migration`.
+
+## Future improvements
+
+Sometimes only part of TiKV are doing importing job. For example, we have two keyspace and want one keeps serving while other is importing.
+To minimize the affect from import mode and the paused merge checker, two strategy can be applied:
+
+1. The import mode can be changed to region-wise, so that other regions remains unaffected.
+2. A more fine-grained API to let PD pause checker skip specific regions.
