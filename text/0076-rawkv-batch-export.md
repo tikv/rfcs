@@ -136,3 +136,10 @@ Number of threads to perform backup tasks. The default value is set to min(CPU_N
 ## Drawbacks
 
 Learning spark has a certain cost.
+
+## Alternatives
+
+Instead of using BR, Spark can directly scan data from TiKV and save to S3 / HDFS.
+
+Considering that we cannot control the client side concurrency number, there's a lot of work to do on the server side in order to contol the impact to the online serving. So we take this plan as an alternative.
+ 
