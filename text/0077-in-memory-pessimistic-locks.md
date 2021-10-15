@@ -114,24 +114,8 @@ After the lock table is retrieved, we can read and write pessimistic locks in th
 
 Before processing an `AcquirePessimisticLock` command in the scheduler, we save the current `epoch` of `PeerPessimisticLocks`. This will be checked later when writing locks to the table.
 
-When loading a lock, we read the underlying RocksDB first. If no lock is found, read the in-memory lock table. It does not matter if `valid` is `false` at this time.
+When loading a lock, we can read the in-memory lock table first. If no lock is found, then read the underlying RocksDB.
 
-When a peer becomes a new leader or some region is just merged into this region, only a stale set of pessimistic locks are transferred to this peer (the mechanism will be discussed in later sections). And after some later mutations on the lock CF succeed, they don't have the chance to clear the corresponding pessimistic locks. So, the locks in the lock CF is more authentic and that's why we should read locks from RocksDB first. 
-
-```rust
-pub fn load_lock(&mut self, key: &Key) -> Result<Option<Lock>> {
-    let res = /* read from RocksDB */ ;
-    Ok(res.or_else(|| {
-        self.snapshot.ext().get_txn_ext().and_then(|txn_ext| {
-            txn_ext
-            .pessimistic_locks
-            .read()
-            .get(key)
-            .map(|lock| lock.to_lock())
-        })
-    }))
-}
-```
 
 And a new `Modify` variant is added. The `AcquirePessimisticLock` now adds `Modify::PessimisticLock` instead of a normal `Modify::Put`.
 
@@ -148,7 +132,7 @@ With this policy, we need to check the `PeerPessimisticLocks` first. If the `epo
 
 If the check passes, it is safe for us to write the pessimistic locks into the lock table. After this, we can return the response to the client without proposing anything at all.
 
-For all writes involving the lock CF, the lock in the lock table should be cleared. For example, when a `Prewrite` command replaces a pessimistic lock with a 2PC lock, of course, this is a replicated write, we need to remove the pessimistic lock from the lock table after the write succeeds.
+For all writes involving the lock CF, the lock in the lock table should be cleared. For example, when a `Prewrite` command replaces a pessimistic lock with a 2PC lock, of course, this is a replicated write, we need to remove the pessimistic lock from the lock table after the write succeeds. This should be done in the raftstore no matter it is a leader or a follower.
 
 ### Region leader transfer
 
@@ -206,4 +190,3 @@ So this feature needs to be enabled after TiKV is fully upgraded. A possible app
 The storage structure is not changed, so downgrading is feasible. However, before the downgrade, we must disable this feature first to avoid affecting the success rate of pessimistic transactions.
 
 Ecosystem tools should not be affected by this optimization.
-
