@@ -147,6 +147,15 @@ There are some usecases:
 1. Load parquet from S3 to RawKV: Location=S3, FileFormat=Parquet, Encoder=TableEncoder, IngestAPI=RawKV
 2. Load CSV from HDFS to TxnKV: Location=HDFS, FileFormat=CSV, Encoder=TiDBEncoder, IngestAPI=TxnKV
 
+### Import mode & pause merge checker
+
+When ingesting, TiKV should be switched to import mode. Also, merge the empty regions split by Spark should be prevented. To achieve this, a PD REST API to pause checkers (including merge checker) should be added. Pause-checker API should be called periodically to keep checker in paused status.
+
+| URL | body | |
+|---|:---:|---|
+| POST /pd/api/v1/checker/{name} | `{ "delay": <seconds> }` | Pause or resume a checker |
+| GET /pd/api/v1/checker/{name} | -- | Check if a checker is paused |
+
 ## Drawbacks
 
 Learning spark has a certain cost.
@@ -154,3 +163,11 @@ Learning spark has a certain cost.
 ## Others
 
 A new repository is required to hold the spark-related codes. I propose it be named `migration`.
+
+## Future improvements
+
+Sometimes only part of TiKV are doing importing job. For example, we have two keyspace and want one keeps serving while other is importing.
+To minimize the affect from import mode and the paused merge checker, two strategy can be applied:
+
+1. The import mode can be changed to region-wise, so that other regions remains unaffected.
+2. A more fine-grained API to let PD pause checker skip specific regions.
