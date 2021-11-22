@@ -32,13 +32,13 @@ This RFC proposes stale read on RawKV which allows reading stale data from the f
 
 To achieve this, the follower will read the local storage directly without any coordination with the leader.
 
-<p align="center">
-    <img src="../media/rawkv-stale-read.svg" width="450px"/>
-</p>
-
 Note that, from the point of view of the client, the freshness of data may regress since the client may choose different followers to read from time by time.
 
 Surprisingly, the leader can also stale read and in this case, the leader can read locally without a lease.
+
+<p align="center">
+    <img src="../media/rawkv-stale-read.svg" width="450px"/>
+</p>
 
 ### Implementation details
 
