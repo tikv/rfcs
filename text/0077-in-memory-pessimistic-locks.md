@@ -167,7 +167,7 @@ If the merge is rolled back, we can set `valid` of the source region back to `tr
 
 ### Region split
 
-Typically, after a region is split into several new regions, the leader of all new regions are still located in the same TiKV. So it will be only memory operations to handle the case.
+After a region splits, if the parent peer is a leader, the newly split peer will campaign first to become a leader. So, the leader of all new regions are still located in the same TiKV unless there are network issues or the raftstore is too busy, in which case locks can be lost. Therefore, we only need memory operations to handle the case.
 
 In `on_ready_split_region`, we first set `valid` to `false`. Later pessimistic locks will either make a proposal or just fail, so we will not miss any lock.
 
