@@ -30,11 +30,9 @@ At the time when this RFC is written, TiKV supports two similar features:
 
 This RFC proposes stale read on RawKV which allows reading stale data from the followers. Unlike the stale read on TxnKV, the stale read on RawKV breaks its original linear consistency guarantee -- downgrades to eventually consistency. This is because the keys in RawKV don't have versions, thus the client can't tell TiKV which accurately old data to read, instead, TiKV only guarantees that the stale data read from followers are written before (read committed).
 
-To achieve this, the follower will read the local storage directly without any coordination with the leader.
+To achieve this, the follower will read the local storage directly without any coordination with the leader. Surprisingly, the leader can also stale read, and in this case, the leader can read locally without a lease.
 
-Note that, from the point of view of the client, the freshness of data may regress since the client may choose different followers to read from time by time.
-
-Surprisingly, the leader can also stale read and in this case, the leader can read locally without a lease.
+Note that the freshness of data may regress from the point of view of the client since the client may choose different followers to read from time by time.
 
 <p align="center">
     <img src="../media/rawkv-stale-read.svg" width="450px"/>
@@ -56,6 +54,8 @@ Surprisingly, the leader can also stale read and in this case, the leader can re
 
 2. In TiKV, set `direct_read=true` for RawKV requests if `kvrpcpb.Context.stale_read=true`. Force raftstore to read with `RequestPolicy::ReadLocal` if `direct_read=true`.
 
-3. (TBD) LocalReader should also handle `direct_read=true` so that the read request doesn't go into the raftstore.
+3. (TBD) LocalReader should also handle `direct_read=true` so that the read request doesn't go into the raftstore; bypass read index if peer is leader and the lease is outdated.
 
 4. (TBD) Client API interface; follower selection algorithm.
+
+5. (TBD) RPO detection and monitoring. Should it be used by client selectoin algorithm?
