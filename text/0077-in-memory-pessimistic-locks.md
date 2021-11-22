@@ -138,9 +138,9 @@ For all writes involving the lock CF, the lock in the lock table should be clear
 
 If it is a voluntary leader transfer triggered by PD, we have the chance to transfer the pessimistic locks to the new leader to avoid unexpected transaction failures.
 
-In `pre_transfer_leader`, the leader serializes current pessimistic locks into bytes and modifies `valid` to `false`. Then, later `AcquirePessimisticLock` commands will fall back to proposing locks. In this way, we can guarantee the pessimistic locks either exist in the serialized bytes, or are replicated through Raft.
+When a peer is going to transfer its leadership, the leader serializes current pessimistic locks into bytes and modifies `valid` to `false`. Then, later `AcquirePessimisticLock` commands will fall back to proposing locks. In this way, we can guarantee the pessimistic locks either exist in the serialized bytes, or are replicated through Raft.
 
-The serialized pessimistic locks and the current `propose_index` are carried in the `context` of `MsgTransferLeader` sent by the leader. The context format should be designed to have forward compatibility. When the follower receives the `MsgTransferLeader`, it needs to verify the `propose_index` is smaller than the current `applied_index` before ingesting the locks into its lock table. Otherwise, the follower should reject the leader transfer request.
+The serialized pessimistic locks will be sent to other peers through a Raft proposal. After this lock migration proposal is committed, the leader will continue the logic of in the current `pre_transfer_leader` method.
 
 By default, a Raft message has a size limit of 1 MiB. We will guarantee that the total size of in-memory pessimistic locks in a single region will not exceed the limit. This will be discussed later.
 
@@ -214,12 +214,9 @@ Before lock migration, we need to scan all the memory locks in the region. To re
 
 #### Leader transfer
 
-After `valid` is set to `false`, later pessimistic locks are replicated through Raft proposals. So, we don't need to worry that some pessimistic locks might be missing after the serialized pessimistic locks are ingested. But it is a risk that some pessimistic locks could appear again after being deleted on the former leader. Next, we will talk about how to avoid it:
+After `valid` is set to `false`, later pessimistic locks are replicated through Raft proposals. So, we don't need to worry that some pessimistic locks might be missing after the serialized pessimistic locks are ingested.
 
-1. Pessimistic locks are serialized and `valid` is set to `false`, we record the current `propose_index`. Let's call it `idx0`.
-2. After `valid` is set to `false`, later proposed lock CF mutations meet `propose_index` > `idx0`.
-3. When the follower receives `MsgTransferLeader`, it verifies `idx0` > `applied_index`. Combined with 2, we know later proposed lock CF mutations meet `propose_index` > `applied_index`. It means all these mutations have not been applied on the follower.
-4. Before the new leader starts to serve, it will apply the lock CF mutations and the locks that need to be removed from the lock table will not appear.
+And we should pay attention that serializing the pessimistic locks and proposing them must be an atomic operation to prevent order reverse between migrated pessimistic locks and later mutations on the lock CF.
 
 #### Region merge
 
