@@ -1,7 +1,7 @@
 # RFC: In-memory Pessimistic Locks
 
 - RFC PR: https://github.com/tikv/rfcs/pull/77
-- Tracking Issue: (to be filled)
+- Tracking Issue: https://github.com/tikv/tikv/issues/11452
 
 ## Motivation
 
