@@ -58,6 +58,8 @@ could collect as much information as it needs such as latency and batch size in 
 then base on these information, the PD client could calculate a suitable expected batch size to predict
 the incoming TSO number, which make the batch waiting more effective.
 
+![TSO Client Batch](https://i.imgur.com/vUgVSUI.png)
+
 ### Enhancement #2: Use proxy to reduce the stream number
 
 However, as mentioned before, according to our pprof result, the main reason of high PD leader
