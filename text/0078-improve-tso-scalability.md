@@ -53,6 +53,11 @@ With fewer TSO gRPC requests, the CPU pressure on the PD leader can be reduced d
 We can introduce different batch strategies such as waiting for a while to fetch more TSO request
 in a same interval or even more complicated one like a dynamic smallest batch size.
 
+Predicting strategy is also an useful way to improve the batch effect. For example, the PD Client
+could collect as much information as it needs such as latency and batch size in the last few minutes,
+then base on these information, the PD client could calculate a suitable expected batch size to predict
+the incoming TSO number, which make the batch waiting more effective.
+
 ### Enhancement #2: Use proxy to reduce the stream number
 
 However, as mentioned before, according to our pprof result, the main reason of high PD leader
@@ -61,7 +66,7 @@ improvement does not alleviate this part at the root. To reduce the connection s
 fewer gRPC stream number is necessary. We can introduce the TSO Follower Proxy feature
 to achieve this.
 
-Every TSO request will be sent to different TSO servers (including both the leader and follower)
+Every TSO request will be sent to different TSO servers (including both the PD leader and follower)
 randomly by the PD client, and multiple TSO requests sent to the same TSO follower will be
 batched again with the same logic as a PD client before being forwarded to the PD leader.
 With this implementation, the gRPC pressure is distributed to each PD server, and for the
@@ -69,12 +74,10 @@ PD leader, if we have 50 TiDB instances and 5 PD instances, it only needs to mai
 stream connections with each PD follower rather than 50 stream connections with all the TiDB
 servers.
 
+![TSO Follower Proxy](https://i.imgur.com/WoB9YN9.png)
+
 ## Drawbacks
 
 - Increase the TSO latency if the QPS is not high enough.
 - Increase the CPU usage of the PD followers.
 - Increase code complexity.
-
-## Alternatives
-
-## Unresolved questions
