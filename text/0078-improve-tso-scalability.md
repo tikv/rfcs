@@ -36,6 +36,8 @@ send to reduce the gRPC request number it actually sent. For example, at a certa
 moment, PD client may receive 10 TSO requests at once, it will send just one TSO gRPC
 request to the PD leader with an argument `count` inside the gRPC request body.
 
+![TSO Client Batch](https://i.imgur.com/vUgVSUI.png)
+
 For the PD server, it just takes the request and return an incremental and unique TSO
 request with 10 counts and return it to the client. After the PD client receives the
 response, it will split the single TSO request into 10 different TSOs and return it to
@@ -57,8 +59,6 @@ Predicting strategy is also an useful way to improve the batch effect. For examp
 could collect as much information as it needs such as latency and batch size in the last few minutes,
 then base on these information, the PD client could calculate a suitable expected batch size to predict
 the incoming TSO number, which make the batch waiting more effective.
-
-![TSO Client Batch](https://i.imgur.com/vUgVSUI.png)
 
 ### Enhancement #2: Use proxy to reduce the stream number
 
