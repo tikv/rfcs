@@ -5,22 +5,22 @@
 
 ## Summary
 
-In testing large clusters for some users, we encountered a situation that is
-extremely challenging for TSO performance. In this kind of clusters that may
+As the size of the cluster grows, some users encountered a situation that is
+extremely challenging for TSO performance. In this kind of cluster that may
 have many TiDB instances, a certain number of PD clients will request TSO to
 the PD leader concurrently, and this puts a lot of CPU pressure on the PD leader
 because of the Go Runtime scheduling caused by the gRPC connection switch. With
 the high CPU pressure, TSO requests will suffer from increasing average latency
 and long-tail latency, which will hurt TiDB's QPS performance. To improve the
-scalability of TSO Service, we will propose two kinds of enhancement to both TSO
+scalability of the TSO Service, we will propose two kinds of enhancement to both TSO
 client and server in this RFC to reduce the PD CPU usage and improve QPS performance.
 
 ## Motivation
 
 As mentioned before, improvement is needed in the cluster that has a certain number
 of TiDB instances, i.e PD clients, to reduce the CPU pressure of PD leader. With
-better TSO handling performance in this case, TSO service won't be the potential
-bottleneck of a big cluster easily and have a better scalability.
+better TSO handling performance, in this case, TSO service won't be the potential
+bottleneck of a big cluster easily and have better scalability.
 
 ## Detailed design
 
@@ -38,8 +38,8 @@ request to the PD leader with an argument `count` inside the gRPC request body.
 
 ![TSO Client Batch - Old](https://i.imgur.com/vUgVSUI.png)
 
-For the PD server, it just takes the request and return an incremental and unique TSO
-request with 10 counts and return it to the client. After the PD client receives the
+For the PD server, it just takes the request and returns an incremental and unique TSO
+request with 4 counts and return it to the client. After the PD client receives the
 response, it will split the single TSO request into 10 different TSOs and return it to
 the upper requester.
 
@@ -52,7 +52,7 @@ An intuitive improvement is to improve the batch effect of TSO, i.e. to reduce t
 of TSO gRPC requests by increasing the size of each batch with the same number of TSO requests.
 With fewer TSO gRPC requests, the CPU pressure on the PD leader can be reduced directly.
 
-We can introduce different batch strategies such as waiting for a while to fetch more TSO request
+We can introduce different batch strategies such as waiting for a while to fetch more TSO requests
 in a same interval or even more complicated one like a dynamic smallest batch size.
 
 ![TSO Client Batch - New](https://i.imgur.com/HI6Tu2h.png)
@@ -61,7 +61,7 @@ As the figure above shows, we can introduce a session variable like `@@tidb_tso_
 to control the max wait time the PD client is willing to wait for more TSO requests, which could make the
 batch size bigger without hurting the latency.
 
-Predicting strategy is also an useful way to improve the batch effect. For example, the PD Client
+Predicting strategy is also a useful way to improve the batch effect. For example, the PD Client
 could collect as much information as it needs such as latency and batch size in the last few minutes,
 then base on these information, the PD client could calculate a suitable expected batch size to predict
 the incoming TSO number, which make the batch waiting more effective.
