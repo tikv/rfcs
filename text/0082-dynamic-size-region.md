@@ -1,7 +1,7 @@
 # Dynamic size region
 
 - RFC PR: https://github.com/tikv/rfcs/pull/0082
-- Tracking Issue: https://github.com/tikv/repo/issues/0000
+- Tracking Issue: https://github.com/tikv/tikv/issues/11515
 
 ## Summary
 
