@@ -104,12 +104,19 @@ Buckets statistics are reported in a standalone stream. They will be reported mo
 than original region heartbeats, which is 60s. The new stream is expected to be reported every
 10 seconds when have changes.
 
+PD will maintain top N hotspot buckets and split all of those buckets that exceed P of
+all throughput. N and P should be configurable, I suggest to set it to 300 and 1% respectively
+first. The algorithm is just one possible solution and subject to change for evaluation.
+
 ### Replication
 
 A large region can take minutes to be replicated, PD should make cost estimation on actual size
 instead of fixed value. To avoid logs being truncated during sending a snapshot, we should set
 the log gc limit based on the actual size too. Raft engine should be GA before dynamic size
 region, so we don't need to worry about the extra write amplifications.
+
+To avoid ingesting a large snapshot cause large compaction, we need to split the snapshot into
+several smaller files. Each snapshot files should not be larger than 128MiB.
 
 There are ways to optimize the replications, sending a sub-LSM tree for example. But these designs
 may be complicated. And we rely on further designs like separating LSM tree to optimize the cost
