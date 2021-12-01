@@ -36,7 +36,7 @@ send to reduce the gRPC request number it actually sent. For example, at a certa
 moment, PD client may receive 10 TSO requests at once, it will send just one TSO gRPC
 request to the PD leader with an argument `count` inside the gRPC request body.
 
-![TSO Client Batch - Old](https://i.imgur.com/vUgVSUI.png)
+![TSO Client Batch - Old](../media/tso-client-batch-old.png)
 
 For the PD server, it just takes the request and returns an incremental and unique TSO
 request with 4 counts and return it to the client. After the PD client receives the
@@ -55,7 +55,7 @@ With fewer TSO gRPC requests, the CPU pressure on the PD leader can be reduced d
 We can introduce different batch strategies such as waiting for a while to fetch more TSO requests
 in a same interval or even more complicated one like a dynamic smallest batch size.
 
-![TSO Client Batch - New](https://i.imgur.com/HI6Tu2h.png)
+![TSO Client Batch - New](../media/tso-client-batch-new.png)
 
 As the figure above shows, we can introduce a session variable like `@@tidb_tso_client_batch_max_wait_time`
 to control the max wait time the PD client is willing to wait for more TSO requests, which could make the
@@ -82,7 +82,7 @@ PD leader, if we have 50 TiDB instances and 5 PD instances, it only needs to mai
 stream connections with each PD follower rather than 50 stream connections with all the TiDB
 servers.
 
-![TSO Follower Proxy](https://i.imgur.com/WoB9YN9.png)
+![TSO Follower Proxy](../media/tso-follower-proxy.png)
 
 Also, this could be configured in a TiDB cluster by enabling a single session variable like `tidb_enable_tso_follower_proxy` globally.
 
