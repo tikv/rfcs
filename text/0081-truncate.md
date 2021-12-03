@@ -23,31 +23,32 @@ Though it is impossible to do lossless recovery in this situation, we can recove
 Basically, we need a method to return TiKV to a certain version (timestamp), we should add a new RPC to kvproto:
 
 ```protobuf
-message FlashBackRequest {
+message TruncateRequest {
     Context context = 1;
     uint64 checkpoint_ts = 2;
 }
 
-message FlashBackResponse {  
+message TruncateResponse {  
+    string error = 1;
 }
 
 service Tikv {
 		// …
-		rpc FlashBack(kvrpcpb.FlashBackRequest) returns (kvrpcpb.FlashBackResponse) {}
+		rpc Truncate(kvrpcpb.TruncateRequest) returns (kvrpcpb.TruncateResponse) {}
 }
 ```
 
-When a TiKV recieve `FlashBackRequest`, it will create a `FlashBackWorker` instance and start the work.
+When a TiKV receive `TruncateRequest`, it will create a `TruncateWorker` instance and start the work.
 
-There are several steps to follow when doing the flash back:
+There are several steps to follow when doing truncate:
 
 ### 1. Wait all committed raft log are applied
 
 We can just polling each region's `RegionInfo` in a method similar with [`Debugger::region_info`](https://github.com/tikv/tikv/blob/789c99666f2f9faaa6c6e5b021ac0cf7a76ae24e/src/server/debug.rs#L188) does, and wait for `commit_index` to be equal to `apply_index`.
 
 ### 2. Clean WriteCF and DefaultCF
- W
-Then we can remove all data created by transactions which commited after `checkpoint_ts`, this can be done by remove all `Write` records which `commit_ts > checkpoint_ts`  and corresponding data in `DEFAULT_CF` from KVEngine, ie.
+
+Then we can remove all data created by transactions which committed after `checkpoint_ts`, this can be done by remove all `Write` records which `commit_ts > checkpoint_ts`  and corresponding data in `DEFAULT_CF` from KVEngine, ie.
 
 ```rust
 fn scan_next_batch(&mut self, batch_size: usize) -> Option<Vec<(Vec<u8>, Write)>> {
