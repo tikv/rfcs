@@ -99,8 +99,16 @@ controllable to let PD split hotspots and schedule to get balance.
 Now that a region can be in 10GiB, a full scan can make the response exceed the limit of gRPC,
 which is 4GiB. So instead of unary, we need to use server streaming RPC to return the response as
 stream. The stream can set a limit on memory or count to avoid too many pending responses
-exhausting memory. If follower read is enabled in client side, client can use buckets from PD to
-split requests and balance loads across leader and followers.
+exhausting memory.
+
+If follower read is enabled in client side, client can use buckets from PD to split requests and
+balance loads across leader and followers. Because buckets is not strictly mapping to a region,
+so client may maintain a sorted map about all available bucket keys, and update it in background
+periodically. When starting a query, client may query the map for available keys within region
+range and split request. When updating in the background, only removing overlap keys with the new
+region and keep the old, and possible stale, bucket keys. The point is that bucket keys don't need
+to be 100% accurate, a close match can enhance concurrency and load balance a lot. For fast lookup,
+a map from region id to bucket keys can also be maintained.
 
 After a region becomes larger, it needs to be warmed up before serving requests. There are two
 common cases:
