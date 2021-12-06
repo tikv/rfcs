@@ -61,6 +61,20 @@ balance.
 
 ![dynamic size buckets](../media/dynamic-size-buckets.png)
 
+A new bucket metadata will be added to kvproto:
+```
+message Buckets {
+    uint64 region_id = 1;
+    uint64 version = 2; // A hint indicate if keys have changed.
+    repeated bytes keys = 3;
+    repeated uint64 read = 4;
+    repeated uint64 write = 5;
+    Duration period = 6; // The period that stats are collected with in.
+}
+```
+
+When the metadata is queried by client, PD may erase the read/write/period field in response.
+
 ### Read and Write
 
 Since regions’ sizes become dynamic, region count in a single instance is not a problem any more.
@@ -75,17 +89,18 @@ going into details here.
 
 For read hotspots, split should be triggered by PD, which can utilize the global statistics from all
 regions and nodes. For normal read requests, TiKV will need to split its range into smaller buckets
-according to statics to increase concurrency. When TiDB wants to do a scan, it sends the RPC once,
-and TiKV will split the requests into smaller concurrent jobs.
+according to statics to increase concurrency. When TiKV client wants to do a scan, it sends the RPC
+once, and TiKV will split the requests into smaller concurrent jobs.
 
-In the past design, follower read has also been discussed to offload works from leader. But TiDB
+In the past design, follower read has also been discussed to offload works from leader. But client
 can’t predict the progress of a follower, so latency can also become unpredictable. It’s more
 controllable to let PD split hotspots and schedule to get balance.
 
 Now that a region can be in 10GiB, a full scan can make the response exceed the limit of gRPC,
 which is 4GiB. So instead of unary, we need to use server streaming RPC to return the response as
 stream. The stream can set a limit on memory or count to avoid too many pending responses
-exhausting memory.
+exhausting memory. If follower read is enabled in client side, client can use buckets from PD to
+split requests and balance loads across leader and followers.
 
 After a region becomes larger, it needs to be warmed up before serving requests. There are two
 common cases:
@@ -145,4 +160,10 @@ For the problems on cost of too many regions, we can also optimize TiKV itself t
 faster and capable to handle more regions. But the dynamic design make it possible to adjust
 current architecture and introduce more significant changes in the future.
 
-## Unresolved questions
+## Questions
+
+1. How about always spliting request in TiKV client no matter whether follower read is enabled?
+
+This can make design and implement simple, but we have seen a lot of cases that too many RPC
+requests can slow down TiKV client as too many gorountines. We may need further evaluation to
+decide whether always enable client side request split.
