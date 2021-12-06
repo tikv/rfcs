@@ -40,7 +40,7 @@ service Tikv {
 
 When a TiKV receive `TruncateRequest`, it will create a `TruncateWorker` instance and start the work.
 
-There are several steps to follow when doing truncate:
+There are several steps to follow when doing truncate, note it is expected that no more write requests will be sent to TiKV during the truncate process:
 
 ### 1. Wait all committed raft log are applied
 
