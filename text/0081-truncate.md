@@ -33,8 +33,8 @@ message TruncateResponse {
 }
 
 service Tikv {
-		// …
-		rpc Truncate(kvrpcpb.TruncateRequest) returns (kvrpcpb.TruncateResponse) {}
+    // …
+    rpc Truncate(kvrpcpb.TruncateRequest) returns (kvrpcpb.TruncateResponse) {}
 }
 ```
 
@@ -44,7 +44,7 @@ There are several steps to follow when doing truncate:
 
 ### 1. Wait all committed raft log are applied
 
-We can just polling each region's `RegionInfo` in a method similar with [`Debugger::region_info`](https://github.com/tikv/tikv/blob/789c99666f2f9faaa6c6e5b021ac0cf7a76ae24e/src/server/debug.rs#L188) does, and wait for `commit_index` to be equal to `apply_index`.
+We can just polling each region's `RegionInfo` in a method similar with [`Debugger::region_info`](https://github.com/tikv/tikv/blob/789c99666f2f9faaa6c6e5b021ac0cf7a76ae24e/src/server/debug.rs#L188) does, and wait for `apply_index` to be equal to `commit_index`.
 
 ### 2. Clean WriteCF and DefaultCF
 
@@ -52,37 +52,37 @@ Then we can remove all data created by transactions which committed after `check
 
 ```rust
 fn scan_next_batch(&mut self, batch_size: usize) -> Option<Vec<(Vec<u8>, Write)>> {
-        let mut writes = None;
-        for _ in 0..batch_size {
-            if let Some((key, write)) = self.next_write()? {
-                let commit_ts = Key::decode_ts_from(keys::origin_key(&key));
-                let mut writes = writes.get_or_insert(Vec::new());
-                if commit_ts > self.ts {
-                    writes.push((key, write));
-                }
-            } else {
-                return writes;
+    let mut writes = None;
+    for _ in 0..batch_size {
+        if let Some((key, write)) = self.next_write()? {
+            let commit_ts = Key::decode_ts_from(keys::origin_key(&key));
+            let mut writes = writes.get_or_insert(Vec::new());
+            if commit_ts > self.ts {
+                writes.push((key, write));
             }
+        } else {
+            return writes;
         }
-        writes
+    }
+    writes
 }
 
 pub fn process_next_batch(
-        &mut self, 
-        batch_size: usize,
-        wb: &mut RocksWriteBatch,
+    &mut self, 
+    batch_size: usize,
+    wb: &mut RocksWriteBatch,
 ) -> bool {
-        let writes = if let Some(writes) = self.scan_next_batch(batch_size) {
-           writes
-  			} else {
-           return false;
-  			}
-        for (key, write) in writes {
-            let default_key = Key::append_ts(Key::from_raw(&key), write.start_ts).to_raw().unwrap();
-            box_try!(wb.delete_cf(CF_WRITE, &key));
-            box_try!(wb.delete_cf(CF_DEFAULT, &default_key));
-        }
-  			true
+    let writes = if let Some(writes) = self.scan_next_batch(batch_size) {
+        writes
+  	} else {
+        return false;
+  	}
+    for (key, write) in writes {
+        let default_key = Key::append_ts(Key::from_raw(&key), write.start_ts).to_raw().unwrap();
+        box_try!(wb.delete_cf(CF_WRITE, &key));
+        box_try!(wb.delete_cf(CF_DEFAULT, &default_key));
+    }
+  	true
 }
 ```
 
