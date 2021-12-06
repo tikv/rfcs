@@ -73,7 +73,7 @@ on PD to split the hotspot in time and increase concurrency. In addition, we can
 apply to make single region apply logs faster. Since unorder apply is a standalone feature, I’m not
 going into details here.
 
-For read hotspots, split should be triggered by PD, which can utilize the global statics from all
+For read hotspots, split should be triggered by PD, which can utilize the global statistics from all
 regions and nodes. For normal read requests, TiKV will need to split its range into smaller buckets
 according to statics to increase concurrency. When TiDB wants to do a scan, it sends the RPC once,
 and TiKV will split the requests into smaller concurrent jobs.
@@ -121,6 +121,18 @@ several smaller files. Each snapshot files should not be larger than 128MiB.
 There are ways to optimize the replications, sending a sub-LSM tree for example. But these designs
 may be complicated. And we rely on further designs like separating LSM tree to optimize the cost
 for all.
+
+### Compatibility
+
+As buckets don't modify existing metadata, so it's backward compatible. When upgrading from small
+regions, PD may trigger a lot of merge to get a large region size. This procedure should be made
+at slow pace to avoid introducing spike to online service. When dowgrading from dynamic regions,
+TiKV may trigger a lot of split at start. Split is lightweight than merge and very fast, we may not
+need to take extra care.
+
+Snapshot is split into mulitple files in dynamic regions, which is different from the past. But it
+seems fine for old version to apply the multiple snapshot files for one CF. We need more tests to
+verify the behavior.
 
 ## Drawbacks
 
