@@ -38,15 +38,15 @@ we only discuss region size here.
 
 To reduce the count of regions, we can set the size of region to a larger value. More precisely, instead
 of 96MiB, we set the max region size to 10GiB (before compression). To get around the problem of
-concurrency, we introduce new concept bucket that is smaller ranges within a region. To make hotspot be
-recoginized and scheduled quickly, we choose the make the size of a region dynamic.
+concurrency, we introduce new concept bucket that is smaller ranges within a region. To make hot spot be
+recognized and scheduled quickly, we choose the make the size of a region dynamic.
 
 ![dynamic size](../media/dynamic-size.png)
 
 ### Dynamic size
 
 The hotter a region is, the smaller its size becomes. To make it simplified, we choose 512MiB for hot regions
-and 10GiB for cold regions. So there are two types of split, hotspot split and general size split. Hotspot
+and 10GiB for cold regions. So there are two types of split, hot spot split and general size split. Hot spot
 split is triggered by PD. General size split is triggered by TiKV itself.
 
 10GiB is just an example, it's allowed to change to a bigger or smaller value.
@@ -54,9 +54,9 @@ split is triggered by PD. General size split is triggered by TiKV itself.
 ### Bucket
 
 A region is split into several buckets logically. We will collect query stats by buckets and report the bucket
-to PD. For hotspot regions, buckets are split by scan. For cold regions, buckets are split by approximate
+to PD. For hot spot regions, buckets are split by scan. For cold regions, buckets are split by approximate
 range size. Every bucket should have the size about 128MiB. Their ranges and stats are all reported to PD. PD
-can detect hot buckets from all regions and decide whether need to split new hotspots and schedules them to
+can detect hot buckets from all regions and decide whether need to split new hot spots and schedules them to
 balance.
 
 ![dynamic size buckets](../media/dynamic-size-buckets.png)
@@ -82,19 +82,19 @@ Hibernate regions can be deprecated, and lease renew by heartbeats can be enable
 all regions. This can bring significant improvement for read tail latency.
 
 After the region becomes larger, the chance to hit 1PC becomes higher. And the RPC count in a
-transaction can also be reduced. However, the hotspot chance is also increased. For writes, we rely
-on PD to split the hotspot in time and increase concurrency. In addition, we can also use unorder
-apply to make single region apply logs faster. Since unorder apply is a standalone feature, I’m not
+transaction can also be reduced. However, the hot spot chance is also increased. For writes, we rely
+on PD to split the hot spot in time and increase concurrency. In addition, we can also use unordered
+apply to make single region apply logs faster. Since unordered apply is a standalone feature, I’m not
 going into details here.
 
-For read hotspots, split should be triggered by PD, which can utilize the global statistics from all
+For read hot spots, split should be triggered by PD, which can utilize the global statistics from all
 regions and nodes. For normal read requests, TiKV will need to split its range into smaller buckets
 according to statics to increase concurrency. When TiKV client wants to do a scan, it sends the RPC
 once, and TiKV will split the requests into smaller concurrent jobs.
 
 In the past design, follower read has also been discussed to offload works from leader. But client
 can’t predict the progress of a follower, so latency can also become unpredictable. It’s more
-controllable to let PD split hotspots and schedule to get balance.
+controllable to let PD split hot spots and schedule to get balance.
 
 Now that a region can be in 10GiB, a full scan can make the response exceed the limit of gRPC,
 which is 4GiB. So instead of unary, we need to use server streaming RPC to return the response as
@@ -114,7 +114,7 @@ After a region becomes larger, it needs to be warmed up before serving requests.
 common cases:
 
 - In the very beginning, writes will only happen in a single region, the problem can be solved by
-    presplit + scatter.
+    pre-split + scatter.
 - Because followers don’t serve read, so their data is usually not in cache. After transferring
     the leader, serving a range scan can trigger at most 10GiB IO. To warm it up, we can extend
     the existing pre transfer leader mechanism. Leader will send its bucket statics to follower
@@ -127,7 +127,7 @@ Buckets statistics are reported in a standalone stream. They will be reported mo
 than original region heartbeats, which is 60s. The new stream is expected to be reported every
 10 seconds when have changes.
 
-PD will maintain top N hotspot buckets and split all of those buckets that exceed P of
+PD will maintain top N hot spot buckets and split all of those buckets that exceed P of
 all throughput. N and P should be configurable, I suggest to set it to 300 and 1% respectively
 first. The algorithm is just one possible solution and subject to change for evaluation.
 
@@ -149,11 +149,11 @@ for all.
 
 As buckets don't modify existing metadata, so it's backward compatible. When upgrading from small
 regions, PD may trigger a lot of merge to get a large region size. This procedure should be made
-at slow pace to avoid introducing spike to online service. When dowgrading from dynamic regions,
+at slow pace to avoid introducing spike to online service. When downgrading from dynamic regions,
 TiKV may trigger a lot of split at start. Split is lightweight than merge and very fast, we may not
 need to take extra care.
 
-Snapshot is split into mulitple files in dynamic regions, which is different from the past. But it
+Snapshot is split into multiple files in dynamic regions, which is different from the past. But it
 seems fine for old version to apply the multiple snapshot files for one CF. We need more tests to
 verify the behavior.
 
@@ -170,20 +170,20 @@ current architecture and introduce more significant changes in the future.
 
 ## Questions
 
-1. How about always spliting request in TiKV client no matter whether follower read is enabled?
+1. How about always splitting request in TiKV client no matter whether follower read is enabled?
 
 This can make design and implement simple, but we have seen a lot of cases that too many RPC
-requests can slow down TiKV client as too many gorountines. We may need further evaluation to
+requests can slow down TiKV client as too many coroutines. We may need further evaluation to
 decide whether always enable client side request split.
 
 ## Unresolved questions
 
-1. Page response (tikv/tikv#11448) can solve the problem that response may excceed 4GiB, how about always using unary API?
+1. Page response (tikv/tikv#11448) can solve the problem that response may exceed 4GiB, how about always using unary API?
 
 Combined page response, it's possible to only use unary API to serve scan requests.
 For example, if TiKV still does TiKV side split and if it finds it's impossible to
-return all result, it can return partitial response and hint TiDB to send page requests.
+return all result, it can return partial response and hint TiDB to send page requests.
 
 The downside is that it can make range scan very slow as it's ping-pong style while
 streaming is pipeline and the implementation is complicated than streaming. We may
-prototype both ways and see which has good balance between maintainance and performance.
+prototype both ways and see which has good balance between maintainability and performance.
