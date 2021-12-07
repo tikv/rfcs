@@ -175,3 +175,15 @@ current architecture and introduce more significant changes in the future.
 This can make design and implement simple, but we have seen a lot of cases that too many RPC
 requests can slow down TiKV client as too many gorountines. We may need further evaluation to
 decide whether always enable client side request split.
+
+## Unresolved questions
+
+1. Page response (tikv/tikv#11448) can solve the problem that response may excceed 4GiB, how about always using unary API?
+
+Combined page response, it's possible to only use unary API to serve scan requests.
+For example, if TiKV still does TiKV side split and if it finds it's impossible to
+return all result, it can return partitial response and hint TiDB to send page requests.
+
+The downside is that it can make range scan very slow as it's ping-pong style while
+streaming is pipeline and the implementation is complicated than streaming. We may
+prototype both ways and see which has good balance between maintainance and performance.
