@@ -131,6 +131,16 @@ PD will maintain top N hot spot buckets and split all of those buckets that exce
 all throughput. N and P should be configurable, I suggest to set it to 300 and 1% respectively
 first. The algorithm is just one possible solution and subject to change for evaluation.
 
+Because the boundaries of buckets can changed by writes, so PD may need to merge the history
+of different versions of buckets. There are two possible solutions. For example, buckets
+{ [a, c), [c, e) } is replaced by { [a, b), [b, d), [d, e) },
+1. To simulate the old split behavior, history of [a, c) should be inherited by [b, d) and [c, e)
+    should be inherited by [d, e). The history should be inherited by the rightest overlapping
+    buckets.
+2. Or the history of [a, c) can be shared by both [a, b) and [b, d), [d, e) can be shared by
+    both [b, d) and [d, e). The history should be inherited by all overlapping buckets and
+    optionally multiply a factor like 0.8 for errors.
+
 ### Replication
 
 A large region can take minutes to be replicated, PD should make cost estimation on actual size
@@ -152,6 +162,10 @@ regions, PD may trigger a lot of merge to get a large region size. This procedur
 at slow pace to avoid introducing spike to online service. When downgrading from dynamic regions,
 TiKV may trigger a lot of split at start. Split is lightweight than merge and very fast, we may not
 need to take extra care.
+
+Note PD may not have enough statistics about hot spot when it's just started. So it should not
+trigger merge until the system is ready for service for a configured time, which should be set to
+an interval that PD can identify hot spots in theory.
 
 Snapshot is split into multiple files in dynamic regions, which is different from the past. But it
 seems fine for old version to apply the multiple snapshot files for one CF. We need more tests to
