@@ -53,8 +53,8 @@ split is triggered by PD. General size split is triggered by TiKV itself.
 
 ### Bucket
 
-A region is split into several buckets logically. We will collect query stats by buckets and report the bucket
-to PD. For hot spot regions, buckets are split by scan. For cold regions, buckets are split by approximate
+A region is divided into several buckets logically. We will collect query stats by buckets and report the bucket
+to PD. For hot spot regions, buckets are created by scan. For cold regions, buckets are created by approximate
 range size. Every bucket should have the size about 128MiB. Their ranges and stats are all reported to PD. PD
 can detect hot buckets from all regions and decide whether need to split new hot spots and schedules them to
 balance.
@@ -201,3 +201,9 @@ return all result, it can return partial response and hint TiDB to send page req
 The downside is that it can make range scan very slow as it's ping-pong style while
 streaming is pipeline and the implementation is complicated than streaming. We may
 prototype both ways and see which has good balance between maintainability and performance.
+
+2. How about the original load base split? That is how to further split a region that is smaller than
+    128MiB?
+
+I think it depends on the evaluation of buckets. If we do need to split further, we can also add
+a requirement on the minimal bucket count of a region.
