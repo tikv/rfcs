@@ -23,22 +23,21 @@ Though it is impossible to do lossless recovery in this situation, we can recove
 Basically, we need a method to return TiKV to a certain version (timestamp), we should add a new RPC to kvproto:
 
 ```protobuf
-message TruncateRequest {
-    Context context = 1;
-    uint64 checkpoint_ts = 2;
+message ResetToVersionRequest {
+    uint64 checkpoint_ts = 1;
 }
 
-message TruncateResponse {  
-    string error = 1;
+message ResetToVersionResponse {
 }
 
 service Tikv {
     // …
-    rpc Truncate(kvrpcpb.TruncateRequest) returns (kvrpcpb.TruncateResponse) {}
+    rpc ResetToVersion(ResetToVersionRequest) returns (ResetToVersionResponse) {}
+    rpc ResetToVersionStatus(ResetToVersionStatusRequest) returns (ResetToVersionStatus) {}
 }
 ```
 
-When a TiKV receive `TruncateRequest`, it will create a `TruncateWorker` instance and start the work.
+When a TiKV receive `ResetToVersionRequest`, it will create a `ResetToVersionWorker` instance and start the work.
 
 There are several steps to follow when doing truncate, note it is expected that no more write requests will be sent to TiKV during the truncate process:
 
@@ -94,12 +93,11 @@ After remove all the writes, we can promise we won't give the user ACID inconsis
 
 So we should do resolve locks on all data once.
 
-This lock resolving process is just like the one used by GC, with safepoint ts equals to current ts.
+We can do this by simply remove all locks in lockcf.
+
+<!-- todo: add more details about the correctness here -->
 
 ## Drawbacks
 
 This is a **very** unsafe operation, we should prevent the user call this on normal cluster.
 
-## Alternatives
-
-- We can also clean the lock cf in step2 instead of do resolve locks.
