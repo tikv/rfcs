@@ -18,7 +18,7 @@ We have observed many different situations when the region size is different. Th
 
 ## Detailed design
 
-### store pick strategy
+### Store pick strategy
 
 It can arrange all the store based on label, like TiKV and TiFlash and allow low score group has more chance to scheduler. But the first score region should has highest priority to be selected.
 
@@ -30,7 +30,7 @@ It will add new store limit as new limit type to decrease leader loads of every 
 
 ### Operator control
 
-#### store limit cost
+#### Store limit cost
 
 Second, different size region occupy store limit should be different. Maybe can use this formula:
 
@@ -38,7 +38,7 @@ Second, different size region occupy store limit should be different. Maybe can 
 
 Cost equals 200 if operator influence is 1Mb or equal 600 if operator influence is 1gb.
 
-#### operator life cycle
+#### Operator life cycle
 
 The operator life cycle can divide into some stages: create, executing(started), complete. PD will check operator stage by region heart beats and cancel operator if one operator‘s running time exceed the fixed value(10m).
 
@@ -48,7 +48,7 @@ It will be better if we can calculate every step expecting execute duration by m
 
 The snapshot generator duration can ignore because it doesn't need to scan. The apply snapshot duration will finish in minute level if it needs to load hot buckets.
 
-### sync global config
+### Sync global config
 
 There are some global config that all components need to synchronize like `region-max-size`, `io-limit`. Using ETCD api to implement global config may be a good idea like [this](<[https://github.com/pingcap/tidb/pull/31010/files](https://github.com/pingcap/tidb/pull/31010/files)>)
 
