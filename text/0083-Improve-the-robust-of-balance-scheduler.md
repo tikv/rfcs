@@ -1,6 +1,6 @@
 # Improve the robust of balance scheduler
 
-- RFC PR: [https://github.com/tikv/rfcs/pull/83](https://github.com/tikv/rfcs/pull/83)
+- RFC PR: [https://github.com/tikv/rfcs/pull/85](https://github.com/tikv/rfcs/pull/83)
 - Tracking Issue: [https://github.com/tikv/pd/issues/](https://github.com/tikv/pd/issues/4428)
 
 ## Summary
@@ -9,12 +9,12 @@ Make scheduler more robust for dynamic region size.
 
 ## Motivation
 
-We have observed many different situations when the region size is different. The major drawback coms from this aspects:
+We have observed many different situations when the region size is different. The major drawback comes from this aspects:
 
 1. Balance region scheduler pick source store in order of store's score, the second store will be picked after the first store has not met some filter or retry times exceed fixed value, this problem is also exist in target pick strategy.
-2. Operator has an import effect on region leader, and the leader is responsible in the operator life cycle.
-3. There are some factor that influence execution time of operator such as region size, IO limit, cpu load. PD needs to be more flexible to manage operator's life.
-4. PD should know some global config about TIKV like region-max-size, region report interval. This config should synchronize with PD.
+2. Operator has an import effect on region leader, and the leader is responsible in the operator life cycle. But the region leader will not be limited by any filter.
+3. There are some factor that influence execution time of operator such as region size, IO limit, cpu load. PD needs to be more flexible to manage operator's life not fixed config.
+4. PD should know some global config about TiKV like `region-max-size`, `region-report-interval`. This config should synchronize with PD.
 
 ## Detailed design
 
@@ -32,11 +32,11 @@ It will add new store limit as new limit type to decrease leader loads of every 
 
 #### Store limit cost
 
-Second, different size region occupy store limit should be different. Maybe can use this formula:
+Different size region occupy tokens should be different. Maybe can use this formula:
 
 ![](https://latex.codecogs.com/gif.image?\dpi{200}&space;\bg_white&space;Influence=\sum_{i=0}^{j}step_{i}.Influence&space;\newline&space;Cost&space;=&space;200*ln{\frac{region_{size}}{100KiB}})
 
-Cost equals 200 if operator influence is 1Mb or equal 600 if operator influence is 1gb.
+Cost equals 200 if operator influence is 1Mb or equals 600 if operator influence is 1gb.
 
 #### Operator life cycle
 
