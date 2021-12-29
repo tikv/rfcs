@@ -13,7 +13,7 @@ We have observed many different situations when the region size is different. Th
 
 1. Balance region scheduler picks source store in order of store's score, the lower store will be picked after the higher store has not met some filter or retry times exceed fixed value. If the count of placement rules or tikv is bigger, the lower store has less chance to balance like TiFlash.
 2. splitting rocksDB and sending them by region leader will occupy cpu and io resources.
-3. There are some factors that influence execution time of an operator such as region size, IO limit, cpu load. PD needs to be more flexible to manage operator's timeout threshold rather than not fixed value.
+3. There are some factors that influence execution time of an operator such as region size, IO limit, CPU load. PD needs to be more flexible to manage operator's timeout threshold rather than not fixed value.
 4. PD should know some global config about TiKV like `region-max-size`, `region-report-interval`. This config should synchronize with PD.
 
 ## Detailed design
