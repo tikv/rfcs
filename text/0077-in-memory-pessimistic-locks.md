@@ -47,14 +47,24 @@ pub struct TxnExt {
 }
 ```
 
-`PeerPessimisticLocks` contains a simple `HashMap` for the memory locks. And it contains `epoch` and `valid` marking its status. `size` is used to control the used memory. They will be explained later.
+`PeerPessimisticLocks` contains a simple `HashMap` for the memory locks. And it contains `is_valid` marking its status and `term` and `version` indicating the metadata of the corresponding region. `size` is used to control the used memory. They will be explained later.
 
 ```rust
 pub struct PeerPessimisticLocks {
-    map: HashMap<Key, PessimisticLock>,
+    /// The table that stores pessimistic locks.
+    ///
+    /// The bool marks an ongoing write request (which has been sent to the raftstore while not
+    /// applied yet) will delete this lock. The lock will be really deleted after applying the
+    /// write request.
+    map: HashMap<Key, (PessimisticLock, bool)>,
     size: usize,
-    epoch: u64,
-    valid: bool,
+     /// Whether the pessimistic lock map is valid to read or write. If it is invalid,
+    /// the in-memory pessimistic lock feature cannot be used at the moment.
+    pub is_valid: bool,
+    /// Refers to the Raft term in which the pessimistic lock table is valid.
+    pub term: u64,
+    /// Refers to the region version in which the pessimistic lock table is valid.
+    pub version: u64,
 }
 
 pub struct PessimisticLock {
@@ -112,9 +122,9 @@ impl<'a, S: Snapshot> SnapshotExt for RegionSnapshotExt<'a, S> {
 
 After the lock table is retrieved, we can read and write pessimistic locks in the transaction layer.
 
-Before processing an `AcquirePessimisticLock` command in the scheduler, we save the current `epoch` of `PeerPessimisticLocks`. This will be checked later when writing locks to the table.
+Before processing an `AcquirePessimisticLock` command in the scheduler, we save the current `term` and `version` of the region. This will be checked later when writing locks to the table.
 
-When loading a lock, we can read the in-memory lock table first. If no lock is found, then read the underlying RocksDB.
+When loading a lock, we can read the in-memory lock table first. If no lock is found, then read the underlying RocksDB. When reading the lock table, we should check the `term` and `version` of the region. If `version` or `term` has changed, We should return `EpochNotMatch` or `StaleCommand` respectively.
 
 
 And a new `Modify` variant is added. The `AcquirePessimisticLock` now adds `Modify::PessimisticLock` instead of a normal `Modify::Put`.
@@ -126,52 +136,40 @@ pub enum Modify {
 }
 ```
 
-Then, we introduce `ResponsePolicy::NoPropose` for this feature. If enabling this feature and `valid` is `true`, this will be the policy for `AcquirePessimisticLock` commands. Otherwise, the policy will fall back to `OnPropose`.
 
-With this policy, we need to check the `PeerPessimisticLocks` first. If `valid` is `false`, the feature is not usable probably because lock migration is in progress. And if the `epoch` is different from the `epoch` before processing the command, the region must have changed and the lock table we fetched before processing is not the one we should write to. For simplicity, we can just return an `EpochNotMatch` error and let the client retry when any check fails. `epoch` will be increased and `valid` will become `true` when a peer becomes a leader. Later sections will talk more about how `epoch` and `valid ` are maintained.
+With this policy, we need to check the `PeerPessimisticLocks` first. If `is_valid` is `false`, the feature is not usable probably because lock migration is in progress. And if the `term` or `version` is different from those before processing the command, the region must have changed and the lock table we fetched before processing is not the one we should write to. For simplicity, we can just continue sending the command to the raftstore to get the error and let the client retry when any check fails.
 
 If the check passes, it is safe for us to write the pessimistic locks into the lock table. After this, we can return the response to the client without proposing anything at all.
 
-For all writes involving the lock CF, the lock in the lock table should be cleared. For example, when a `Prewrite` command replaces a pessimistic lock with a 2PC lock, of course, this is a replicated write, we need to remove the pessimistic lock from the lock table after the write succeeds. This should be done when the raftstore applies any lock CF mutations no matter it is a leader or a follower. For follower, this will not increase much cost because the map should be empty in most of the time.
+For all writes involving the lock CF, the lock in the lock table should be cleared. For example, when a `Prewrite` command replaces a pessimistic lock with a 2PC lock, of course, this is a replicated write, we need to remove the pessimistic lock from the lock table after the write succeeds. It needs two steps to remove the lock. First, we mark the lock as `deleted` by changing the bool field in the lock table, and atomically send the write command to the raftstore. After the write command is finally applied, the lock is truly removed from the table, executing in the apply thread in the raftstore.
 
 ### Region leader transfer
 
 If it is a voluntary leader transfer triggered by PD, we have the chance to transfer the pessimistic locks to the new leader to avoid unexpected transaction failures.
 
-When a peer is going to transfer its leadership, the leader serializes current pessimistic locks into bytes and modifies `valid` to `false`. Then, later `AcquirePessimisticLock` commands will fall back to proposing locks. In this way, we can guarantee the pessimistic locks either exist in the serialized bytes, or are replicated through Raft.
+When a peer is going to transfer its leadership, the leader serializes current pessimistic locks **with no deleted marks** into bytes and modifies `is_valid` to `false`. Then, later `AcquirePessimisticLock` commands will fall back to proposing locks. In this way, we can guarantee the pessimistic locks either exist in the serialized bytes, or are replicated through Raft.
 
 The serialized pessimistic locks will be sent to other peers through a Raft proposal. After this lock migration proposal is committed, the leader will continue the logic of in the current `pre_transfer_leader` method.
 
 By default, a Raft message has a size limit of 1 MiB. We will guarantee that the total size of in-memory pessimistic locks in a single region will not exceed the limit. This will be discussed later.
 
-If the transfer leader message is lost or rejected, we need to revert `valid` to `true`. But it is not possible for the leader to know. So, we have to use a timeout to implement it. That means, we can revert `valid` to `true` if the leader is still not transferred after some period. And if the leader receives the `MsgTransferLeader` response from the follower after the timeout, it should ignore the message and not trigger a leader transfer.
+If the transfer leader message is lost or rejected, we need to revert `is_valid` to `true`. But it is not possible for the leader to know. So, we have to use a timeout to implement it. That means, we can revert `is_valid` to `true` if the leader is still not transferred after some period. And if the leader receives the `MsgTransferLeader` response from the follower after the timeout, it should ignore the message and not trigger a leader transfer.
 
 ### Region merge
 
-On region merge, the source region can send the pessimistic locks to the target region via `CommitMerge`.
+Before region merge, we should first set the `is_valid` to `false` to prevent future writings to the lock table. Then, record the current `proposed_index` and set a flag in the raftstore to forbid new write commands. After it applies to the recorded index, we can propose all the locks **including those with deleted marks** in the lock table at this time.
 
-In `propose_normal`, we can first set `valid` to `false` to disable writing pessimistic locks to memory.
+After proposing the locks, we can continue the original merge procedure, proposing `PrepareMerge`.
 
-In `schedule_merge`, the leader of the source region can serialize current pessimistic locks into bytes and set `valid` to `false`. The serialized pessimistic locks are carried in `CommitMergeRequest`. This means we need an extra field in `CommitMergeRequest`:
-
-```protobuf
-message CommitMergeRequest {
-    // ...
-    bytes pessimistic_locks = 4;
-}
-```
-
-Then, in `exec_commit_merge`, the target region leader deserializes the pessimistic locks from the request and passes it to the `PeerFSM` in `ExecResult::CommitMerge`. The pessimistic locks from the source region are merged to the lock table of the target region in `on_ready_commit_merge`. After it succeeds to merge regions, we increase the pessimistic locks `epoch` and set `valid` to `true`.
-
-If the merge is rolled back, we can set `valid` of the source region back to `true`.
+If the merge is rolled back, we can set `is_valid` of the source region back to `true`.
 
 ### Region split
 
 After a region splits, if the parent peer is a leader, the newly split peer will campaign first to become a leader. So, the leader of all new regions are still located in the same TiKV unless there are network issues or the raftstore is too busy, in which case locks can be lost. Therefore, we only need memory operations to handle the case.
 
-In `on_ready_split_region`, we first set `valid` to `false`. Later pessimistic locks will either make a proposal or just fail, so we will not miss any lock.
+In `on_ready_split_region`, we first set `is_valid` to `false` and update the `version` of the lock table. Later pessimistic locks will either make a proposal or just fail, so we will not miss any lock.
 
-Then, we iterate all locks and group them into new regions. After the locks are processed, we can increase `epoch` and set `valid` to `true`.
+Then, we iterate all locks **including those with deleted marks** and group them into new regions. After the locks are processed, we can increase `epoch` and set `is_valid` to `true`.
 
 ### Memory limit
 
@@ -214,16 +212,37 @@ Before lock migration, we need to scan all the memory locks in the region. To re
 
 #### Leader transfer
 
-After `valid` is set to `false`, later pessimistic locks are replicated through Raft proposals. So, we don't need to worry that some pessimistic locks might be missing after the serialized pessimistic locks are ingested.
+After `is_valid` is set to `false`, later pessimistic locks are replicated through Raft proposals. So, these new pessimistic locks won't be missing.
 
-And we should pay attention that serializing the pessimistic locks and proposing them must be an atomic operation to prevent order reverse between migrated pessimistic locks and later mutations on the lock CF.
+For the just migrated locks, we should guarantee no lock will be missing and no deleted lock will appear again on the new leader. Considering following cases with different order of operations when there is a concurrent write command that will remove an existing pessimistic lock:
+
+1. Propose write -> propose locks -> apply write -> apply locks -> transfer leader
+   Because the locks marked as deleted will not be proposed. The lock will be deleted when applying the write while not showing up again after applying the locks. On the new leader, the write command is successfully applied, so the lock information is correct.
+
+2. Propose locks -> propose write -> transfer leader
+   No lock will be lost in normal cases because the write request has been sent to the raftstore, it is likely to be proposed successfully, while the leader will need at least another round to receive the transfer leader message from the transferree.
 
 #### Region merge
 
-We disable writing to the lock table when proposing `PrepareMerge`. It it similar to disabling any service on the source region by increasing the region epoch. This guarantees that we will have a complete set of pessimistic locks when we serializing the locks in `schedule_merge`.
+We reject all writings before proposing `PrepareMerge` and wait until the latest proposed command is applied. After that, we can make sure that no lock with a deleted mark will be deleted successfully. Either it should have been deleted because it is applied, or the write command will be rejected.
 
-If we complete a region merge, `CommitMerge` must be executed while the source region keeps unchanged. So, when the range of the source region is available, the state will be identical to when `PrepareMerge` is proposed.
+So, considering the different cases like leader transfer:
+
+1. Propose write -> reject write -> apply write -> propose locks -> propose prepare merge
+   The proposed write command will be applied successfully before proposing the existing pessimistic locks. This means the proposed locks will not include the locks that are deleted by the write command. It is correct.
+
+2. Reject write -> propose write -> propose locks -> propose prepare merge
+   The write command will be rejected and will not be applied. So, we need to propose the pessimistic locks marked as deleted, because they will not be deleted by the source region leader and should be moved to the new region.
 
 #### Region split
 
-Region split happens on the same node. So, there should not be subtle problems.
+Region split happens on the same node. Considering the different orders as always:
+
+1. Propose write -> propose split -> apply write -> execute split
+    The write will be applied earlier than split. So, the lock will be deleted earlier than moving locks to new regions.
+
+2. Propose split -> propose write -> ready split -> apply write
+   The write will be skipped because its version is lower than the new region. So, no lock should be deleted in this case. It is correct for us to transfer the locks with deleted marks.
+
+3. Propose split -> ready split -> propose write
+   The write proposal will be rejected because of version mismatch. So, it is correct to include the locks with deleted marks.
