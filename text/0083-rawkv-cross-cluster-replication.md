@@ -5,23 +5,25 @@
 
 ## Summary
 
-The proposal introduces the technical design of RawKV cross cluster replication.
+This proposal introduces the technical design of RawKV Cross Cluster Replication.
 
 ## Motivation
 
-Customers are deploying TiKV clusters as raw Key-Value (RawKV) storage. But the lack of cross cluster replication is a obstacle to provide more highly available services by deploying cross city disaster recovery clusters.
+Customers are deploying TiKV clusters as non-transaction Key-Value (RawKV) storage. But the lack of *Cross Cluster Replication* is a obstacle to deploy disaster recovery clusters for providing more highly available services.
 
-Providing ability of cross cluster replication will help TiKV be more adoptable to industries such as banking and finance.
+The ability of cross cluster replication will help TiKV be more adoptable to industries such as Banking and Finance.
 
 ## Detailed Design
 
-### 1. Utilize TiCDC as Data Replication Component
+### 1. Utilize BR & TiCDC as Data Replication Component
 
-![rawkv-cdc](../media/rawkv-cdc.png)
+[BR](https://docs.pingcap.com/tidb/stable/backup-and-restore-tool) is the tool for backup and restoration of TiDB. We utilize BR to accomplish data initialization of recovery cluster. BR is also the key role for backward compatibility, while old data without *timestamp (see below)* can not be replicated in a incremental manner.
 
-[TiCDC](https://docs.pingcap.com/tidb/stable/ticdc-overview) is the tool for replicating the incremental data of TiDB nowadays. As TiCDC captures change data from MVCC tier of TiKV, the replication of RawKV data has a lot in common with replication of TiDB. So utilize TiCDC as data replication component will significantly reduce the workloads, by reusing features such as task management, metrics, high available, load balancing, etc.
+[TiCDC](https://docs.pingcap.com/tidb/stable/ticdc-overview) is the tool for replicating incremental data of TiDB. As TiCDC captures change data from MVCC tier of TiKV, the replication of RawKV data has a lot in common with TiDB data. So utilizing TiCDC as data replication component will significantly reduce the workloads, by reusing features such as task management, metrics, high available, load balancing, etc.
 
 Besides, TiCDC can also provide the ability to connect to other components, e.g. Message Queues, which will help TiKV integrate with customers' data systems, and further extend the applicable scenarios of TiKV.
+
+![rawkv-cdc](../media/rawkv-cdc.png)
 
 ### 2. Add Timestamp to Data
 
@@ -29,7 +31,7 @@ As a kind of [Change Data Capture](https://en.wikipedia.org/wiki/Change_data_cap
 
 #### 2.1 Requirement
 
-Among requests of a key, Order of Timestamp must be the same as sequence of data flush to disk in TiKV.
+Among requests of a key, *Order of Timestamp* must be consistent with sequence of data flush to disk in TiKV.
 
 In general, if request `a` ["happened before"](https://en.wikipedia.org/wiki/Happened-before) `b`, then `Timestamp(a) < Timestamp(b)`. As to cross cluster replication, we provide [Causal Consistency](https://en.wikipedia.org/wiki/Causal_consistency) by keeping order of the timestamp the same as sequence of data flush to disk in TiKV. Downstream systems apply data according to the timestamp order, will always lead to the consistent result.
 
@@ -45,9 +47,9 @@ We use [HLC](https://cse.buffalo.edu/tech-reports/2014-04.pdf) method to generat
 
 Physical time of HLC is acquired from TSO of [PD](https://github.com/tikv/pd).
 
-TSO is a global monotonically increasing timestamp (is also a kind of HLC), which help the generation of timestamp be independent to local clock of machine, and be immune to issues such as reverse between machine reboot.
+TSO is a global monotonically increasing timestamp, which help the generation of timestamp be independent to local clock of machine, and be immune to issues such as reverse between machine reboot.
 
-Physical time is refreshed by repeatedly acquiring TSO in a period of `1s`, to keep it be closed the real world time. And it can tolerate fault of TSO no longer than `30s`, to keep time-related metrics such as RPO reasonable.
+Physical time is refreshed by repeatedly acquiring TSO in a period of `500ms`, to keep it be closed the real world time. And it can tolerate fault of TSO no longer than `30s`, to keep time-related metrics such as RPO reasonable.
 
 Besides, on startup, physical time must be initialized by a successful TSO.
 
@@ -55,9 +57,9 @@ Besides, on startup, physical time must be initialized by a successful TSO.
 
 Logical time is advanced on every write request.
 
-Moreover, logical time is advanced on leader transfer. As TiKV a distributed system, every store in TiKV cluster has a instance of timestamp generator. As every key is existed in only one region and only one peer (the leader) in a region can write, it's safe to generate timestamp locally in every store, except for leader transfer.
+Moreover, logical time is advanced on *Leader Transfer*. As TiKV a distributed system, every store in TiKV cluster has a instance of timestamp generator. As every key is existed in only one region and only one peer (the leader) in a region can write, it's safe to generate timestamp locally in each store, except for leader transfer.
 
-On leader transfer, the timestamp generated by other store would be bigger than the store where new leader located, which will violate the causal consistency requirement. We solve this by this method: Every peer is observing raft message applied, and keep the maximum timestamp of the region (called `Region-Max-TS`). On become leader, this peer advances timestamp generator of store to be bigger than `Region-Max-TS`. 
+On leader transfer, the timestamp generated by other store would be bigger than the store where new leader located, which will violate the causal consistency requirement. We solve this by this method: Every peer observes raft message applied, and keep the maximum timestamp of the region (called `Region-Max-TS`). On become leader, this peer advances timestamp generator of store to be bigger than `Region-Max-TS`. 
 
 Besides, other region changes should be carefully handled:
 
@@ -65,33 +67,62 @@ Besides, other region changes should be carefully handled:
 
 * On region split: The `Region-Max-TS` of the new region is copied from the original one.
 
-#### 2.3 Resolved_ts
+#### 2.3 Resolved Timestamp
 
+TiCDC using *Resolved Timestamp* (or `resolved-ts`) to indicate the largest transaction timestamp of the replication task, to help downstream avoid getting partial data of a transaction. Downstream streaming system can also use `resolved-ts` as [*watermark*](https://www.oreilly.com/radar/the-world-beyond-batch-streaming-102/).
 
+As no transaction support, in RawKV scenario we don't need scanning locks in *lock_cf*. But we should notify `resolved-ts` event generation that the minimum timestamp of data that on the way from *proposed* to *applied* (by [`resolver.track_lock`](https://github.com/tikv/tikv/blob/v5.0.4-20211201/components/resolved_ts/src/resolver.rs#L47-L57)).
 
 ### 3. Deletion
 
+To make deletions be captured as change data, we turn physical deletion to logical deletion, i.e., set a *deleted* flag, other than physically delete the entry.
 
+The *garbage collection* of deleted data is implemented by setting TTL to 25 hours after, and *GC-ed* by compaction filter. At the same time, start timestamp (or `start-ts`) of TiCDC replication task should not be earlier than 24 hours before.
 
 ### 4. Encoding
 
+For [V1 storage](https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md) with TTL enabled, we encode timestamp & flag (for deleted bit) as *extended meta* between user value and TTL field. The most significant bit of TTL fields is used to indicate the existence of *extended meta*.
 
+```
+{user key}: {user value}{timestamp:u64}{flag:u8}{ttl:u64}
+```
+
+For V2 storage, we append timestamp to user key, to provide [PiTR](https://en.wikipedia.org/wiki/Point-in-time_recovery).
+
+```
+r{keyspace id}{user key}{MCE Padding}{^timestamp:u64}: {user value}
+```
+
+*(For V1 storage with TTL DISABLED, we cannot provide cross cluster replication, as there is no extra field to encode timestamp into).*
 
 ## Prototype
 
+We have developed a [prototype](https://github.com/pingyu/tikv/issues/1) to verify feasibility of this proposal. All of the correctness validation cases are passed. And the benchmark results are as follows:
 
+| raw_put               | gPRC P99 Duration (ms) | gPRC Avg Duration (ms) |
+|:---------------------:|:----------------------:|:----------------------:|
+| Rawkv-cdc 200 threads | 15.5                   | 3.5                    |
+| Baseline 200 threads  | 13.3                   | 2.8                    |
+| Diff                  | -16.5%                 | -25.0%                 |
+| Rawkv-cdc 600 threads | 30.8                   | 8.4                    |
+| Baseline 600 threads  | 26.4                   | 6.4                    |
+| Diff                  | -16.7%                 | -31.3%                 |
+
+*(Environment: 40C 125GB, 1.6TB NVMe, Main: 1 KV + 1 PD + 1 TiCDC, Recovery: 1 KV + 1 PD, YCSB workloada)*
+
+*(TODO: Further improve performance)*
 
 ## Drawbacks
 
-Why should we not do this?
+- Longer duration of `raw_put` *(about 16.7% in prototype so far)*
+
+- Bigger storage *(more 9 bytes for every entry)*
 
 ## Alternatives
 
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not
-  choosing them?
-- What is the impact of not doing this?
+- Replication by Raft, i.e. deploying recovery cluster as *Raft Learner* of main cluster. This solution doesn't provide enough isolation between main and recovery cluster, and is not acceptable by some customers.
+- A new component replicated from main TiKV as *Raft Learner*. *TBD*.
 
 ## Unresolved questions
 
-What parts of the design are still to be determined?
+*TBD*.
