@@ -11,7 +11,25 @@ This proposal introduces the technical design of RawKV Cross Cluster Replication
 
 Customers are deploying TiKV clusters as non-transaction Key-Value (RawKV) storage. But the lack of *Cross Cluster Replication* is a obstacle to deploy disaster recovery clusters for providing more highly available services.
 
-The ability of cross cluster replication will help TiKV be more adoptable to industries such as Banking and Finance.
+The ability of cross cluster replication will help TiKV to be more adoptable to industries such as Banking and Finance.
+
+## Key Challenges & Solutions
+
+#### Capturing Change
+
+As there is no timestamp in RawKV entries, it is not possible to capture which and when data is changed. So in this proposal, we add timestamp to data. See "2. Add Timestamp to Data" chapter.
+
+#### Consistence
+
+Data in recovery cluster is required to be consistent with main cluster. While RawKV do not provide transaction feature, for the replication we provide [Eventual Consistency](https://en.wikipedia.org/wiki/Eventual_consistency), with [At-Least-Once](https://www.cloudcomputingpatterns.org/at_least_once_delivery/) delivery pattern. Write sequence of different keys in recovery cluster is not guaranteed to be the same as in main cluster.
+
+#### High Latency between Clusters
+
+Customers require that [RPO](https://en.wikipedia.org/wiki/Disaster_recovery#Recovery_Point_Objective) should be no more than tens of seconds. As *RPO* is consist of duration in TiKV, TiCDC, and network latency, and the first two can be improved by code optimization and scale-up, we should be careful to deal with the last.
+
+A typical ping latency of cross city network will be more than 30 milliseconds, which is much higher than IDC internal network. We should use appropriate concurrency and batch size to share latency to each data entry, at the same time limit transmission rate to avoid package loss.
+
+In this proposal, we provide a TiKV sink with configurable concurrency, batch size, and backoff parameters, to be adapted to different network environments.
 
 ## Detailed Design
 
@@ -27,7 +45,7 @@ Besides, TiCDC can also provide the ability to connect to other components, e.g.
 
 ### 2. Add Timestamp to Data
 
-As a kind of [Change Data Capture](https://en.wikipedia.org/wiki/Change_data_capture), timestamp (or version) is necessary to indicate which data is changed. While RawKV doesn't have such a thing before, we need to add timestamp to the RawKV data.
+As a kind of [Change Data Capture](https://en.wikipedia.org/wiki/Change_data_capture), timestamp (or version) is necessary to indicate which data is changed, and when. While RawKV doesn't have such a thing before, we need to add timestamp to the RawKV data.
 
 #### 2.1 Requirement
 
@@ -103,13 +121,13 @@ On replication task resumed after paused, we scan *KVDB* to get the change data 
 
 ### 6. RawKV Support of TiCDC
 
-The following modifications will be applied to TiCDC for supporting RawKV replication:
+The following modifications will be applied to TiCDC for supporting RawKV replication. Most of them are new modules, to isolate logics between TiDB & TiKV CDC.
 
 * Owner:
   
   * A new type of [*changefeed*](https://docs.pingcap.com/tidb/stable/manage-ticdc#manage-replication-tasks-changefeed) which is specified by key range.
   
-  * A new type of **task** which is specified as a **sub-range** of the whole key range, and is handled by a *Processor* on a [*Capture*](https://docs.pingcap.com/tidb/stable/ticdc-overview#ticdc-architecture).
+  * A new type of **task** which is specified as a **sub-range** of the whole key range, and is handled by a *KV Processor* on a [*Capture*](https://docs.pingcap.com/tidb/stable/ticdc-overview#ticdc-architecture).
 
 * Scheduler: A new scheduler which splits the whole key range of *changefeed* into *sub-ranges*, and distributes to *captures*.
   
@@ -119,38 +137,34 @@ The following modifications will be applied to TiCDC for supporting RawKV replic
   
   * *Rebalance* can only be performed by *cdc cli*. As *rebalance* will trigger *incremental scan* and impact performance of TiKV, it is not running automatically. We need more information to determine the best moment for *rebalance* by TiCDC itself in the future.
 
-* Capture: Accepts key-range tasks, and creates *Processors* to handle them.
+* Capture: Accepts key-range tasks, and creates *KV Processors* to handle them.
 
 * Processor:
   
-  * Accepts key-range tasks.
-  
-  * Processes key-value data
+  * A new *KV Processor* which accepts key-range tasks, and processes key-value data
 
 * Sink:
   
-  * A new *TiKV sink* to batch put data into downstream TiKV cluster.
+  * A new *TiKV sink* to batch put data into downstream TiKV cluster, with configurable concurrency, batch size, and backoff parameters.
 
 ## Prototype
 
 We have developed a [prototype](https://github.com/pingyu/tikv/issues/1) to verify feasibility of this proposal. All of the correctness validation cases are passed. And the benchmark results are as follows:
 
-| raw_put               | gPRC P99 Duration (ms) | gPRC Avg Duration (ms) |
-|:---------------------:|:----------------------:|:----------------------:|
-| Rawkv-cdc 200 threads | 15.5                   | 3.5                    |
-| Baseline 200 threads  | 13.3                   | 2.8                    |
-| Diff                  | -16.5%                 | -25.0%                 |
-| Rawkv-cdc 600 threads | 30.8                   | 8.4                    |
-| Baseline 600 threads  | 26.4                   | 6.4                    |
-| Diff                  | -16.7%                 | -31.3%                 |
+| Case                          | gPRC P99 Duration (ms) | gPRC Avg Duration (ms) |
+|:-----------------------------:|:----------------------:|:----------------------:|
+| Rawkv-cdc 600 threads raw_put | 15.3                   | 5.9                    |
+| Baseline 600 threads raw_put  | 14.9                   | 5.2                    |
+| Diff                          | -2.7%                  | -13.5%                 |
+| Rawkv-cdc 600 threads raw_get | 0.6778                 | 0.0996                 |
+| Baseline 600 threads raw_get  | 0.7007                 | 0.108                  |
+| Diff                          | 3.3%                   | 7.8%                   |
 
-*(Environment: 40C 125GB, 1.6TB NVMe, Main: 1 KV + 1 PD + 1 TiCDC, Recovery: 1 KV + 1 PD, YCSB workloada)*
-
-*(TODO: Further improve performance)*
+*(Environment: Kingsoft Cloud, 32C 64GB, 500GB local SSD, Main: 1 KV + 1 PD + 1 TiCDC, Recovery: 1 KV + 1 PD, YCSB)*
 
 ## Drawbacks
 
-- Longer duration of `raw_put` *(about 16.7% in prototype so far)*
+- Longer duration of `raw_put` *(about 2.7% for P99 in prototype so far)*
 
 - Bigger storage *(more 9 bytes for every entry)*
 
