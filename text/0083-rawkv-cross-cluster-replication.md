@@ -25,7 +25,7 @@ Data in recovery cluster is required to be consistent with main cluster. While R
 
 #### High Latency between Clusters
 
-Customers require that [RPO](https://en.wikipedia.org/wiki/Disaster_recovery#Recovery_Point_Objective) should be no more than tens of seconds. As *RPO* is consist of duration in TiKV, TiCDC, and network latency, and the first two can be improved by code optimization and scale-up, we should be careful to deal with the last.
+Customers require that [RPO](https://en.wikipedia.org/wiki/Disaster_recovery#Recovery_Point_Objective) should be no more than tens of seconds. As *RPO* is consist of duration in TiKV, TiKV-CDC *(see below)*, and network latency, and the first two can be improved by code optimization and scale-out, we should be careful to deal with the last.
 
 A typical ping latency of cross city network will be more than 30 milliseconds, which is much higher than IDC internal network. We should use appropriate concurrency and batch size to share latency to each data entry, at the same time limit transmission rate to avoid package loss.
 
@@ -33,13 +33,13 @@ In this proposal, we provide a TiKV sink with configurable concurrency, batch si
 
 ## Detailed Design
 
-### 1. Utilize BR & TiCDC as Data Replication Component
+### 1. Utilize TiKV-BR & TiKV-CDC as Data Replication Component
 
-[BR](https://docs.pingcap.com/tidb/stable/backup-and-restore-tool) is the tool for backup and restoration of TiDB. We utilize BR to accomplish data initialization of recovery cluster. BR is also the key role for backward compatibility, while old data without *timestamp (see below)* can not be replicated in a incremental manner.
+**TiKV-BR**, a fork of [BR](https://github.com/pingcap/tidb/tree/master/br), is the tool for backup and restoration of TiKV. We utilize **TIKV-BR** to accomplish data initialization of recovery cluster. **TiKV-BR** is also the key role for backward compatibility, while old data without *timestamp (see below)* can not be replicated in a incremental manner.
 
-[TiCDC](https://docs.pingcap.com/tidb/stable/ticdc-overview) is the tool for replicating incremental data of TiDB. As TiCDC captures change data from MVCC tier of TiKV, the replication of RawKV data has a lot in common with TiDB data. So utilizing TiCDC as data replication component will significantly reduce the workloads, by reusing features such as task management, metrics, high available, load balancing, etc.
+**TiKV-CDC**, a fork of [TiCDC](https://github.com/pingcap/tiflow), is the tool for replicating incremental data of TiKV, which gets change data from TiKV's observer component, with high performance, high available, and scalable.
 
-Besides, TiCDC can also provide the ability to connect to other components, e.g. Message Queues, which will help TiKV integrate with customers' data systems, and further extend the applicable scenarios of TiKV.
+Besides, **TiKV-CDC** can also provide the ability to connect to other components, e.g. Message Queues, which will help TiKV integrate with customers' data systems, and further extend the applicable scenarios of TiKV.
 
 ![rawkv-cdc](../media/rawkv-cdc.png)
 
@@ -87,7 +87,7 @@ Besides, other region changes should be carefully handled:
 
 #### 2.3 Resolved Timestamp
 
-TiCDC using *Resolved Timestamp* (or `resolved-ts`) to indicate the largest transaction timestamp of the replication task, to help downstream avoid getting partial data of a transaction. Downstream streaming system can also use `resolved-ts` as [*watermark*](https://www.oreilly.com/radar/the-world-beyond-batch-streaming-102/).
+**TiKV-CDC** using *Resolved Timestamp* (or `resolved-ts`) to indicate the largest transaction timestamp of the replication task, to help downstream avoid getting partial data of a transaction. Downstream streaming system can also use `resolved-ts` as [*watermark*](https://www.oreilly.com/radar/the-world-beyond-batch-streaming-102/).
 
 As no transaction support, in RawKV scenario we don't need scanning locks in *lock_cf*. But we should notify `resolved-ts` event generation that the minimum timestamp of data that on the way from *proposed* to *applied* (by [`resolver.track_lock`](https://github.com/tikv/tikv/blob/v5.0.4-20211201/components/resolved_ts/src/resolver.rs#L47-L57)).
 
@@ -95,7 +95,7 @@ As no transaction support, in RawKV scenario we don't need scanning locks in *lo
 
 To make deletions be captured as change data, we turn physical deletion to logical deletion, i.e., set a *deleted* flag, other than physically delete the entry.
 
-The *garbage collection* of deleted data is implemented by setting TTL to 25 hours after, and *GC-ed* by compaction filter. At the same time, start timestamp (or `start-ts`) of TiCDC replication task should not be earlier than 24 hours before.
+The *garbage collection* of deleted data is implemented by setting TTL to 25 hours after, and *GC-ed* by compaction filter. At the same time, start timestamp (or `start-ts`) of **TiKV-CDC** replication task should not be earlier than 24 hours before.
 
 ### 4. Encoding
 
@@ -119,9 +119,9 @@ On replication task resumed after paused, we scan *KVDB* to get the change data 
 
 *Incremental Scan in SQL / TxnKV scenario scans write_cf to get change data scope, which is much cheaper. So an alternative to reduce cost for RawKV is writing timestamp to write_cf other than encoded in value, but will introduce an additional write for each put request. We tend to the lower delay of writing now.*
 
-### 6. RawKV Support of TiCDC
+### 6. TiKV-CDC
 
-The following modifications will be applied to TiCDC for supporting RawKV replication. Most of them are new modules, to isolate logics between TiDB & TiKV CDC.
+**TiKV-CDC** is a fork of TiCDC. The following modifications will be applied:
 
 * Owner:
   
@@ -131,11 +131,11 @@ The following modifications will be applied to TiCDC for supporting RawKV replic
 
 * Scheduler: A new scheduler which splits the whole key range of *changefeed* into *sub-ranges*, and distributes to *captures*.
   
-  * For simplicity, we split whole key range into fixed number of parts, which can be specified by *changefeed* argument, and defaults to **2**. As we sink data to downstream TiKV by **batch put** and bottleneck of replication should not be on TiCDC, a parallel of **2** will be enough.
+  * For simplicity, we split whole key range into fixed number of parts, which can be specified by *changefeed* argument, and defaults to **2**. As we sink data to downstream TiKV by **batch put** and bottleneck of replication should not be on TiKV-CDC, a parallel of **2** will be enough.
   
   * Key range splitting is align with boundary of Regions. For simplicity, each *sub-range* contains almost equal number of Regions.
   
-  * *Rebalance* can only be performed by *cdc cli*. As *rebalance* will trigger *incremental scan* and impact performance of TiKV, it is not running automatically. We need more information to determine the best moment for *rebalance* by TiCDC itself in the future.
+  * *Rebalance* can only be performed by *tikv-cdc cli*. As *rebalance* will trigger *incremental scan* and impact performance of TiKV, it is not running automatically. We need more information to determine the best moment for *rebalance* by TiKV-CDC itself in the future.
 
 * Capture: Accepts key-range tasks, and creates *KV Processors* to handle them.
 
