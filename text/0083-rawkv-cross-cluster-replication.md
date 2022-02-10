@@ -35,7 +35,7 @@ In this proposal, we provide a TiKV sink with configurable concurrency, batch si
 
 ### 1. Utilize TiKV-BR & TiKV-CDC as Data Replication Component
 
-**TiKV-BR**, a fork of [BR](https://github.com/pingcap/tidb/tree/master/br), is the tool for backup and restoration of TiKV. We utilize **TIKV-BR** to accomplish data initialization of recovery cluster. **TiKV-BR** is also the key role for backward compatibility, while old data without *timestamp (see below)* can not be replicated in a incremental manner.
+**TiKV-BR**, a fork of [BR](https://github.com/pingcap/tidb/tree/master/br), is the tool for backup and restoration of TiKV. We utilize **TIKV-BR** to accomplish data initialization of recovery cluster.
 
 **TiKV-CDC**, a fork of [TiCDC](https://github.com/pingcap/tiflow), is the tool for replicating incremental data of TiKV, which gets change data from TiKV's observer component, with high performance, high available, and scalable.
 
@@ -67,7 +67,7 @@ Physical part of HLC is acquired from TSO of [PD](https://github.com/tikv/pd).
 
 TSO is a global monotonically increasing timestamp, which help the generation of timestamp be independent to local clock of machine, and be immune to issues such as reverse between machine reboot.
 
-Physical part is refreshed by repeatedly acquiring TSO in a period of `500ms`, to keep it be closed the real world time. And it can tolerate fault of TSO no longer than `30s`, to keep time-related metrics such as RPO reasonable.
+Physical part is refreshed by repeatedly acquiring TSO in a period of `500ms`, to keep it being closed the real world time. And it can tolerate fault of TSO no longer than `30s`, to keep time-related metrics such as RPO reasonable.
 
 Besides, on startup, physical part must be initialized by a successful TSO.
 
@@ -95,29 +95,34 @@ As no transaction support, in RawKV scenario we don't need scanning locks in *lo
 
 To make deletions be captured as change data, we turn physical deletion to logical deletion, i.e., set a *deleted* flag, other than physically delete the entry.
 
-The *garbage collection* of deleted data is implemented by setting TTL to 25 hours after, and *GC-ed* by compaction filter. At the same time, start timestamp (or `start-ts`) of **TiKV-CDC** replication task should not be earlier than 24 hours before.
+The *garbage collection* of deleted data is implemented by setting TTL to 25 hours after, and *GC-ed* by compaction filter. At the same time, start timestamp (i.e. `start-ts`) of **TiKV-CDC** replication task should not be earlier than 24 hours before.
 
 ### 4. Encoding
 
-For [V1 storage](https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md) with TTL enabled, we encode timestamp & flag (for deleted bit) as *extended meta* between user value and TTL field. The most significant bit of TTL fields is used to indicate the existence of *extended meta*.
+Timestamp & deleted flag are encoded as following:
 
 ```
-{user key}: {user value}{timestamp:u64}{flag:u8}{ttl:u64}
+r{keyspace id}{user key}{MCE Padding}{^timestamp:u64}: {user value}{expire ts}{meta flags}
 ```
 
-For V2 storage, we append timestamp to user key, to provide [PiTR](https://en.wikipedia.org/wiki/Point-in-time_recovery).
+*(Deleted flag is a bit of meta flags in value)*
 
-```
-r{keyspace id}{user key}{MCE Padding}{^timestamp:u64}: {user value}
-```
-
-*(For V1 storage with TTL DISABLED, we cannot provide cross cluster replication, as there is no extra field to encode timestamp into).*
+* Encoding based on TiKV API version [V2](https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md). *(As there is no flag or meta fields, it is not possible to encode the two necessary fields for CDC in older API version.)*
+* Timestamp encoded into key will be beneficial to the following, comparing with encoded into value:
+  * More effective catch up, as we can get scope of change data without read & decode all values.
+  * [PiTR](https://en.wikipedia.org/wiki/Point-in-time_recovery) is available.
+  * Less code complexity, as data structure of RawKV & TxnKV are the same.
+* And with the following acceptable loss:
+  * More read latency in tens of microseconds.
+  * A little more write overhead caused by [MCE Padding](https://github.com/facebook/mysql-5.6/wiki/MyRocks-record-format#memcomparable-format).
+  * An extra Garbage Collection is required (used with TxnKV).
+  * Possible more space occupied (related to update pattern).
 
 ### 5. Incremental Scan
 
-On replication task resumed after paused, we scan *KVDB* to get the change data during pause by extracting timestamp encoded in value. The scan will be heavy as we actually scan all the data, so we should avoid scanning as possible, and limit scan rate.
+On replication task resumed after paused, we scan *KVDB* to get the change data during pause by extracting timestamp encoded in key. The scan will be heavy as we actually scan all the keys, so we should avoid scanning as possible, and limit scan rate.
 
-*Incremental Scan in SQL / TxnKV scenario scans write_cf to get change data scope, which is much cheaper. So an alternative to reduce cost for RawKV is writing timestamp to write_cf other than encoded in value, but will introduce an additional write for each put request. We tend to the lower delay of writing now.*
+*Incremental Scan in SQL / TxnKV scenario scans write_cf to get change data scope, which is much cheaper. So an alternative to reduce cost for RawKV is writing timestamp to write_cf other than encoded in key, but will introduce an additional write for each put request. We tend to the lower delay of writing now.*
 
 ### 6. TiKV-CDC
 
