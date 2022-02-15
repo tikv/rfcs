@@ -67,9 +67,11 @@ Physical part of HLC is acquired from TSO of [PD](https://github.com/tikv/pd).
 
 TSO is a global monotonically increasing timestamp, which help the generation of timestamp be independent to local clock of machine, and be immune to issues such as reverse between machine reboot.
 
-Physical part is refreshed by repeatedly acquiring TSO in a period of `500ms`, to keep it being closed the real world time. And it can tolerate fault of TSO no longer than `30s`, to keep time-related metrics such as RPO reasonable.
+Physical part is refreshed by repeatedly acquiring TSO in a period of `500ms`, to keep it being closed the real world time.
 
-Besides, on startup, physical part must be initialized by a successful TSO.
+On startup, physical part must be initialized by a successful TSO, to ensure that HLC is larger than last running. RawKV write operations will fail if the initialization has not been completed. (TiKV also can't startup when PD is out of service).
+
+After that, HLC can tolerate fault of TSO. RawKV operations are normal, but time-related metrics such as RPO is not reasonable. Meanwhile, as TiKV-CDC being highly dependent to PD (for cluster and task management, checkpoint, etc.), the replication will not be working.
 
 ##### 2.2.2 Logical Part of Timestamp
 
@@ -102,7 +104,7 @@ The *garbage collection* of deleted data is implemented by setting TTL to 25 hou
 Timestamp & deleted flag are encoded as following:
 
 ```
-r{keyspace id}{user key}{MCE Padding}{^timestamp:u64}: {user value}{expire ts}{meta flags}
+r{user key}{MCE Padding}{^timestamp:u64}: {user value}{expire ts}{meta flags}
 ```
 
 *(Deleted flag is a bit of meta flags in value)*
