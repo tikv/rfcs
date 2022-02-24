@@ -183,6 +183,21 @@ We have developed a [prototype](https://github.com/pingyu/tikv/issues/1) to veri
 
 *(Environment: Kingsoft Cloud, 32C 64GB, 500GB local SSD, Main: 1 KV + 1 PD + 1 TiCDC, Recovery: 1 KV + 1 PD, YCSB)*
 
+We also developed a prototype to verify the performance impact of encoding timestamp in key. And the benchmark results are as following:
+
+| Case                          | gRPC p99 duration (ms) | gRPC Avg Duration (ms) |
+|:-----------------------------:|:----------------------:|:----------------------:|
+| Rawkv-cdc 600 threads raw_put | 31                     | 8.8                    |
+| Baseline 600 threads raw_put  | 31                     | 8.7                    |
+| Diff                          | 0%                     | -0.1%                  |
+| Rawkv-cdc 600 threads raw_get | 1.3                    | 0.31                   |
+| Baseline 600 threads raw_get  | 1.2                    | 0.31                   |
+| Diff                          | -8.3%                  | 0%                     |
+
+*(Environment: Kingsoft Cloud, 32C 64GB, 500GB local SSD, Main: 1 KV + 1 PD YCSB, 10kw key-value pairs, block cache hit 80% with 100% index and 34.8% data)*
+
+Regarding the gains mentioned in [4. encoding](#4-encoding), the performance impact is acceptable, so the proposal of encoding timestamp in key is choosen.
+
 ## Drawbacks
 
 - Longer duration of `raw_put` *(about 2.7% for P99 in prototype so far)*
