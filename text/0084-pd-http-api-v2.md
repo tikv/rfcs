@@ -70,3 +70,25 @@ There are some other APIs that don't belong to any group mentioned above. We can
 #### Custom action
 
 We have many custom actions in API V1, such as `/pd/api/v1/regions/split` or `/pd/api/v1/regions/scatter`, etc. In V2, We recommend using `/pd/api/v2/regions/:action` with `POST` method. There may be [segment conflicts with existing wildcard](https://github.com/gin-gonic/gin/issues/1301) when using gin as the web framework. But fortunately, we don't have this conflict problem after we change existed V1 API to V2.
+
+### Behavior changes
+
+In V2, we are planning to refactor the original store state. The previous implementation has some drawbacks:
+
+- the state which is defined between the ProtoBuf and PD has the conflict and only one state can be shown. e.g., a store with a `Down` state can be either `Up` or `Offline`
+- the `Offline` is misleading, some users regard it as the `Tombstone`
+- there is a lack of a state to describe the online process
+
+To solve the above problems, the store state is divided into the heartbeat status and the node state. The node state emphasizes the membership status of this store in the cluster. There are 4 states for it:
+
+- Preparing: represent the online process state, the store in this state more care about the balancing process.
+- Serving: the normal state for providing the service
+- Removing: just like the original `Offline`, but it's more clear
+- Removed: the same as the original `Tombstone`
+
+As for heartbeat status, we only add one normal status named `Alive` into the previous implementation.
+
+With these changes, we can do more things like dynamically adjusting scheduling parameters, progress estimation, etc.
+
+## Compatibility
+Once the implementation has been finished, we need to replace the old API with the new version for all components and tools. Also, we should let the user know about this change. The V1 will still leave for some time for compatibility and be deprecated finally.
