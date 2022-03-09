@@ -153,7 +153,7 @@ The serialized pessimistic locks will be sent to other peers through a Raft prop
 
 By default, a Raft message has a size limit of 1 MiB. We will guarantee that the total size of in-memory pessimistic locks in a single region will not exceed the limit. This will be discussed later.
 
-If the transfer leader message is lost or rejected, we need to revert `is_valid` to `true`. But it is not possible for the leader to know. So, we have to use a timeout to implement it. That means, we can revert `is_valid` to `true` if the leader is still not transferred after some period. And if the leader receives the `MsgTransferLeader` response from the follower after the timeout, it should ignore the message and not trigger a leader transfer.
+If the transfer leader message is lost or rejected, we need to revert `is_valid` to `true`. But it is not possible for the leader to know. So, we have to use a timeout to implement it. That means, we can revert `is_valid` to `true` if the leader is still not transferred after some ticks. And if the leader receives the `MsgTransferLeader` response from the follower after the timeout, it should ignore the message and not trigger a leader transfer.
 
 ### Region merge
 
@@ -188,6 +188,25 @@ So this feature needs to be enabled after TiKV is fully upgraded. A possible app
 The storage structure is not changed, so downgrading is feasible. However, before the downgrade, we must disable this feature first to avoid affecting the success rate of pessimistic transactions.
 
 Ecosystem tools should not be affected by this optimization.
+
+### Configurations
+
+The feature can be enabled by setting `pessimistic-txn.in-memory` to `true` in the TiKV configuration file.
+
+```toml
+[pessimistic-txn]
+in-memory = true
+```
+
+Another two tick configurations are added to control when the feature will be reactivated again after transferring leader:
+
+```toml
+[raftstore]
+reactive-memory-lock-tick-interval = "2s"
+reactive-memory-lock-timeout_tick = 5
+```
+
+By default, the transferring leader timeout is 10 seconds before reactivating the feature. It is unlikely that the users need to change these two configurations.
 
 ## Correctness
 
