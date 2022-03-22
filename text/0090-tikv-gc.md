@@ -26,7 +26,7 @@ In every TiKV nodes：
 ## New GC worker architecture
 In a TiKV cluster without TiDB nodes , there are a few different points as follows:
 1. We need to move GC worker into another node role.
-2. For [API V2](https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md) .It need gc the earlier version in default cf.But Txn GC worker process will be triggered by WriteCompactionFilter of write cf.
+2. For [API V2](https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md) .It need gc the earlier version in default cf. But Txn GC worker process will be triggered by WriteCompactionFilter of write cf.
 3. RawKV encoded code of RawValue is different with Txn in TiDB.
 
 So we designed a new GC architecture and process for TiKV cluster.
