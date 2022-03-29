@@ -38,12 +38,12 @@ In every TiKV nodes：
 In a TiKV cluster without TiDB nodes , there are a few different points as follows:
 1. We need to move GC worker into another node role.
 2. For [API V2](https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md) .It need gc the earlier version in default cf. But Txn GC worker process will be triggered by WriteCompactionFilter of write cf.
-3. RawKV encoded code of RawValue is different with Txn in TiDB.
+3. RawKV encoded code is different with Txn data in TiDB.
 
-So we designed a new GC architecture and process for TiKV cluster.
+So we designed a new GC architecture and process for TiKV cluster.It will be extended on the original interface to support the RawKV MVCC GC. For the original TiDB scenario, the old GC implementation can be used first.
 
 ## Detailed design
-For support TiKV cluster deploy without TiDB nodes.
+For support RawKV GC in TiKV cluster deploy without TiDB nodes.
 1. Add a new node role instead of GC worker in TiDB nodes.
 - Why we choose to create a new node role:
   - IF we add GC Worker in PD: It will cause the problem of client-go circular dependency.
@@ -60,7 +60,7 @@ For support TiKV cluster deploy without TiDB nodes.
   - Due to TiDB, TxnKV and RawKV are allowed to coexist. Because the data of the three scenarios are independent, Because the data of the three scenarios are independent, separate safepoints are used in the GC, which helps to reduce the interference between businesses and speed up the GC.
   - If multi tenancy is supported in the future, 'service group' can also support it.
   - Need to design new interfaces for update service safepoint with 'service group'.
-  - Add UpdateServiceGCSafepointByServiceGroup and getGCSafepointByServiceGroup.
+  - Add UpdateServiceGCSafepointByServiceGroup and getGCSafepointByServiceGroup to standardize the API.
     - the safepoint data path in etcd of PD,will be changed. The new safe point path in etcd as follows:
     - gc_worker safe point
     ```shell
@@ -75,8 +75,10 @@ For support TiKV cluster deploy without TiDB nodes.
   - And TiKV will get the GC safe point from PD. GC safe point = min(all service safe point, gc worker safe point).
 
 
-3. For API V2, we need add new CompactionFilter which is named RawGCcompactionFilter, and add a new GCTask type implementation.
-4. GC conditions in RawGCcompactionFilter is:  (ts < GCSafePoint) && ( ttl-expired || deleted-mark || not the newest version ).  
+3.Changes on TiKV：
+- Get GC safe point from PD by getGCSafepointByServiceGroup interface.
+- For API V2, we need add new CompactionFilter which is named RawGCcompactionFilter, and add a new GCTask type implementation. 
+- GC conditions in RawGCcompactionFilter is:  (ts < GCSafePoint) && ( ttl-expired || deleted-mark || not the newest version ).  
    - If the newest version is earlier than GC safe point and it's delete marked or expired ttl,those keys and earlier versions of the same userkey will be sent to a gc scheduler thread to gc asynchronous.
       ![raw gc copaction filter ](../media/tikv-rawkv-gc-compactionfilter.png)
 
