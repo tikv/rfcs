@@ -45,35 +45,97 @@ So we designed a new GC architecture and process for TiKV cluster.It will be ext
 ## Detailed design
 For support RawKV GC in TiKV cluster deploy without TiDB nodes.
 1. Add a new node role instead of GC worker in TiDB nodes.
-- Why we choose to create a new node role:
-  - IF we add GC Worker in PD: It will cause the problem of client-go circular dependency.
-  - IF we add GC Worker in TiKV: Because the logic required by GC worker is well implemented in client-go, but it is missing in client-rust, adding the implementation of GC worker in TiKV will increase more development work.
+   - Why we choose to create a new node role:
+     - IF we add GC Worker in PD: It will cause the problem of client-go circular dependency.
+     - IF we add GC Worker in TiKV: Because the logic required by GC worker is well implemented in client-go, but it is missing in client-rust, adding the implementation of GC worker in TiKV will increase more development work.
   
-   So after discussion, we decided to add a new role for GC Worker.
-  - It's mainly to regularly calculates a new timestamp called "GC safe point", and push the safe point to PD.
-  - It is implemented in golang, which is convenient to call the interface of client-go.
+      So after discussion, we decided to add a new role for GC Worker.
+     - It's mainly to regularly calculates a new timestamp called "GC safe point", and push the safe point to PD.
+     - It is implemented in golang, which is convenient to call the interface of client-go.
 
-  - The code of new GC worker, will be added into [tikv/migration](https://github.com/tikv/migration)
+     - The code of new GC worker, will be added into [tikv/migration](https://github.com/tikv/migration)
+     - the GC Worker configuration in config/gc_worker_conf.toml file.
+     - The default interval for generating GC safepoint is still '10m0s'.
+     - And TiKV will get the GC safe point from PD. GC safe point = min(all service safe point, gc worker safe point).
+
    
 2. Changes on PD:
-- A new concept is 'service group':  
-  - Due to TiDB, TxnKV and RawKV are allowed to coexist. Because the data of the three scenarios are independent, Because the data of the three scenarios are independent, separate safepoints are used in the GC, which helps to reduce the interference between businesses and speed up the GC.
-  - If multi tenancy is supported in the future, 'service group' can also support it.
-  - Need to design new interfaces for update service safepoint with 'service group'.
-  - Add UpdateServiceGCSafepointByServiceGroup and getGCSafepointByServiceGroup to standardize the API.
-    - the safepoint data path in etcd of PD,will be changed. The new safe point path in etcd as follows:
-    - gc_worker safe point
-    ```shell
-    /gc_servicegroup/$service_group_id/service
-    ```
-    - CDC,BR service safepoint
-    ```shell
-    /gc_servicegroup/$service_group_id/service/$serviceId
-    ```
-  - the GC Worker configuration in config/gc_worker_conf.toml file.
-  - The default interval for generating GC safepoint is still '10m0s'.
-  - And TiKV will get the GC safe point from PD. GC safe point = min(all service safe point, gc worker safe point).
+   1. A new concept is 'service group':  
+        - Due to TiDB, TxnKV and RawKV are allowed to coexist. Because the data of the three scenarios are independent, Because the data of the three scenarios are independent, separate safepoints are used in the GC, which helps to reduce the interference between businesses and speed up the GC.
+        - If multi tenancy is supported in the future, 'service group' can also support it.
+        - Need to design new interfaces for update service safepoint with 'service group'.
+   2. design the etcd path to save service safepoint of service group:  
+        - the safepoint data path in etcd of PD,will be changed. The new safe point path in etcd as follows:
+        - gc_worker safe point
+         ```shell
+         /gc_servicegroup/$service_group_id/safe_point
+         ```
+         - CDC,BR service safepoint
+         ```shell
+         /gc_servicegroup/$service_group_id/service/$serviceId
+         ```
+   3. design interface to standardize the interface:  
+         the interface as follows:  
+         1. Gc worker will call pbclient.UpdateGCSafepointByServiceGroup to update the gc worker safepoint as follows:  
+            1. interface :  
+               ```shell
+               func (s *GrpcServer) UpdateGCSafepointByServiceGroup(ctx context.Context, request *pdpb.UpdateServiceGroupGCSafePointRequest) (*pdpb.UpdateServiceGroupGCSafePointResponse, error) 
+               ```
+       
+            2. added related pb info in pdpb.proto  
+               ```proto
+                 message UpdateServiceGCSafepointByServiceGroupRequest {
+                   RequestHeader header = 1;
+                   bytes service_group_id = 2;
+                   uint64 safe_point = 3;
+                 }
 
+                 message UpdateServiceGCSafepointByServiceGroupResponse {
+                   ResponseHeader header = 1;
+                   bytes service_group_id = 2;  
+                   uint64 new_safe_point = 3;
+                 }
+               ```
+         2. used to get GC safepoint for TiKV:
+            1. interface:
+               ```shell  
+               func (s *GrpcServer) GetGcSafePointByServiceGroup(ctx context.Context, request *pdpb.GetServiceGroupServiceGcSafeRequest)  (*pdpb.UpdateServiceGCSafePointResponse, error)
+               ```
+            2. pb info
+               ```proto
+                message GetGcSafePointByServiceGroupRequest {
+                    RequestHeader header = 1;
+                    bytes service_group_id = 2;  
+                }
+
+                message GetGcSafePointByServiceGroupResponse {
+                    ResponseHeader header = 1;
+                    bytes service_group_id = 2;
+                    uint64 safe_point = 3;
+                }
+               ```
+         3. Used to update service safepoint for CDC/BR/Lightning:
+            1. interface:
+               ```shell  
+               func (s *GrpcServer) UpdateServiceGcSafePointByServiceGroup(ctx context.Context, request *pdpb.UpdateServiceGroupServiceGcSafeRequest)  (*pdpb.UpdateServiceGroupServiceGcSafeResponse, error)
+               ```
+            2. pb info
+               ```proto
+                message UpdateServiceGcSafePointByServiceGroupRequest {
+                    RequestHeader header = 1;
+                    bytes service_group_id = 2;
+                    bytes service_id = 3;
+                    int64 TTL = 4;
+                    uint64 safe_point = 5;
+                }
+                message UpdateServiceGcSafePointByServiceGroupResponse {
+                    ResponseHeader header = 1;
+                    bytes service_group_id = 2;
+                    bytes service_id = 3;
+                    int64 TTL = 4;
+                    uint64 min_safe_point = 5;
+                }
+               ```
 
 3.Changes on TiKV：
 - Get GC safe point from PD by getGCSafepointByServiceGroup interface.
