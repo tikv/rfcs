@@ -2,19 +2,25 @@
 
 
 ## Summary
-Move TiKV MVCC GC worker from TiDB into a group of independent GC worker node role and implement a new GC process in TiKV for RawKV.
+Move TiKV MVCC GC worker from TiDB into a group of independent GC worker component and implement a new GC process in TiKV for RawKV.
 
 ## Motivation
 1.GC worker is an important component for TiKV that deletes outdated MVCC data so as to not explode the storage. But currently, the GC worker is implemented in TiDB, which makes TiKV not usable without TiDB.And current GC process is just for transaction of TiDB,it's not usable for RawKV.  
 2.Standardize the API used to set and obtain GC status in PD to improve the developer's experience.
+
+We change RawKV encoding to MVCC, so the GC is necessary.
+No GC for TxnKV scenario when TiDB is not deployed.
+The GC safe point & Txn safe point is easy to be misunderstand.
 
 ## Background
 According to the documentation for the current GC worker in a TiDB cluster, the GC process is as follows:
 
 In TiDB GC worker leader:
 1. Regularly calculates a new timestamp called "GC safe point"(The default interval is 10min), and push the safe point to PD.
-2. Get the minimal Service safe point  among all services from the response of step 2, which is GC safe point .
+2. Get the minimal Service safe point among all services from the response of step 1, which is GC safe point .
 3. Txn GC process: resolve locks and record delete ranges information.
+4. Save Txn safe point.
+5. Upload GC safe point to PD.
 
 In PD leader:
 1. Receive update safe point requests from TiDB or other tools (e.g. CDC, BR).
@@ -34,25 +40,24 @@ In every TiKV nodes：
 1. Get GC safe point from PD regularly.
 2. Deletion will be triggered in CompactionFilter and GcTask thread;
    
-## New GC worker architecture
+## New GC worker implementation
 In a TiKV cluster without TiDB nodes , there are a few different points as follows:
-1. We need to move GC worker into another node role.
-2. For [API V2](https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md) .It need gc the earlier version in default cf. But Txn GC worker process will be triggered by WriteCompactionFilter of write cf.
+1. We need to move GC worker into another component.
+2. For [API V2](https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md) , it need gc the earlier version in default cf. But Txn GC worker process will be triggered by WriteCompactionFilter of write cf.
 3. RawKV encoded code is different with Txn data in TiDB.
 
 So we designed a new GC architecture and process for TiKV cluster.It will be extended on the original interface to support the RawKV MVCC GC. For the original TiDB scenario, the old GC implementation can be used first.
 
 ## Detailed design
 For support RawKV GC in TiKV cluster deploy without TiDB nodes.
-1. Add a new node role instead of GC worker in TiDB nodes.
-   - Why we choose to create a new node role:
+1. Add a new component instead of GC worker in TiDB nodes.
+   - Why we choose to create a new component:
      - IF we add GC Worker in PD: It will cause the problem of client-go circular dependency.
      - IF we add GC Worker in TiKV: Because the logic required by GC worker is well implemented in client-go, but it is missing in client-rust, adding the implementation of GC worker in TiKV will increase more development work.
   
       So after discussion, we decided to add a new role for GC Worker.
      - It's mainly to regularly calculates a new timestamp called "GC safe point", and push the safe point to PD.
      - It is implemented in golang, which is convenient to call the interface of client-go.
-
      - The code of new GC worker, will be added into [tikv/migration](https://github.com/tikv/migration)
      - the GC Worker configuration in config/gc_worker_conf.toml file.
      - The default interval for generating GC safepoint is still '10m0s'.
@@ -64,6 +69,7 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
         - Due to TiDB, TxnKV and RawKV are allowed to coexist. Because the data of the three scenarios are independent, Because the data of the three scenarios are independent, separate safepoints are used in the GC, which helps to reduce the interference between businesses and speed up the GC.
         - If multi tenancy is supported in the future, 'service group' can also support it.
         - Need to design new interfaces for update service safepoint with 'service group'.
+        - How to allocate $service_group_id ?
    2. design the etcd path to save service safepoint of service group:  
         - the safepoint data path in etcd of PD,will be changed. The new safe point path in etcd as follows:
         - gc_worker safe point
@@ -84,13 +90,13 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
        
             2. added related pb info in pdpb.proto  
                ```proto
-                 message UpdateServiceGCSafepointByServiceGroupRequest {
+                 message UpdateGCSafepointByServiceGroupRequest {
                    RequestHeader header = 1;
                    bytes service_group_id = 2;
                    uint64 safe_point = 3;
                  }
 
-                 message UpdateServiceGCSafepointByServiceGroupResponse {
+                 message UpdateGCSafepointByServiceGroupResponse {
                    ResponseHeader header = 1;
                    bytes service_group_id = 2;  
                    uint64 new_safe_point = 3;
@@ -99,16 +105,16 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
          2. used to get GC safepoint for TiKV:
             1. interface:
                ```shell  
-               func (s *GrpcServer) GetGcSafePointByServiceGroup(ctx context.Context, request *pdpb.GetServiceGroupServiceGcSafeRequest)  (*pdpb.UpdateServiceGCSafePointResponse, error)
+               func (s *GrpcServer) GetAllServiceGroupGcSafePoint(ctx context.Context, request *pdpb.GetServiceGroupServiceGcSafeRequest)  (*pdpb.UpdateServiceGCSafePointResponse, error)
                ```
             2. pb info
                ```proto
-                message GetGcSafePointByServiceGroupRequest {
+                message GetAllServiceGroupGcSafePointRequest {
                     RequestHeader header = 1;
                     bytes service_group_id = 2;  
                 }
 
-                message GetGcSafePointByServiceGroupResponse {
+                message GetAllServiceGroupGcSafePointResponse {
                     ResponseHeader header = 1;
                     bytes service_group_id = 2;
                     uint64 safe_point = 3;
@@ -117,18 +123,18 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
          3. Used to update service safepoint for CDC/BR/Lightning:
             1. interface:
                ```shell  
-               func (s *GrpcServer) UpdateServiceGcSafePointByServiceGroup(ctx context.Context, request *pdpb.UpdateServiceGroupServiceGcSafeRequest)  (*pdpb.UpdateServiceGroupServiceGcSafeResponse, error)
+               func (s *GrpcServer) UpdateServiceSafePointByServiceGroup(ctx context.Context, request *pdpb.UpdateServiceGroupServiceGcSafeRequest)  (*pdpb.UpdateServiceGroupServiceGcSafeResponse, error)
                ```
             2. pb info
                ```proto
-                message UpdateServiceGcSafePointByServiceGroupRequest {
+                message UpdateServiceSafePointByServiceGroupRequest {
                     RequestHeader header = 1;
                     bytes service_group_id = 2;
                     bytes service_id = 3;
                     int64 TTL = 4;
                     uint64 safe_point = 5;
                 }
-                message UpdateServiceGcSafePointByServiceGroupResponse {
+                message UpdateServiceSafePointByServiceGroupResponse {
                     ResponseHeader header = 1;
                     bytes service_group_id = 2;
                     bytes service_id = 3;
