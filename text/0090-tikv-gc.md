@@ -82,21 +82,21 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
          ```
    3. design interface to standardize the interface:  
          the interface as follows:  
-         1. Gc worker will call pbclient.UpdateGCSafepointByServiceGroup to update the gc worker safepoint as follows:  
+         1. Gc worker will call pbclient.UpdateGCSafePointByServiceGroup to update the gc worker safepoint as follows:  
             1. interface :  
                ```shell
-               func (s *GrpcServer) UpdateGCSafepointByServiceGroup(ctx context.Context, request *pdpb.UpdateGCSafepointByServiceGroupRequest) (*pdpb.UpdateGCSafepointByServiceGroupResponse, error) 
+               func (s *GrpcServer) UpdateGCSafePointByServiceGroup(ctx context.Context, request *pdpb.UpdateGCSafePointByServiceGroupRequest) (*pdpb.UpdateGCSafePointByServiceGroupResponse, error) 
                ```
        
             2. added related pb info in pdpb.proto  
                ```proto
-                 message UpdateGCSafepointByServiceGroupRequest {
+                 message UpdateGCSafePointByServiceGroupRequest {
                    RequestHeader header = 1;
                    bytes service_group_id = 2;
                    uint64 safe_point = 3;
                  }
 
-                 message UpdateGCSafepointByServiceGroupResponse {
+                 message UpdateGCSafePointByServiceGroupResponse {
                    ResponseHeader header = 1;
                    bytes service_group_id = 2;  
                    uint64 new_safe_point = 3;
