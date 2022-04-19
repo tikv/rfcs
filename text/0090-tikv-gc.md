@@ -85,7 +85,7 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
          1. Gc worker will call pbclient.UpdateGCSafepointByServiceGroup to update the gc worker safepoint as follows:  
             1. interface :  
                ```shell
-               func (s *GrpcServer) UpdateGCSafepointByServiceGroup(ctx context.Context, request *pdpb.UpdateServiceGroupGCSafePointRequest) (*pdpb.UpdateGCSafepointByServiceGroupResponse, error) 
+               func (s *GrpcServer) UpdateGCSafepointByServiceGroup(ctx context.Context, request *pdpb.UpdateGCSafepointByServiceGroupRequest) (*pdpb.UpdateGCSafepointByServiceGroupResponse, error) 
                ```
        
             2. added related pb info in pdpb.proto  
@@ -105,7 +105,7 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
          2. used to get GC safepoint for TiKV:
             1. interface:
                ```shell  
-               func (s *GrpcServer) GetAllServiceGroupGcSafePoint(ctx context.Context, request *pdpb.GetServiceGroupServiceGcSafeRequest)  (*pdpb.GetAllServiceGroupGcSafePointResponse, error)
+               func (s *GrpcServer) GetAllServiceGroupGcSafePoint(ctx context.Context, request *pdpb.GetAllServiceGroupGcSafePointRequest)  (*pdpb.GetAllServiceGroupGcSafePointResponse, error)
                ```
             2. pb info
                ```proto
@@ -123,7 +123,7 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
          3. Used to update service safepoint for CDC/BR/Lightning:
             1. interface:
                ```shell  
-               func (s *GrpcServer) UpdateServiceSafePointByServiceGroup(ctx context.Context, request *pdpb.UpdateServiceGroupServiceGcSafeRequest)  (*pdpb.UpdateServiceSafePointByServiceGroupResponse, error)
+               func (s *GrpcServer) UpdateServiceSafePointByServiceGroup(ctx context.Context, request *pdpb.UpdateServiceSafePointByServiceGroupRequest)  (*pdpb.UpdateServiceSafePointByServiceGroupResponse, error)
                ```
             2. pb info
                ```proto
