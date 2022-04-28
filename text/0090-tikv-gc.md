@@ -177,8 +177,8 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
                ```
 3.Changes on TiKV：
 - Get GC safe point from PD by GetAllServiceGroupGcSafePoint interface.
-- For API V2, we need add new CompactionFilter which is named RawGCcompactionFilter, and add a new GCTask type implementation. 
-- GC conditions in RawGCcompactionFilter is:  (ts < GCSafePoint) && ( ttl-expired || deleted-mark || not the newest version ).  
+- For API V2, we need add new CompactionFilter which is named RawCompactionFilter, and add a new GCTask type implementation. 
+- GC conditions in RawCompactionFilter is:  (ts < GCSafePoint) && ( ttl-expired || deleted-mark || not the newest version ).  
    - If the newest version is earlier than GC safe point and it's delete marked or expired ttl,those keys and earlier versions of the same userkey will be sent to a gc scheduler thread to gc asynchronous.
       ![raw gc copaction filter ](../media/tikv-rawkv-gc-compactionfilter.png)
 
