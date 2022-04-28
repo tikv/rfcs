@@ -5,8 +5,8 @@
 Move TiKV MVCC GC worker from TiDB into a group of independent GC worker component and implement a new GC process in TiKV for RawKV.
 
 ## Motivation
-1.GC worker is an important component for TiKV that deletes outdated MVCC data so as to not explode the storage. But currently, the GC worker is implemented in TiDB, which makes TiKV not usable without TiDB.And current GC process is just for transaction of TiDB,it's not usable for RawKV.  
-2.Standardize the API used to set and obtain GC status in PD to improve the developer's experience.
+1. GC worker is an important component for TiKV that deletes outdated MVCC data so as to not explode the storage. But currently, the GC worker is implemented in TiDB, which makes TiKV not usable without TiDB.And current GC process is just for transaction of TiDB,it's not usable for RawKV.  
+2. Standardize the API used to set and obtain GC status in PD to improve the developer's experience.
 
 We change RawKV encoding to MVCC, so the GC is necessary.
 No GC for TxnKV scenario when TiDB is not deployed.
@@ -74,11 +74,11 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
         - the safepoint data path in etcd of PD,will be changed. The new safe point path in etcd as follows:
         - gc_worker safe point
          ```shell
-         /gc_servicegroup/$service_group_id/safe_point
+         /gc_servicegroup/gc_safepoint/$service_group_id
          ```
          - CDC,BR service safepoint
          ```shell
-         /gc_servicegroup/$service_group_id/service/$serviceId
+         /gc_servicegroup/service_safepoint/$service_group_id/$service_id
          ```
    3. design interface to standardize the interface:  
          the interface as follows:  
