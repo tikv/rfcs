@@ -84,65 +84,97 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
          the interface as follows:  
          1. Gc worker will call pbclient.UpdateGCSafePointByServiceGroup to update the gc worker safepoint as follows:  
             1. interface :  
-               ```shell
-               func (s *GrpcServer) UpdateGCSafePointByServiceGroup(ctx context.Context, request *pdpb.UpdateGCSafePointByServiceGroupRequest) (*pdpb.UpdateGCSafePointByServiceGroupResponse, error) 
+               ```proto
+                   rpc UpdateGCSafePointByServiceGroup(UpdateGCSafePointByServiceGroupRequest) returns (UpdateGCSafePointByServiceGroupResponse) {}
                ```
        
-            2. added related pb info in pdpb.proto  
+            2. PB messages:
                ```proto
-                 message UpdateGCSafePointByServiceGroupRequest {
-                   RequestHeader header = 1;
-                   bytes service_group_id = 2;
-                   uint64 safe_point = 3;
-                 }
+                    message UpdateGCSafePointByServiceGroupRequest {
+                        RequestHeader header = 1;
+                        bytes service_group_id = 2;
+                        uint64 safe_point = 3;
+                        int64 revision = 4;
+                    }
 
-                 message UpdateGCSafePointByServiceGroupResponse {
-                   ResponseHeader header = 1;
-                   bytes service_group_id = 2;  
-                   uint64 new_safe_point = 3;
-                 }
+                    message UpdateGCSafePointByServiceGroupResponse {
+                        ResponseHeader header = 1;
+                        uint64 new_safe_point = 2;
+                        bool valid_revision = 3;
+                    }
                ```
-         2. used to get GC safepoint for TiKV:
+         2. used to get all GC safepoint for TiKV:
             1. interface:
-               ```shell  
-               func (s *GrpcServer) GetAllServiceGroupGcSafePoint(ctx context.Context, request *pdpb.GetAllServiceGroupGcSafePointRequest)  (*pdpb.GetAllServiceGroupGcSafePointResponse, error)
+               ```proto  
+                   rpc GetAllServiceGroupGCSafePoint(GetAllServiceGroupGCSafePointRequest) returns (GetAllServiceGroupGCSafePointResponse) {}
                ```
-            2. pb info
+            2. PB messages:
                ```proto
-                message GetAllServiceGroupGcSafePointRequest {
-                    RequestHeader header = 1;
-                    bytes service_group_id = 2;  
-                }
+                    message GetAllServiceGroupGCSafePointRequest {
+                        RequestHeader header = 1;
+                    }
 
-                message GetAllServiceGroupGcSafePointResponse {
-                    ResponseHeader header = 1;
-                    bytes service_group_id = 2;
-                    uint64 safe_point = 3;
-                }
+                    message GetAllServiceGroupGCSafePointResponse {
+                        ResponseHeader header = 1;
+                        repeated ServiceGroupSafePoint service_group_safe_point = 2;
+                    }
                ```
          3. Used to update service safepoint for CDC/BR/Lightning:
             1. interface:
-               ```shell  
-               func (s *GrpcServer) UpdateServiceSafePointByServiceGroup(ctx context.Context, request *pdpb.UpdateServiceSafePointByServiceGroupRequest)  (*pdpb.UpdateServiceSafePointByServiceGroupResponse, error)
+               ```proto  
+                   rpc UpdateServiceSafePointByServiceGroup(UpdateServiceSafePointByServiceGroupRequest) returns (UpdateServiceSafePointByServiceGroupResponse) {}
                ```
-            2. pb info
+            2. PB messages:
                ```proto
-                message UpdateServiceSafePointByServiceGroupRequest {
-                    RequestHeader header = 1;
-                    bytes service_group_id = 2;
-                    bytes service_id = 3;
-                    int64 TTL = 4;
-                    uint64 safe_point = 5;
-                }
-                message UpdateServiceSafePointByServiceGroupResponse {
-                    ResponseHeader header = 1;
-                    bytes service_group_id = 2;
-                    bytes service_id = 3;
-                    int64 TTL = 4;
-                    uint64 min_safe_point = 5;
-                }
-               ```
+                    message UpdateServiceSafePointByServiceGroupRequest {
+                        RequestHeader header = 1;
+                        bytes service_group_id = 2;
+                        bytes service_id = 3;
+                        int64 TTL = 4;
+                        uint64 safe_point = 5;
+                    }
 
+                    message UpdateServiceSafePointByServiceGroupResponse {
+                        ResponseHeader header = 1;
+                        uint64 gc_safe_point = 2;
+                        uint64 old_service_safe_point = 3;
+                        uint64 new_service_safe_point = 4;
+                    }
+               ```
+         4. GC Worker call pdclient.GetMinServiceSafePointByServiceGroup to get min(all service safepoint):
+            1. interface:
+               ```proto
+                  rpc GetMinServiceSafePointByServiceGroup(GetMinServiceSafePointByServiceGroupRequest) returns (GetMinServiceSafePointByServiceGroupResponse) {}
+               ```
+            2. PB messages:
+               ```proto
+                    message GetMinServiceSafePointByServiceGroupRequest {
+                        RequestHeader header = 1;
+                        bytes service_group_id = 2;
+                    }
+
+                    message GetMinServiceSafePointByServiceGroupResponse {
+                        ResponseHeader header = 1;
+                        uint64 safe_point = 2;
+                        int64 revision = 3;
+                    }
+               ```
+         5. GC Worker call pdclient.GetServiceGroup to get all service group id:
+            1. interface:
+               ```proto
+                   rpc GetServiceGroup(GetServiceGroupRequest) returns (GetServiceGroupResponse) {}
+               ```
+            2. PB messages:
+               ```proto
+                    message GetServiceGroupRequest {
+                        RequestHeader header = 1;
+                    }
+
+                    message GetServiceGroupResponse {
+                        ResponseHeader header = 1;
+                        repeated bytes service_group_id = 2;
+                    }
+               ```
 3.Changes on TiKV：
 - Get GC safe point from PD by GetAllServiceGroupGcSafePoint interface.
 - For API V2, we need add new CompactionFilter which is named RawGCcompactionFilter, and add a new GCTask type implementation. 
