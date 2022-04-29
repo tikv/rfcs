@@ -106,15 +106,15 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
          2. used to get all GC safepoint for TiKV:
             1. interface:
                ```proto  
-                   rpc GetAllServiceGroupGCSafePoint(GetAllServiceGroupGCSafePointRequest) returns (GetAllServiceGroupGCSafePointResponse) {}
+                   rpc GetAllServiceGroupGCSafePoints(GetAllServiceGroupGCSafePointRequest) returns (GetAllServiceGroupGCSafePointsResponse) {}
                ```
             2. PB messages:
                ```proto
-                    message GetAllServiceGroupGCSafePointRequest {
+                    message GetAllServiceGroupGCSafePointsRequest {
                         RequestHeader header = 1;
                     }
 
-                    message GetAllServiceGroupGCSafePointResponse {
+                    message GetAllServiceGroupGCSafePointsResponse {
                         ResponseHeader header = 1;
                         repeated ServiceGroupSafePoint service_group_safe_point = 2;
                     }
@@ -137,8 +137,8 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
                     message UpdateServiceSafePointByServiceGroupResponse {
                         ResponseHeader header = 1;
                         uint64 gc_safe_point = 2;
-                        uint64 old_service_safe_point = 3;
-                        uint64 new_service_safe_point = 4;
+                        uint64 old_safe_point = 3;
+                        uint64 new_safe_point = 4;
                     }
                ```
          4. GC Worker call pdclient.GetMinServiceSafePointByServiceGroup to get min(all service safepoint):
@@ -159,24 +159,24 @@ For support RawKV GC in TiKV cluster deploy without TiDB nodes.
                         int64 revision = 3;
                     }
                ```
-         5. GC Worker call pdclient.GetServiceGroup to get all service group id:
+         5. GC Worker call pdclient.GetAllServiceGroups to get all service group id:
             1. interface:
                ```proto
-                   rpc GetServiceGroup(GetServiceGroupRequest) returns (GetServiceGroupResponse) {}
+                   rpc GetAllServiceGroups(GetAllServiceGroupsRequest) returns (GetAllServiceGroupsResponse) {}
                ```
             2. PB messages:
                ```proto
-                    message GetServiceGroupRequest {
+                    message GetAllServiceGroupsRequest {
                         RequestHeader header = 1;
                     }
 
-                    message GetServiceGroupResponse {
+                    message GetAllServiceGroupsResponse {
                         ResponseHeader header = 1;
                         repeated bytes service_group_id = 2;
                     }
                ```
 3.Changes on TiKV：
-- Get GC safe point from PD by GetAllServiceGroupGcSafePoint interface.
+- Get GC safe point from PD by GetAllServiceGroupGCSafePoints interface.
 - For API V2, we need add new CompactionFilter which is named RawCompactionFilter, and add a new GCTask type implementation. 
 - GC conditions in RawCompactionFilter is:  (ts < GCSafePoint) && ( ttl-expired || deleted-mark || not the newest version ).  
    - If the newest version is earlier than GC safe point and it's delete marked or expired ttl,those keys and earlier versions of the same userkey will be sent to a gc scheduler thread to gc asynchronous.
