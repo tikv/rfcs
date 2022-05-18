@@ -90,5 +90,20 @@ As for heartbeat status, we only add one normal status named `Alive` into the pr
 
 With these changes, we can do more things like dynamically adjusting scheduling parameters, progress estimation, etc.
 
+#### Node state transition
+
+Here is the newly node state transition graph:
+
+![node state transition](../media/node-state-transition.png)
+
+1. When a store is newly added to the cluster, we regard it as `Preparing`. Once it reaches the threshold of its expected region size, it turns into a `Serving` state.
+2. When a store in `Serving` state receives the delete store command/HTTP request, it will be changed to `Removing` state.
+3. When we don't want to remove the previous store in `Removing` state, we can use the cancel delete command or through HTTP request to change the node state back to `Serving`.
+4. When a store is in `Preparing` state, we can also remove it through the delete store command/HTTP request.
+5. When a store in `Removing` state has moved all regions on it to the rest stores, it finally becomes `Removed`.
+
+The threshold of the expected region size in 1 is calculated by accumulating the store region size for each range of the defined placement rules. 
+For each given range, we first get all rules which involve this range. And for each rule, we get the size of a single replica and then multiply the count defined in the rule to get the expected region size of this rule. Because each placement rule could have different label constraints, so we can obtain the region size weight of a store through the label constraints. Then multiply these two things, we can obtain the store region size of this range.
+
 ## Compatibility
 Once the implementation has been finished, we need to replace the old API with the new version for all components and tools. Also, we should let the user know about this change. The V1 will still leave for some time for compatibility and be deprecated finally.
