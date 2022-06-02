@@ -1,6 +1,6 @@
 # Physical isolation between Region
 
-- RFC PR: https://github.com/tikv/rfcs/pull/0000
+- RFC PR: https://github.com/tikv/rfcs/pull/0093
 - Tracking Issue: https://github.com/tikv/repo/issues/0000
 
 ## Summary
