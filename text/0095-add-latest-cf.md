@@ -55,6 +55,8 @@ But using latest cf should be triggered explicitly by client. Client should ensu
 
 Take TiDB as an example, it can add a new storage format at table level. Perhaps even add a new DDL job for table to changing the storage format. In the new format, latest cf is always updated. And only trigger TiKV to use latest cf when the target table is fully upgraded to the new format.
 
+As a new cf is added, it needs to be also included in the raft snapshot between replicas.
+
 ### Why use a new cf?
 
 If the latest keys are written to write cf instead, then it will break compatibility. It also makes range scan less efficient as more version need to be scanned and skipped.
@@ -68,5 +70,11 @@ On the other hand, the additional write is just a key in a different cf and a va
 ## Alternatives
 
 unistore separates the latest version and other versions by adjust file format. So when flushing or compacting, it will make latest versions key be the first part, and the rest in the second part. This approach doesn't have write overhead, but is not backward compatible in TiKV.
+
+Another proposal has also been discussed in the past that instead of adding latest cf, adding a history cf to store as many as versions. All keys are written to write cf first, and then using compaction filter to move all versions except the latest to history cf. This approach delay the additional writes to background job, so may have less impact on the foreground writes. But it has following shortcomings:
+- compaction filter is not reliable. The timing it's triggered can be tricky. We have observed issue that introduced by compaction not in time. tikv/tikv#12729.
+- compaction filter only works on SST files, versions in memory are still mixed.
+- point get still requires seek unless we switch to user timestamp completely, which is not used in production yet.
+- If we remove KV WAL completely, writing in compaction can be expensive as it needs to be either ingested as new SST or triggers flush, otherwise restarting TiKV may lose data.
 
 ## Unresolved questions
