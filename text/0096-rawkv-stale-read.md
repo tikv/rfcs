@@ -51,7 +51,7 @@ This RFC proposes stale read on RawKV which allows reading stale data from the n
 
 ### TiKV
 
-The replica should read the local storage with a `read_ts` that reuses the mechanism from the stale read of TxnKV. This requires the replica to check the `read_ts` against the `safe_ts` which is advaneced by `CheckLeader` message from the store of the leader. As long as the `safe_ts` is no less than `read_ts`, the replica is allowed to read the key from local storage.
+ While trying to read data, clients should specify a timestamp which attachs to the request header as `read_ts`, typically a timestamp few seconds ago. The replica should read the local storage with the `read_ts` and reuses the mechanism from the stale read of TxnKV. This requires the replica to check the `read_ts` against the `safe_ts` which is advaneced by `CheckLeader` message from the store of the leader or `resolve-ts` worker. As long as the `safe_ts` is no less than `read_ts`, the replica is allowed to read the key from local storage.
 
 ### Client
 
@@ -59,27 +59,39 @@ The `read_ts` specified by the client could be acquired by the following ways:
 
 1. Calculate a timestamp from the physical time from the local. The `read_ts` might suffer from the clock drift and exceed the max timestamp allocated from TSO. The client will fail to read any data even if that target replica is the leader since the `safe_ts` of the replica don't catch up with the `read_ts`. **Deploying NTP services** in the cluster might mitigate this issue.
    
-2. Get the latest timestamp from TSO and rewind it. This might get a more accurate timestamp but requires an RPC before reading which will increase the latency of reading. Applying a local TSO cache might mitigate this issue but require more resources in the client.
+2. Get the latest timestamp from the TSO and rewind it. This might get a more accurate timestamp but requires an RPC before reading which will increase the latency of reading. Applying a local TSO cache might mitigate this issue but require more resources in the client.
 
-The client should create a strategy to select the replica for the stale read. If we select the target replica randomly, some cross-region replicas might be selected. In this case, the stale read loses its advantage. The client should maintain probe statistics tracking the fastest replicas (by latency). The client will try those replicas one by one until it read the value successfully.
+The client should also create a strategy to select the replica for the stale read. If we select the target replica randomly, some cross-region replicas might be selected. In this case, the stale read loses its advantage. The client should maintain probe statistics tracking the fastest replicas (by latency). The client should try those replicas one by one until it read the value successfully.
 
 ### Implementation details
 
-1. (TBD) While TiKV is handling raw read-related requests, construct a `SnapContext` with the `read_ts` before acquiring a snapshot from `storage`.
+1. While trying to read stale data, clients should set the appropriate `read_ts` to requests.
+```diff
+message RawGetRequest {
+    Context context = 1;
+    bytes key = 2;
+    string cf = 3;
++   uint64 read_ts = 4;
+}
+```
+
+2. While TiKV is handling radw read-related requests, construct a `SnapContext` with the `read_ts` before acquiring a snapshot from `storage`.
 
 ```diff
 fn future_raw_get(...) {
   // ...
   let snap_ctx = SnapContext {
       pb_ctx: &ctx,
-+     start_ts: ...
++     start_ts: req.get_read_ts()
       ..Default::default()
   };
 }
 ```
 
-2. (TBD) Client API interface; replica selection algorithm.
+2. Client API interface; replica selection algorithm.
 
-```java
-ByteString rawGet(ByteString key, readTs: Timestamp)
+```diff
+class RawKVClient {
++     ByteString rawGet(ByteString key, readTs: Timestamp)
+}
 ```
