@@ -27,13 +27,14 @@ As explained, the reason why seek is necessary is because TiKV has no idea what 
 
 TiKV doesn't need to know all existing versions of keys. In fact, most of the time, v0 is larger than any existing versions of keys in TiKV if there is more read than write. So it should be enough to just let TiKV knows the latest version of all keys.
 
-The RFC propose to add a new cf named "latest". When a key is inserted using transaction API, it should update write cf (and default cf) as current does. In addition, it also insert a key to latest cf with
-- key set the original key without any encoding or version
-- value set the same value in write cf but include the corresponding version.
+The RFC propose to add a new cf named "latest". When a key is inserted using transaction API, it should update latest cf using the original key without any encoding or version. The value should be similar with the one that is used for updating write cf in the past, but including the corresponding version. If the key exists in the latest cf, then its value should be read and write to write cf using the old format along side with the latest cf update.
 
-For example, insert k1 with version v0 and value dummy will insert two keys
-- to write cf, k1|v0 -> (dummy and other meta)
-- to latest cf, k1 -> (dummy, v0 and other meta)
+For example, supposing there is no key in latest cf. Inserting k1 with version v0 and value foo will insert one key:
+- to latest cf, k1 -> (foo, v0 and other meta)
+
+Inserting v1 again with version v1 and value bar will insert two keys:
+- to write cf, k1|v0 -> (foo and other meta)
+- to latest cf, k1 -> (bar, v1 and other meta)
 
 So all keys in latest cf represent the latest version of all keys.
 
@@ -49,17 +50,28 @@ The improvment should be very significant when update keys frequently.
 
 ### Compatibility
 
-Because all existing cfs are updated just as before, so there are no major compatibility issues.
+Because all keys are written to latest cf first, so it will not be compatible with existing write cf as at least one key is missing. To make the them switch easier, Let's introduce a intermediate format that latest value is written to lastest cf and write cf at the same time. Every range that is expecting to upgrade to latest format, it should upgrade to intermediate format first.
 
-But using latest cf should be triggered explicitly by client. Client should ensure only when it updates all keys with latest cf will it ask TiKV to query using latest cf.
+```mermaid
+graph LR;
+    origin[Original Format]
+    inter[Intermediate Format]
+    latest[Latest Format]
+    origin --"query using origin way"--> inter --"query using latest way"--> latest
+```
 
-Take TiDB as an example, it can add a new storage format at table level. Perhaps even add a new DDL job for table to changing the storage format. In the new format, latest cf is always updated. And only trigger TiKV to use latest cf when the target table is fully upgraded to the new format.
+Because write cf may not contain the latest change, latest cf should be always queried in all TiKV internal services like GC.
+
+Public APIs should tell TiKV whether latest cf should be used, so that upgrading between format can be seamless to TiKV. Client should ensure only when it updates the range to at least intermediate format will it ask TiKV to query using latest cf.
+
+Take TiDB as an example, it can add a new storage format at table level. Any new table should use the latest format. For existing tables, origin format should be used. However, it can add a new DDL job for table to upgrade the storage format to intermediate format. And only trigger TiKV to use latest cf when the target table is fully upgraded to the intermediate format.
 
 As a new cf is added, it needs to be also included in the raft snapshot between replicas.
 
 ### Why use a new cf?
 
-If the latest keys are written to write cf instead, then it will break compatibility. It also makes range scan less efficient as more version need to be scanned and skipped.
+1. The key format is different, using different cf is more efficient.
+2. Changing existing cf can bring more compatibility issues than introducing a new one.
 
 ## Drawbacks
 
@@ -71,7 +83,7 @@ On the other hand, the additional write is just a key in a different cf and a va
 
 unistore separates the latest version and other versions by adjust file format. So when flushing or compacting, it will make latest versions key be the first part, and the rest in the second part. This approach doesn't have write overhead, but is not backward compatible in TiKV.
 
-Another proposal has also been discussed in the past that instead of adding latest cf, adding a history cf to store as many as versions. All keys are written to write cf first, and then using compaction filter to move all versions except the latest to history cf. This approach delay the additional writes to background job, so may have less impact on the foreground writes. But it has following shortcomings:
+Another proposal has also been discussed in the past that instead of adding latest cf, adding a history cf to store old versions. All keys are written to write cf first, and then using compaction filter to move all versions except the latest to history cf. This approach delay the additional writes to background job, so may have less impact on the foreground writes. But it has following shortcomings:
 - compaction filter is not reliable. The timing it's triggered can be tricky. We have observed issue that introduced by compaction not in time. tikv/tikv#12729.
 - compaction filter only works on SST files, versions in memory are still mixed.
 - point get still requires seek unless we switch to user timestamp completely, which is not used in production yet.
