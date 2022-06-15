@@ -32,7 +32,7 @@ The RFC propose to add a new cf named "latest". When a key is inserted using tra
 For example, supposing there is no key in latest cf. Inserting k1 with version v0 and value foo will insert one key:
 - to latest cf, k1 -> (foo, v0 and other meta)
 
-Inserting v1 again with version v1 and value bar will insert two keys:
+Inserting k1 again with version v1 and value bar will insert two keys:
 - to write cf, k1|v0 -> (foo and other meta)
 - to latest cf, k1 -> (bar, v1 and other meta)
 
