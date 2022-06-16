@@ -51,7 +51,7 @@ This RFC proposes stale read on RawKV which allows reading stale data from the n
 
 ### TiKV
 
- While trying to read data, clients should specify a timestamp which attachs to the request header as `read_ts`, typically a timestamp few seconds ago. The replica should read the local storage with the `read_ts` and reuses the mechanism from the stale read of TxnKV. This requires the replica to check the `read_ts` against the `safe_ts` which is advaneced by `CheckLeader` message from the store of the leader or `resolve-ts` worker. As long as the `safe_ts` is no less than `read_ts`, the replica is allowed to read the key from local storage.
+ While trying to read data, clients should specify a timestamp which attachs to the request header as `read_ts`, typically a timestamp few seconds ago. The replica should read the local storage with the `read_ts` and reuses the mechanism from the stale read of TxnKV. This requires the replica to check the `read_ts` against the `safe_ts` which is advaneced by `CheckLeader` message from the store of the leader (for follower) or `resolve-ts` worker (for leader). As long as the `safe_ts` is no less than `read_ts`, the replica is allowed to read the key from local storage. Notice that there is no lock for the RawKV regions, thus the `resolve-ts` worker advanced the `safe_ts` by requesting the TSO for the latest timestamp.
 
 ### Client
 
@@ -75,7 +75,7 @@ message RawGetRequest {
 }
 ```
 
-2. While TiKV is handling radw read-related requests, construct a `SnapContext` with the `read_ts` before acquiring a snapshot from `storage`.
+2. While TiKV is handling raw read-related requests, construct a `SnapContext` with the `read_ts` before acquiring a snapshot from `storage`.
 
 ```diff
 fn future_raw_get(...) {
