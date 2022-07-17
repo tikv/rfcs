@@ -15,6 +15,8 @@ However, the cost of cross-AZ data transfer is expensive in AWS and so on. The c
 In the classical Raft protocol, a follower or learner can only receive new raft log entries and snapshots from the leader. It inevitably leads to a large amount of cross-AZ traffic, because the leader has to replicate data to every follower and learner even in different AZ.
 With follower replication, the leader only needs to replicate data one follwer in each AZ, and this follower will replicate data to other followers and learners in the same AZ, which avoids a lot of corss-AZ traffic.
 
+![avatar](../media/follower-replication-1.png)
+
 Follower replication can reduce the cross-AZ traffic mainly in scenarios:
 
 - The leader of TiKV instances do not need to replicate data to the TiFlash instances in different AZ. The leader only replicates data to followers, and for each AZ one certain follwer will replicate new log entries or snapshots to learners. In particular, TiFlash instances have less the requirement of real-time than TiKV instances.
@@ -26,11 +28,14 @@ According to the property of Raft, we know that a write is committed when the le
 
 We should follow a principle when we revise Raft algorithm. Only the leader knows the latest and global information of the whole cluster and the progress of data replication, so we need minimize the interaction between the certain follower (agent) and learners. In other words, the agent only acts as a provider of log entries or snapshot, and a proxy between leader and other followers and learners. The progress of data replication should only be maintained by leader.
 
-### Basic schema
+### Group broadcast schema
 
 We design a group broadcast schema which is proposed by this [rfc](https://github.com/tikv/rfcs/blob/362865abe36b5771d525310b449c07a57da7ef85/text/2019-11-13-follower-replication.md).
 
+The main idea is that the leader only sends `MsgBroadcast` to the agent of a certain AZ. `MsgBroadcast` contains log entries that the leader replicates to the agent, and several ranges of log that the leader replicates to other followers and learners. 
+Once the agent receives `MsgBroadcast`, it appends log entries in the message and assembles `MsgAppend` according to the ranges in `MsgBroadcast` with its own log. Then the agent sends `MsgAppend` to other followers/learners in the same AZ. Thus, the leader can avoid sending `MsgAppend` across AZs. 
 
+![avatar](../media/follower-replication-2.jpg)
 
 ## Drawbacks
 
