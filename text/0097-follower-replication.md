@@ -191,6 +191,28 @@ How does the leader select the agent? I think the leader should follow these rul
 - The agent is an active follower. It means that the follower responds messages from the leader recently.
 - The agent has as up-to-date log entries as possible. Thus the leader can ensure that the ranges of log entries in MsgBroadcast exist on the agent.
 
+### Failure cases
+
+#### 1. Agent is crashed or partitioned
+
+If the agent does not reply to the heartbeat and `MsgBroadcast` from the leader for a period of time, there are 3 situations.
+
+- The agent is down before receiving `MsgBroadcast`.
+- The agent is down after receiving `MsgBroadcast` and before broadcasting to peers.
+- The agent is down after broadcasting to peers.
+
+The leader will trigger a timeout if it does not receive `MsgAppendResp` from the agent. Then the leader starts to select another follower as the agent in the AZ. Though it may lead to sending duplicated `MsgAppend` to peers, it does not affect the correctness.
+
+Only the leader knows which peer is the agent but the peer does not have an agent field in its state. So we do not need to consider the recovery mechanism of agent.
+
+---
+
+#### 2. Leader is partitioned
+
+If network is partitioned, the stale leader may still try to replicate log entries. However, those entries cannot be committed, and they will be overwritten when the partition recovers.
+
+Moreover, the stale leader will becomes a follower if a peer in the group sends `MsgAppendResp` with higher term.
+
 ## Drawbacks
 
 - The agent may have a "single point of failure" problem. If the agent is crashed, the leader cannot replicate data to other peers successfully, even those peers are active.
@@ -200,14 +222,23 @@ How does the leader select the agent? I think the leader should follow these rul
 
 ### Forward schema
 
+![avatar](../media/follower-replication-6.jpg)
+
+The leader does not need to attach log entries to `MsgAppend` if these entries have been replicated to some followers in the target AZ. The leader only sends a message without log entries but the range of log entries to a follower who has enough latest data. This follower fills the message with its own log entries and forwards it to the target peer in the same AZ.
+
+We can see this schema as a special group broadcast. `MsgBroadcast` has an empty entries and only one `Forward`. When `send_append` is called to replicate data to a single peer, we can use "forward schema".
+
+This schema is less efficient than group broadcast. It is suitable for replicating data to a single peer.
+
 ### Pull schema
+
+![avatar](../media/follower-replication-7.jpg)
 
 The leader sends a message that does not contain log entries but only contains the information where the peer can obtain these log entries. After the peer receives the message, it will fetch log entries from a follower in its AZ via RPC and append to its raft log.
 
-- Why is this design the best in the space of possible designs?
-- What other designs have been considered and what is the rationale for not
-  choosing them?
-- What is the impact of not doing this?
+Pull mode decouples interaction between leader and agent. There are only RPCs between leader and peers, and between peers and agent. The update of replication progress and fetching of log entries is decoupled, so it is easy to implement.
+
+The drawback is that pull mode needs an extra RPC to obtain log entries from the follower which causes more latency.
 
 ## Unresolved questions
 
