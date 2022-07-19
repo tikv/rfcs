@@ -15,7 +15,7 @@ However, the cost of cross-AZ data transfer is expensive in AWS and so on. The c
 In the classical Raft protocol, a follower or learner can only receive new raft log entries and snapshots from the leader. It inevitably leads to a large amount of cross-AZ traffic, because the leader has to replicate data to every follower and learner even in different AZ.
 With follower replication, the leader only needs to replicate data one follwer in each AZ, and this follower will replicate data to other followers and learners in the same AZ, which avoids a lot of corss-AZ traffic.
 
-![avatar](../media/follower-replication-1.png)
+![deployment](../media/follower-replication-1.png)
 
 Follower replication can reduce the cross-AZ traffic mainly in scenarios:
 
@@ -35,7 +35,7 @@ We design a group broadcast schema which is proposed by this [rfc](https://githu
 The main idea is that the leader only sends `MsgBroadcast` to the agent of a certain AZ. `MsgBroadcast` contains log entries that the leader replicates to the agent, and several ranges of log that the leader replicates to other followers and learners.
 Once the agent receives `MsgBroadcast`, it appends log entries in the message and assembles `MsgAppend` according to the ranges in `MsgBroadcast` with its own log. Then the agent sends `MsgAppend` to other followers/learners in the same AZ. Thus, the leader can avoid sending `MsgAppend` across AZs.
 
-![avatar](../media/follower-replication-2.jpg)
+![main_idea](../media/follower-replication-2.jpg)
 
 ### Preparation
 
@@ -47,7 +47,7 @@ If the leader does not know the current AZ of each peer, follower replication wi
 
 ### Raft Replication Process
 
-![avatar](../media/follower-replication-3.jpg)
+![raft_replication_process](../media/follower-replication-3.jpg)
 
 Step 1:
 
@@ -122,7 +122,7 @@ Note that the agent is not fixed. A follower becomes the agent when it receives 
 
 Example:
 
-![avatar](../media/follower-replication-4.jpg)
+![example](../media/follower-replication-4.jpg)
 
 - **Event e1**: The leader sends `MsgBroadcast` to the agent.
 
@@ -182,7 +182,7 @@ Example:
 
 - **Event e4/e5**: Learners handles `MsgAppend` sent by the agent and responds.
 
-  ![avatar](../media/follower-replication-5.jpg)
+  ![events](../media/follower-replication-5.jpg)
 
 ### Agent selection
 
@@ -222,7 +222,7 @@ Moreover, the stale leader will becomes a follower if a peer in the group sends 
 
 ### Forward schema
 
-![avatar](../media/follower-replication-6.jpg)
+![forward_schema](../media/follower-replication-6.jpg)
 
 The leader does not need to attach log entries to `MsgAppend` if these entries have been replicated to some followers in the target AZ. The leader only sends a message without log entries but the range of log entries to a follower who has enough latest data. This follower fills the message with its own log entries and forwards it to the target peer in the same AZ.
 
@@ -232,7 +232,7 @@ This schema is less efficient than group broadcast. It is suitable for replicati
 
 ### Pull schema
 
-![avatar](../media/follower-replication-7.jpg)
+![pull_schema](../media/follower-replication-7.jpg)
 
 The leader sends a message that does not contain log entries but only contains the information where the peer can obtain these log entries. After the peer receives the message, it will fetch log entries from a follower in its AZ via RPC and append to its raft log.
 
