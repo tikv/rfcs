@@ -31,7 +31,7 @@ Let's call an isolated rocksdb tablet. Now data is written into two storage raft
 
 ### Data layout
 
-A directory “tablets” will be created inside the data directory to store the data of the tablet. The tablet will be named as ${region_id}_${tablet_index}. tablet_index is the raft log index that the tablet is corresponding to when being created. For example, when region 2 is created by split, its index is initialized to 5, so its name is 2_5. A replica of region 2 is catching up data by snapshot, and the snapshot index is 11, then after applying the snapshot, the tablet name becomes 2_11. Adding tablet_index is to allow quickly cleaning and applying of data. For example, there are still queries running on 2_5 while follower is about to apply a snapshot at index 11, the two directories can be kept and 2_5 can be deleted after all existing queries are finished.
+A directory “tablets” will be created inside the data directory to store the data of the tablet. The tablet will be named as `${region_id}_${tablet_index}`. `tablet_index` is the raft log index that the tablet is corresponding to when being created. For example, when region 2 is created by split, its index is initialized to 5, so its name is 2_5. A replica of region 2 is catching up data by snapshot, and the snapshot index is 11, then after applying the snapshot, the tablet name becomes 2_11. Adding `tablet_index` is to allow quickly cleaning and applying of data. For example, there are still queries running on 2_5 while follower is about to apply a snapshot at index 11, the two directories can be kept and 2_5 can be deleted after all existing queries are finished.
 
 The old data directory “kv” will be deleted and not written any more.
 
@@ -158,7 +158,7 @@ Prototype shows the regression problem of v6.1 is solved in dynamic regions. Dyn
 
 #### Upgrade
 
-The storage architecture is very different between v6.1 and dynamic regions. Changes of metadata can be updated every easily during rolling update, however migrating data is nearly impossible. There are two problems:
+The storage architecture is very different between v6.1 and dynamic regions. Changes of metadata can be updated very easily during rolling update, however migrating data is nearly impossible. There are two problems:
 - Multiple regions share the same rocksdb in v5.x, split them into tablets takes too much time and can bring much additional writes;
 - There are many small regions in v5.x, which can be more than 100k in a single instance. Upgrading them at once probably OOM.
 
