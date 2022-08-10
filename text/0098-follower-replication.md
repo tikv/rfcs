@@ -39,9 +39,11 @@ Once the agent receives `MsgBroadcast`, it appends log entries in the message an
 
 ### Preparation
 
-Every peer must have a field indicating which AZ it belongs to. This field does not have to be persistent. As mentioned in the comment, TiKV has the knowledge which AZ the store locates. We need to design the interface so that `RawNode` in raft-rs can get the AZ information in TiKV. Maybe we can initialize Peer with AZ information, and then Peer initializes the `RawNode`.
+Every peer must have a field indicating which AZ it belongs to. TiKV server has the knowledge which AZ each store locates because PD sends the global zone information to TiKV once the zone information is updated.
 
-The leader collects the AZ information of peers via `MsgHeartbeat`. Peers reply heartbeat with their label of AZ. So the leader can have a global information of peers' AZ. This solution needs to add an extra field in Message. Another solution is that PD collects AZ information of peers, and use `RaftCommand` to tell the leader. Because AZ information is nearly unchanged, the leader do not need to collect AZ information in each `MsgHeartbeat`.
+In TiKV architecture, TiKV contains multiple peers that belong to different raft groups. So TiKV needs to update zone information to each peer.
+
+We add an extra field `peer_zone` in the peer, a hashmap that records store_id -> AZ. Every time the zone information stored in TiKV is updated, a peer message `UpdataZoneInfo` is generated. Then it will be broadcast to all peer in this TiKV server. When a peer receives `UpdataZoneInfo`, it will update its `peer_zone`.
 
 If the leader does not know the current AZ of each peer, follower replication will be downgraded to leader replication.
 
