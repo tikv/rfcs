@@ -13,7 +13,7 @@ TiDB is usually deployed across 3 AZs for fault tolerance and high availability.
 However, the cost of cross-AZ data transfer is expensive in AWS and so on. The cost of TiDB cloud deployment will decrease if we can reduce the cross-AZ traffic.
 
 In the classical Raft protocol, a follower or learner can only receive new raft log entries and snapshots from the leader. It inevitably leads to a large amount of cross-AZ traffic, because the leader has to replicate data to every follower and learner even in different AZ.
-With follower replication, the leader only needs to replicate data one follwer in each AZ, and this follower will replicate data to other followers and learners in the same AZ, which avoids a lot of corss-AZ traffic.
+With follower replication, the leader only needs to replicate data one follower in each AZ, and this follower will replicate data to other followers and learners in the same AZ, which avoids a lot of cross-AZ traffic.
 
 ![deployment](../media/follower-replication-1.png)
 
