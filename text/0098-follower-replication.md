@@ -1,7 +1,7 @@
 # Follower Replication for Write-Flow
 
-<!-- - RFC PR: https://github.com/tikv/rfcs/pull/0000
-- Tracking Issue: https://github.com/tikv/repo/issues/0000 -->
+- RFC PR: https://github.com/tikv/rfcs/pull/98
+- Tracking Issue: https://github.com/tikv/tikv/issues/13269
 
 ## Summary
 
@@ -33,17 +33,16 @@ We should follow a principle when we revise Raft algorithm. Only the leader know
 We design a group broadcast schema which is proposed by this [rfc](https://github.com/tikv/rfcs/blob/362865abe36b5771d525310b449c07a57da7ef85/text/2019-11-13-follower-replication.md).
 
 The main idea is that the leader only sends `MsgBroadcast` to the agent of a certain AZ. `MsgBroadcast` contains log entries that the leader replicates to the agent, and several ranges of log that the leader replicates to other followers and learners.
+
 Once the agent receives `MsgBroadcast`, it appends log entries in the message and assembles `MsgAppend` according to the ranges in `MsgBroadcast` with its own log. Then the agent sends `MsgAppend` to other followers/learners in the same AZ. Thus, the leader can avoid sending `MsgAppend` across AZs.
 
 ![main_idea](../media/follower-replication-2.jpg)
 
 ### Preparation
 
-Every peer must have a field indicating which AZ it belongs to. TiKV server has the knowledge which AZ each store locates because PD sends the global zone information to TiKV once the zone information is updated.
+We store the zone information in `PollContext` which records the mapping of store_id -> AZ. In TiKV architecture, TiKV contains multiple peers that belong to different raft groups and multiple peers share the `PollContext` which contains the zone information.
 
-In TiKV architecture, TiKV contains multiple peers that belong to different raft groups. So TiKV needs to update zone information to each peer.
-
-We add an extra field `peer_zone` in the peer, a hashmap that records store_id -> AZ. Every time the zone information stored in TiKV is updated, a peer message `UpdataZoneInfo` is generated. Then it will be broadcast to all peer in this TiKV server. When a peer receives `UpdataZoneInfo`, it will update its `peer_zone`.
+TiKV server has the knowledge which AZ each store locates because PD sends the global zone information to TiKV once the zone information is updated. So TiKV only needs to update zone information stored in `PollContext`, every time the zone information is updated. A store message `UpdataZoneInfo` will be generated if PD updates the zone information to TiKV server. Then it will be sent to store in this TiKV server. When a store receives `UpdataZoneInfo`, it will update the `peer_zone` in `PollContext`.
 
 If the leader does not know the current AZ of each peer, follower replication will be downgraded to leader replication.
 
