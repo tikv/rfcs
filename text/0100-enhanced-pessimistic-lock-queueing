@@ -1,7 +1,7 @@
 # Enhanced Pessimistic Lock Queueing
 
-- RFC PR: https://github.com/tikv/rfcs/pull/0000
-- Tracking Issue: https://github.com/tikv/repo/issues/0000
+- RFC PR: https://github.com/tikv/rfcs/pull/100
+- Tracking Issue: https://github.com/tikv/tikv/issues/13298
 
 ## Summary
 
@@ -12,20 +12,20 @@ Provide an enhanced lock waiting & waking up behavior for pessimistic lock reque
 Currently, we are adopting a simple but rough implementation for pessimistic lock waiting and waking up. It works just fine in most normal cases, however, there will be problems under workloads that has frequent lock conflicts. When there are many requests trying to acquire the lock on a single key in TiKV:
 
 * The order that the transactions successfully get the lock has too much randomness
-* When a pessimistic lock request is woken up after waiting a while in TiKV, it always returns `WriteConflict` to TiDB so that TiDB will retry the statement.
+* When a pessimistic lock request is woken up after waiting a while in TiKV, it always returns `WriteConflict` to the client (usually TiDB) to notify the client to retry the current operation (usually a SQL statement). During retrying, it's possible that the lock is acquired by another transaction.
 * When many pessimistic lock requests are waiting on the same key in TiKV and the current lock is released, one of the requests will be woken up, and the others will be woken up too after delaying for `wake-up-delay-duration` (which is a configurable value that defaults to 10ms). If the first awakened transaction's retrying request arrives late, the key might already have been locked by another transaction.
 
 This may lead to some problems:
 
 * The latency to acquire the lock might be very unstable, causing high tail latency.
-* There might be too many statement-retries that are useless but wastes resources.
+* There might be too many statement-retries that are useless but waste resources.
 * When the problem is severe, it's also possible to cause errors like lock wait timeout and statement retry limit exceeded.
 
-By carefully adjusting `wake-up-delay-duration`, we are actually able to try to make it work well in most scenarios. However, it's very hard to adjust it since it's difficult to predict the effect of changing it. It's even harder if a user who don't understand the internal implementation of TiKV want to tune it. Besides, its a store level config, which means, if a user have more than one workloads that has different characteristics in a single cluster, it's impossible to use different `wake-up-delay-duration` for different workloads.
+By carefully adjusting `wake-up-delay-duration`, we are actually able to try to make it work well in most scenarios. However, it's very hard to adjust it since it's difficult to predict the effect of changing it. It's even harder if a user who doesn't understand the internal implementation of TiKV want to tune it. Besides, its an instance level config, which means, if a user have more than one workloads that has different characteristics in a single cluster, it's impossible to use different `wake-up-delay-duration` for different workloads.
 
-We expects it would be better to make transactions in such kind of scenarios to execute sequentially, avoiding too much useless statement retries and high tail latency. However, this will be very complicated to implement in our current architecture, especially considering that we needs to guarantee the backward compatibility. We have a complicated design for this problem and it took us much efforts to trying to demonstrate it. We've confirmed that the complicated design is helpful for solving the problem stated above in those kinds of scenarios. However, the stronger queueing behavior in lock waiting introduces higher average latency, or to say, lower QPS. We do have ideas to optimize it further, however, it would make the design much more complicated.
+We expects it would be better to make transactions in such kind of scenarios to execute sequentially, avoiding too much useless statement retries and high tail latency. However, this will be very complicated to implement in our current architecture, especially considering that we needs to guarantee the backward compatibility. We have a complicated design for this problem and it took us much efforts to trying to demonstrate it. We've confirmed that the complicated design is helpful for solving the problem stated above in those kinds of scenarios. However, the stronger queueing behavior in lock waiting introduces higher average latency, or to say, lower QPS. We do have ideas to optimize it further, however, it would make the design even more complicated.
 
-Now we are going to productize the idea. As the first step, we will first implement a subset of the original design: we will enhance the queueing behavior for pessimistic lock requests that involves only one key. This will be helpful for many cases that has frequent lock conflicts on some single rows. And since there's possibly QPS regression, the new behavior will be optional and disabled by default. A user will need to choose to get lower tail latency at the expense of higher average latency if the user needs.
+Now we are going to productize the idea. As the first step, we will first implement a subset of the original design: we will enhance the queueing behavior for pessimistic lock requests that involves only one key. This will be helpful for many cases that has frequent lock conflicts on some single rows. And since there's possibly QPS regression, the new behavior will be optional and disabled by default. A user can choose to get lower tail latency at the expense of higher average latency if the user needs.
 
 ## Detailed design
 
