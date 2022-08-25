@@ -161,7 +161,23 @@ Though this feature is helpful in reducing tail latency in high contention scena
 
 ### `PessimisticRollback` 
 
-This section is TODO.
+`PessimisticRollback` is performed when a statement retires of fails, or the user rollbacks the whole transaction. Currently, a `PessimisticRollback` request carries a `for_update_ts`, and removes pessimistic locks with `for_update_ts` less than or equal to the specified `for_update_ts`. If a lock has larger `for_update_ts`, the lock is regarded to be newer than the `PessimisticRollback` request, thus it won't be removed.
+
+Thing becomes a little complicated as we are supporting locking with conflict. When the locking-with-conflict behavior occurs, a lock with `for_update_ts` larger than that specified by `PessimisticLock` request might be written. 
+
+For example, TiDB executes a statement with `for_update_ts = 10` which locks several keys, one of which has `locked_with_conflict_ts = 15`. Let's denote the key that has conflict by `K`. Then consider the case that it needs to perform a `PessimisticRollback`. Of course, if we still pass `for_update_ts = 10` in `PessimisticRollback` request and handle the request in the same way as before, the lock on key `K` won't be able to be removed since it has a larger `for_update_ts`.
+
+An intuitive way to solve the problem is to use the max `locked_with_conflict_ts` (which is 15 in this example) as the `for_update_ts` field in `PessimisticRollback` request. However, considering there is Async Commit and 1PC, there's still a corner case. If the previous version of key `K` is committed in async commit protocol, then its `commit_ts` (which is 15) might be calculated by some PD-allocated ts (14) plus one. Then the next attempt of the statement may also get 15 from PD as the new for_update_ts. As a result, if we pass `for_update_ts = 15` in `PessimisticRollback`, it might mistakenly remove the locks that's expected to be acquired during the new turn of retry.
+
+We don't need to solve the problem immediately since if we choose to use the max `locked_with_conflict_ts` in `PessimisticRollback`, the possibility of the ts collision problem seems to be low. To solve it completely, here is two possible solutions:
+
+#### Solution 1:
+
+Add a field to the lock that indicates the statement index / operation index, which is increased by one for every statement, including retry. The `PessimisticRollback` should also carry such an index. If a `PessimisticRollback` request finds a lock with greater index, it won't do anything to the lock. However, this approach requires changing the data format of the lock, which makes the solution risky. A benefit is that it may also be able to provide diagnostic information (by making it possible to know which statement in a transaction the lock belongs to).
+
+#### Solution 2:
+
+Update the TSO interface to support allocating more than one timestamp at once. When performing pessimistic retry, we allocate two timestamps at once, and only use the larger one as the new `for_update_ts`. This avoids the new `for_update_ts` collides the ts that's being `PessimisticRollback`-ed.
 
 ---
 
