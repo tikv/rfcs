@@ -147,6 +147,8 @@ For example, assuming the client is TiDB and it's executing a statement at `for_
 
 When many requests are queued waiting the same key, and one of them is granted the lock after the previous lock being released, then for the other queueing requests, the transaction they are waiting for is changed. In this case, we need some update operations so that it can perform correct deadlock detection and provide diagnostic information about lock waiting. The problem doesn't exist in the old implementation, because the queueing requests will all be canceled (and they then will retry) after delaying for `wake-up-delay-duration`.
 
+We store the information about the owner of the current lock, along with the lock waiting queue of each key. When the lock's owner changes, the information about the current lock owner should be updated, and all entries in the queue should be iterated to collect information for performing deadlock detection.
+
 ## Drawbacks
 
 The changes will be very complicated, especially considering the compatibility. For users that don't enable the feature, though we expect the behavior is totally unchanged, the internal implementation of lock waiting and waking up will be migrated to the new one, leading to risk to introduce new bugs and performance regression.
