@@ -11,15 +11,15 @@ Provide an enhanced lock waiting & waking up behavior for pessimistic lock reque
 
 Currently, we are adopting a simple but rough implementation for pessimistic lock waiting and waking up. It works just fine in most normal cases, however, there will be problems under workloads that has frequent lock conflicts. When there are many requests trying to acquire the lock on a single key in TiKV:
 
-* The order that the transactions successfully get the lock has too much randomness
-* When a pessimistic lock request is woken up after waiting a while in TiKV, it always returns `WriteConflict` to the client (usually TiDB) to notify the client to retry the current operation (usually a SQL statement). During retrying, it's possible that the lock is acquired by another transaction.
-* When many pessimistic lock requests are waiting on the same key in TiKV and the current lock is released, one of the requests will be woken up, and the others will be woken up too after delaying for `wake-up-delay-duration` (which is a configurable value that defaults to 10ms). If the first awakened transaction's retrying request arrives late, the key might already have been locked by another transaction.
+- The order that the transactions successfully get the lock has too much randomness
+- When a pessimistic lock request is woken up after waiting a while in TiKV, it always returns `WriteConflict` to the client (usually TiDB) to notify the client to retry the current operation (usually a SQL statement). During retrying, it's possible that the lock is acquired by another transaction.
+- When many pessimistic lock requests are waiting on the same key in TiKV and the current lock is released, one of the requests will be woken up, and the others will be woken up too after delaying for `wake-up-delay-duration` (which is a configurable value that defaults to 10ms). If the first awakened transaction's retrying request arrives late, the key might already have been locked by another transaction.
 
 This may lead to some problems:
 
-* The latency to acquire the lock might be very unstable, causing high tail latency.
-* There might be too many statement-retries that are useless but waste resources.
-* When the problem is severe, it's also possible to cause errors like lock wait timeout and statement retry limit exceeded.
+- The latency to acquire the lock might be very unstable, causing high tail latency.
+- There might be too many statement-retries that are useless but waste resources.
+- When the problem is severe, it's also possible to cause errors like lock wait timeout and statement retry limit exceeded.
 
 By carefully adjusting `wake-up-delay-duration`, we are actually able to try to make it work well in most scenarios. However, it's very hard to adjust it since it's difficult to predict the effect of changing it. It's even harder if a user who doesn't understand the internal implementation of TiKV want to tune it. Besides, its an instance level config, which means, if a user have more than one workloads that has different characteristics in a single cluster, it's impossible to use different `wake-up-delay-duration` for different workloads.
 
@@ -33,9 +33,9 @@ The basic idea of the optimization is: when a pessimistic lock request is woken 
 
 Therefore, the essential points of the optimization are:
 
-* Allow acquiring pessimistic locks even when there are write conflicts (the `commit_ts` of the latest version is greater than `for_update_ts` of the current request).
-* When a lock is released and a queueing pessimistic lock request is woken up, allow the latter request to resume and continue acquiring the lock (it's very likely to succeed since we allow locking with conflict).
-* If many pessimistic lock requests are waiting for the same key, after waking up one of them, the others don't need to be all woken up. <sup>[1]</sup>
+- Allow acquiring pessimistic locks even when there are write conflicts (the `commit_ts` of the latest version is greater than `for_update_ts` of the current request).
+- When a lock is released and a queueing pessimistic lock request is woken up, allow the latter request to resume and continue acquiring the lock (it's very likely to succeed since we allow locking with conflict).
+- If many pessimistic lock requests are waiting for the same key, after waking up one of them, the others don't need to be all woken up.
 
 These new mechanisms is optional and is only available for pessimistic requests that involves only one key. Requests that choose to use or not to use the new mechanisms should be able to coexist.
 
@@ -85,17 +85,17 @@ The `results` field is repeated since we may expand the optimization to support 
 
 We will need a waiting queue for each key. The queue will need to be accessed in the following cases:
 
-* Pessimistic lock request encounters another lock: an entry should be enqueued to the waiting queue before the pessimistic lock command exits scheduler.
-* Releasing a lock (i.e. committing or rolling back a lock): it needs to check if there's any pessimistic lock request being blocked on this lock, wake one of them up if necessary. For requests that don't enable the new mechanism, the waking up procedure should be done before calling `engine.async_write` in `Scheduler::process_write` to return the response to client as early as possible. In this way, we can prevent the performance of the old locking mode from regressing.
-* A lock is successfully acquired by someone. It's possible that the state of a key transits from not-locked into locked while there are many pessimistic lock requests blocked on the key. For example, a transaction releases the lock and then one of the queueing transactions acquires the lock. In this case, the other queueing transactions is waiting for a different transaction from before, and the waiting information of the queueing transactions need to be updated in order to provide correct diagnostic information about lock waiting and do correct deadlock detection.
-* Delayed notify-all for requests that uses the old behavior. As we mentioned before, in the original version, after waking up one of the queueing requests, the other queueing requests on the same key will be woken up too after `wake-up-delay-duration`. This behavior should be kept in our new implementation for requests that choose not to use the new mode.
+- Pessimistic lock request encounters another lock: an entry should be enqueued to the waiting queue before the pessimistic lock command exits scheduler.
+- Releasing a lock (i.e. committing or rolling back a lock): it needs to check if there's any pessimistic lock request being blocked on this lock, wake one of them up if necessary. For requests that don't enable the new mechanism, the waking up procedure should be done before calling `engine.async_write` in `Scheduler::process_write` to return the response to client as early as possible. In this way, we can prevent the performance of the old locking mode from regressing.
+- A lock is successfully acquired by someone. It's possible that the state of a key transits from not-locked into locked while there are many pessimistic lock requests blocked on the key. For example, a transaction releases the lock and then one of the queueing transactions acquires the lock. In this case, the other queueing transactions is waiting for a different transaction from before, and the waiting information of the queueing transactions need to be updated in order to provide correct diagnostic information about lock waiting and do correct deadlock detection.
+- Delayed notify-all for requests that uses the old behavior. As we mentioned before, in the original version, after waking up one of the queueing requests, the other queueing requests on the same key will be woken up too after `wake-up-delay-duration`. This behavior should be kept in our new implementation for requests that choose not to use the new mode.
 
 Each queue will be a priority queue that pops the item with minimal `start_ts`. It's possible to extend the way to calculate the priority in the future, for example, considering its total wait time or the amount of transactions it's blocking.
 
 There are two choices about where to put the queues:
 
-* Put them in the lock table in `ConcurrencyManager`, which means, we can use key to index both memory lock and the lock waiting queue (but of course they should not share the same mutex). In this way, we tries to put concurrency-managing stuff together, which is logically reasonable. But it makes cleaning up of entries in the lock table more complicated. Besides, it have risk of reducing performance of scanning memory locks.
-* Put them in a separated concurrent hashmap indexed by key. It should be simpler and more efficient than putting into lock table.
+- Put them in the lock table in `ConcurrencyManager`, which means, we can use key to index both memory lock and the lock waiting queue (but of course they should not share the same mutex). In this way, we tries to put concurrency-managing stuff together, which is logically reasonable. But it makes cleaning up of entries in the lock table more complicated. Besides, it have risk of reducing performance of scanning memory locks.
+- Put them in a separated concurrent hashmap indexed by key. It should be simpler and more efficient than putting into lock table.
 
 As we will explain later, when a request is waiting in queue, it's possible that it exceeds its timeout. `WaiterManager` will be responsible to cancel it. However,
 
@@ -125,8 +125,8 @@ There's an additional map named `region_waiter` which provides the ability to ca
 
 As we already mentioned before, it will be allowed to acquire pessimistic locks even if there's a newer version with its `commit_ts` greater than the request's `for_update_ts`. When this behavior occurs:
 
-* The lock will be written with the `for_update_ts` field equal to the `commit_ts` of the latest version
-* The `max_ts` (for async commit) may be updated to the `for_update_ts` field of *the request* as usual, but do not update it to the latest `commit_ts` (which is also the `for_update_ts` field of the actually written lock).
+- The lock will be written with the `for_update_ts` field equal to the `commit_ts` of the latest version
+- The `max_ts` (for async commit) may be updated to the `for_update_ts` field of *the request* as usual, but do not update it to the latest `commit_ts` (which is also the `for_update_ts` field of the actually written lock).
 
 #### Waiting and resuming
 
@@ -141,13 +141,39 @@ So once a pessimistic lock request enters waiting state, it's callback will be s
 
 Since a pessimistic lock request may lock a key when there's a version newer than the current snapshot being read, the client cannot simply use the new locking behavior as before. The client will retry the current operation (for TiDB, it's the current statement) while keeping the lock, and unlock it only if it's found that the key don't need to be locked anymore during the retry.
 
-For example, assuming the client is TiDB and it's executing a statement at `for_update_ts = 10`, but a version whose `commit_ts` is 15 is found when locking one of the keys (we denote this case by `locked_with_conflict_ts = 15`), we cannot continue executing like there isn't the conflict, because the statement may produce a totally different result if it's executed at `for_update_ts = 15`. Therefore, the client still need to retry the statement with a newer `for_update_ts`. However, the difference is that, the keys that were locked during the previous attempt will be kept locked. We expect that in most of the cases, the keys that need to be locked won't change (or won't change much) when retrying the statement. The benefit is that, it prevents the key from being locked by another transaction while the statement is retrying, causing the retry useless. In case that the keys that need to be locked has changed after retry, we acquire locks that we need but were not locked in the last attempt, and unlock the keys that were locked in the last attempt but no longer needed now.
+For example, assuming the client is TiDB and it's executing a statement at `for_update_ts = 10`, but a version whose `commit_ts` is 15 is found when locking one of the keys (we denote this case by `locked_with_conflict_ts = 15`), we cannot continue executing like if there isn't the conflict, because the statement may produce a totally different result if it's executed at `for_update_ts = 15`. Therefore, the client still need to retry the statement with a newer `for_update_ts`. However, the difference is that, the keys that were locked during the previous attempt will be kept locked. We expect that in most of the cases, the keys that need to be locked won't change (or won't change much) when retrying the statement. The benefit is that, it prevents the key from being locked by another transaction while the statement is retrying, causing the retry useless. In case that the keys that need to be locked has changed after retry, we acquire locks that we need but were not locked in the last attempt, and unlock the keys that were locked in the last attempt but no longer needed now.
 
 ### Updating lock-wait info for queueing requests
 
 When many requests are queued waiting the same key, and one of them is granted the lock after the previous lock being released, then for the other queueing requests, the transaction they are waiting for is changed. In this case, we need some update operations so that it can perform correct deadlock detection and provide diagnostic information about lock waiting. The problem doesn't exist in the old implementation, because the queueing requests will all be canceled (and they then will retry) after delaying for `wake-up-delay-duration`.
 
 We store the information about the owner of the current lock, along with the lock waiting queue of each key. When the lock's owner changes, the information about the current lock owner should be updated, and all entries in the queue should be iterated to collect information for performing deadlock detection.
+
+### Compatibility
+
+We need to support mixing pessimistic requests that choose to use or not to use the new behavior, since we are going to support the new behavior only for single-key requests. It's also important when considering rolling updating (old TiDB nodes may run with new TiKVs).
+
+In the new implementation, requests using both new or old behavior will be queued in the new lock waiting queues. The difference will be the logic of waking up. When a scheduler command is releasing a lock and thus waking up a suspending pessimistic lock request, it follows the logic as shown in the pseudo code below:
+
+```rust
+if queue.front().lock_after_woken_up { // i.e. the head of the queue is a request using new behavior.
+    queue.pop().wake_up_and_resume_execution();
+} else {
+    queue.pop().wake_up_and_report_write_conflict();
+    // Delay for wake_up_delay_duration, and wake up as many legacy requests as possible,
+    // until the queue is cleared or a request using new behavior is found.
+    await_for_wake_up_delay_duration();
+    while !queue.is_empty() && !queue.front().lock_after_woken_up() {
+        queue.pop().wake_up_and_report_write_conflict();
+    }
+    if !queue.is_empty() {
+        // Then the head of queue must be using the new behavior.
+        // It's possible that the key is locked by another transaction after waking up the first head of queue.
+        // If so, this request will find that lock and continue waiting.
+        queue.pop().wake_up_and_resume_execution();
+    }
+}
+```
 
 ## Drawbacks
 
@@ -161,11 +187,11 @@ Though this feature is helpful in reducing tail latency in high contention scena
 
 ## Unresolved questions
 
-### `PessimisticRollback` 
+### `PessimisticRollback`
 
 `PessimisticRollback` is performed when a statement retires of fails, or the user rollbacks the whole transaction. Currently, a `PessimisticRollback` request carries a `for_update_ts`, and removes pessimistic locks with `for_update_ts` less than or equal to the specified `for_update_ts`. If a lock has larger `for_update_ts`, the lock is regarded to be newer than the `PessimisticRollback` request, thus it won't be removed.
 
-Thing becomes a little complicated as we are supporting locking with conflict. When the locking-with-conflict behavior occurs, a lock with `for_update_ts` larger than that specified by `PessimisticLock` request might be written. 
+Thing becomes a little complicated as we are supporting locking with conflict. When the locking-with-conflict behavior occurs, a lock with `for_update_ts` larger than that specified by `PessimisticLock` request might be written.
 
 For example, TiDB executes a statement with `for_update_ts = 10` which locks several keys, one of which has `locked_with_conflict_ts = 15`. Let's denote the key that has conflict by `K`. Then consider the case that it needs to perform a `PessimisticRollback`. Of course, if we still pass `for_update_ts = 10` in `PessimisticRollback` request and handle the request in the same way as before, the lock on key `K` won't be able to be removed since it has a larger `for_update_ts`.
 
@@ -173,16 +199,10 @@ An intuitive way to solve the problem is to use the max `locked_with_conflict_ts
 
 We don't need to solve the problem immediately since if we choose to use the max `locked_with_conflict_ts` in `PessimisticRollback`, the possibility of the ts collision problem seems to be low. To solve it completely, here is two possible solutions:
 
-#### Solution 1:
+#### Solution 1
 
 Add a field to the lock that indicates the statement index / operation index, which is increased by one for every statement, including retry. The `PessimisticRollback` should also carry such an index. If a `PessimisticRollback` request finds a lock with greater index, it won't do anything to the lock. However, this approach requires changing the data format of the lock, which makes the solution risky. A benefit is that it may also be able to provide diagnostic information (by making it possible to know which statement in a transaction the lock belongs to).
 
-#### Solution 2:
+#### Solution 2
 
 Update the TSO interface to support allocating more than one timestamp at once. When performing pessimistic retry, we allocate two timestamps at once, and only use the larger one as the new `for_update_ts`. This avoids the new `for_update_ts` collides the ts that's being `PessimisticRollback`-ed.
-
----
-
-[1]: In the original implementation, the delayed wake up for all queueing request will make each blocked transaction retry the current statement, which is helpful for: 
-* Redoing deadlock detection, since the current lock they are waiting for may be changed;
-* Avoiding never being woken up in case that the first woken up transaction doesn't need the lock anymore. The first woken up transaction will first return to the client (usually TiDB) and the client should then retry it. However the transaction may not need the lock anymore due to data change or client crashing. In these cases, the queueing request in TiKV on the key will have no chance to be woken up. Notifying-all instead of notifying-one when releasing lock avoids the problem.
