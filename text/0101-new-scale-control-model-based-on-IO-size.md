@@ -1,4 +1,6 @@
 # New scale control model based on IO size
+- RFC PR: https://github.com/tikv/rfcs/pull/94
+- Tracking Issue: https://github.com/tikv/repo/issues/0000
 ## Summary
 Make every store its own sender 
 Motivation
