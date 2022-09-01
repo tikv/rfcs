@@ -48,6 +48,16 @@ graph LR
 
 The mechanism of the scheduling limiter is shown in the figure. All scheduler will check the region that's leader has some available send size. If not , it will try another region as target.
 
+### How to speed up/down scheduling  
+The current users can speed up/down scheduling though store limit API. In order to reduce the user's cost, the new current limit will inherit this API and switch mode through the configuration. The new api may look like this:
+
+```
+config set limit v2 // Switch flow limit v2
+store limit all 500 // All stores can at most move 500MB data per second 
+store limit 1 200   // Store 1 can at most move 200MB data per second
+```
+
+
 ### How to adjust windows size 
 The minimum(initial) value of the sliding window is 1000MB. The store can be considered to be scheduled if it's available sending size is bigger than 100MB, so the biggest region can also be scheduled. 
 When the operator execution duration is less than 2 times the snapshot task execution time, the sender windows size will increase , otherwise it will decrease. A PI controller is used to prevent repeated adjustments. It should be noted that when all schedules don't need such big size, it will stop increasing. 
@@ -72,7 +82,6 @@ As shown in the
 ## Compatibility
 ### Store Limit
 The store limiter mainly has the following functions that cannot be replaced:
-- Limit the operator generating speed. In some scenarios, users want to limit the scheduling speed to reduce the impact on workload. Currently, there is no good solution to modify the tikv configuration from PD.
 - The second highest (lowest) score store can still be scheduled. An instance cannot continuously be the source or target to be scheduler because the token is limited in the short term.
 - Remove too many peers from the same store can bring major compaction, which affect the cluster performance.
 ### Multi RocksDB
