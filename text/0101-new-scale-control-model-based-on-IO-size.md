@@ -59,9 +59,22 @@ The new scheduler policy does not guarantee that the snapshot sending size of al
 #### Balance Region Scheduler 
 The scheduler picks the store as source first, then picks the region on the source store, finally picks the target store. On the original basis, it is necessary to check the target region leader whether there is enough sending space to send. 
 #### High Priority Scheduler 
-Some scheduler may create a highest priority operator such as balance hot region, region check. For these higher operators, 20% of the send window will be reserved. This can prevent this window size from being completely occupied by low priority task .
+Some scheduler may create a highest priority operator such as balance hot region, region check. For the highest operators (such as hot region operator), they can use this external space if the normal space is not enough. The default external space is about 20% of the send window. This can prevent this window size from being completely occupied by low priority task.
+
+```
+|------- Used -------|
+                     |--------Available -----------|
+|------ Normal ------------|---- Privilege —-------|
+```
+As shown in the 
+
 
 ## Compatibility
+### Store Limit
+The store limiter mainly has the following functions that cannot be replaced:
+- Limit the operator generating speed. In some scenarios, users want to limit the scheduling speed to reduce the impact on workload. Currently, there is no good solution to modify the tikv configuration from PD.
+- The second highest (lowest) score store can still be scheduled. An instance cannot continuously be the source or target to be scheduler because the token is limited in the short term.
+- Remove too many peers from the same store can bring major compaction, which affect the cluster performance.
 ### Multi RocksDB
 In this design, the generation of the snapshot will use check-point hard link to replace the scanning of RocksDB. It can reduce the CPU loads and the duration of snapshot generator. But the snapshots are not compressed ,the network and disk bandwidth will increase. 
 The snapshot synchronization process is basically the same, some tasks need to wait to be executed when the store has many snapshot tasks. The waiting time is still positively related to the backlog of the snapshot task, so feedback mechanism still satisfies this situation. 
@@ -73,10 +86,5 @@ Drawbacks
 Due to the need to prevent too many snapshot tasks on the instance, a new limit needs to be added, which may cause the execution priority of the scheduler to change, resulting in a small number of scheduling. 
 
 ## Question
-1. How about removing the store limit?
-The store limiter mainly has the following functions that cannot be replaced:
-- Limit the operator generating speed, which can be limited by adjusting the tikv snapshot related parameters later. 
-- The second highest (lowest) score store can still be scheduled. This mechanism can effectively promote the fairness of scheduling.
-- Remove too many peers from the same store can bring major compaction, which affect the cluster performance.
 
 ## Unresolved questions
