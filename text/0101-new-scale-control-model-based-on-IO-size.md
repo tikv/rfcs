@@ -1,4 +1,4 @@
-# New scale control model based on IO size
+# Feedback-based scale control model
 - RFC PR: https://github.com/tikv/rfcs/pull/101
 - Tracking Issue: https://github.com/tikv/pd/issues/5467
 ## Summary
@@ -88,8 +88,8 @@ The store limiter mainly has the following functions that cannot be replaced:
 In this design, the generation of the snapshot will use check-point hard link to replace the scanning of RocksDB. It can reduce the CPU loads and the duration of snapshot generator. But the snapshots are not compressed ,the network and disk bandwidth will increase. 
 The snapshot synchronization process is basically the same, some tasks need to wait to be executed when the store has many snapshot tasks. The waiting time is still positively related to the backlog of the snapshot task, so feedback mechanism still satisfies this situation. 
 ## Alternatives
-### Follower Replica 
-In this design, a new mechanism in raft algorithm will be introduced which allows the follower to replaica log or send snapshot to another peer. Since the removed peer can also be the snapshot sender, balance region scheduler no need to consult the region leader whether there is some available sending size. 
+### [Follower Replica](https://github.com/tikv/rfcs/pull/98)
+A new mechanism in the raft algorithm will be introduced which allows the follower to replaica the log or send snapshot to another peer. Since the removed peer can also be the snapshot sender, balance region scheduler no need to consult the region leader whether there is some available sending size. 
 But for the other scheduler, there may be a big log gap between the follower and leader, so the follower cannot be the snapshot sender, this may make the operator slower and complicated.
 Drawbacks
 Due to the need to prevent too many snapshot tasks on the instance, a new limit needs to be added, which may cause the execution priority of the scheduler to change, resulting in a small number of scheduling. 
