@@ -83,21 +83,36 @@ The `results` field is repeated since we may expand the optimization to support 
 
 ### Lock Waiting Queue
 
-We will need a waiting queue for each key. The queue will need to be accessed in the following cases:
+We will need a new waiting queue for each key. The original `WaiterManager` doesn't meet our need well, because the following reasons:
+
+- When the current command (maybe a commit or rollback) releases a lock and wakes up another acquire_pessimistic_lock command, we expect the latter command can success. To avoid another request arrives between the two command's execution and preempts the lock, we need to know on which key we are going to wake up a lock-waiting request, do not release its latch, and let the resumed command derive the latch instead of re-acquiring it.
+- We need to find blocked requests by key instead of by key hash, to avoid waking up wrong waiters and cause invalid execution of the command.
+- When waking up a lock-waiting request, we need the full parameters of that request and schedule a new command in scheduler to execute it.
+
+We are going to design a new lock waiting queue to meet our new requirement, as well as provide more extendability and possibility for future optimizations.
+
+The lock waiting queue can be accessed in the following places:
 
 - Pessimistic lock request encounters another lock: an entry should be enqueued to the waiting queue before the pessimistic lock command exits scheduler.
 - Releasing a lock (i.e. committing or rolling back a lock): it needs to check if there's any pessimistic lock request being blocked on this lock, wake one of them up if necessary. For requests that don't enable the new mechanism, the waking up procedure should be done before calling `engine.async_write` in `Scheduler::process_write` to return the response to client as early as possible. In this way, we can prevent the performance of the old locking mode from regressing.
 - A lock is successfully acquired by someone. It's possible that the state of a key transits from not-locked into locked while there are many pessimistic lock requests blocked on the key. For example, a transaction releases the lock and then one of the queueing transactions acquires the lock. In this case, the other queueing transactions is waiting for a different transaction from before, and the waiting information of the queueing transactions need to be updated in order to provide correct diagnostic information about lock waiting and do correct deadlock detection.
 - Delayed notify-all for requests that uses the old behavior. As we mentioned before, in the original version, after waking up one of the queueing requests, the other queueing requests on the same key will be woken up too after `wake-up-delay-duration`. This behavior should be kept in our new implementation for requests that choose not to use the new mode.
 
-Each queue will be a priority queue that pops the item with minimal `start_ts`. It's possible to extend the way to calculate the priority in the future, for example, considering its total wait time or the amount of transactions it's blocking.
+Each queue will be a priority queue that pops the item with minimal `start_ts`, implemented by the std `BinaryHeap`. It's possible to extend the way to calculate the priority in the future, for example, considering its total wait time or the amount of transactions it's blocking.
 
-There are two choices about where to put the queues:
+We put the queues in a concurrent hashmap indexed by key, and put the hashmap inner the `Scheduler`.
 
-- Put them in the lock table in `ConcurrencyManager`, which means, we can use key to index both memory lock and the lock waiting queue (but of course they should not share the same mutex). In this way, we tries to put concurrency-managing stuff together, which is logically reasonable. But it makes cleaning up of entries in the lock table more complicated. Besides, it have risk of reducing performance of scanning memory locks.
-- Put them in a separated concurrent hashmap indexed by key. It should be simpler and more efficient than putting into lock table.
+#### Lazy-cleaning up
 
-As we will explain later, when a request is waiting in queue, it's possible that it exceeds its timeout. `WaiterManager` will be responsible to cancel it. However,
+As we will explain later, when a request is waiting in queue, it's possible that it exceeds its timeout, or encounters deadlock. `WaiterManager` will be responsible to cancel it. However, the corresponding entry in the queue won't be removed from the priority queue efficiently. Therefore, we can use a lazy-cleaning up approach: when popping an entry from a queue, if the entry is cancelled but it is canceled (which can be indicated by an atomic flag), drop it and continue popping the next.
+
+But this is not a complete solution: it's possible that some stale entries may be left in the queues. For example, if the leader of a region is transferred when there are some lock-waiting requests, then the waking up operation will be performed in the new leader, therefore the entries in the queue will wait until timeout without being cleaned up.
+
+Some possible solutions:
+
+- Use an atomic counter to count valid entries in the queue of each key. When it becomes 0 but the queue is not empty, remove it from the map.
+- Periodically iterate the map and remove the stale entries.
+- Introduce a priority queue that supports efficiently removing (by either introducing third-party library or implementing by ourselves), and remove the entry when it's cancelled outside.
 
 ### Waiter manager and deadlock detector adaption
 
