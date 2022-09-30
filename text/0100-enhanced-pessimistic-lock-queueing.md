@@ -104,7 +104,7 @@ We put the queues in a concurrent hashmap indexed by key, and put the hashmap in
 
 #### Lazy-cleaning up
 
-As we will explain later, when a request is waiting in queue, it's possible that it exceeds its timeout, or encounters deadlock. `WaiterManager` will be responsible to cancel it. However, the corresponding entry in the queue won't be removed from the priority queue efficiently. Therefore, we can use a lazy-cleaning up approach: when popping an entry from a queue, if the entry is cancelled but it is canceled (which can be indicated by an atomic flag), drop it and continue popping the next.
+As we will explain later, when a request is waiting in queue, it's possible that it exceeds its timeout, or encounters deadlock. `WaiterManager` will be responsible to cancel it. However, the corresponding entry in the queue won't be removed from the priority queue efficiently. Therefore, we can use a lazy-cleaning up approach: when popping an entry from a queue, if the entry is canceled (which can be indicated by an atomic flag), drop it and continue popping the next.
 
 But this is not a complete solution: it's possible that some stale entries may be left in the queues. For example, if the leader of a region is transferred when there are some lock-waiting requests, then the waking up operation will be performed in the new leader, therefore the entries in the queue will wait until timeout without being cleaned up.
 
@@ -112,7 +112,7 @@ Some possible solutions:
 
 - Use an atomic counter to count valid entries in the queue of each key. When it becomes 0 but the queue is not empty, remove it from the map.
 - Periodically iterate the map and remove the stale entries.
-- Introduce a priority queue that supports efficiently removing (by either introducing third-party library or implementing by ourselves), and remove the entry when it's cancelled outside.
+- Introduce a priority queue that supports efficiently removing (by either introducing third-party library or implementing by ourselves), and remove the entry when it's canceled outside.
 
 ### Waiter manager and deadlock detector adaption
 
