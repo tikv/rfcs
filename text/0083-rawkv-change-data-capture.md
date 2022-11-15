@@ -9,11 +9,11 @@ This proposal introduces the technical design of **RawKV Change Data Capture** (
 
 ## Motivation
 
-Customers are deploying TiKV clusters as non-transactional key-value (**RawKV**) storage for application router or other scenarios. When **RawKV** being more and more widely adopted, [Change Data Capture] become a necessary feature to meet the high availability requirement of industries (*e.g.* banking and finance, to deploy disaster recovery clusters).
+Customers are deploying TiKV clusters as non-transactional key-value (**RawKV**) storage for application router or other scenarios. With **RawKV** being more and more widely adopted, [Change Data Capture] becomes a necessary feature to meet the high availability requirement of industries (*e.g.* banking and finance, to deploy disaster recovery clusters).
 
 *(Now we will focus on the scenario of **Cross Cluster Replication**, i.e. replication between main and recovery TiKV clusters. Design for other scenarios will be supplemented later.)*
 
-In this proposal we introduces **TiKV-CDC**, a new component for **RawKV CDC**, which captures changed data from upstream/main TiKV cluster, and replicates to downstream/recovery TiKV cluster in real time.
+In this proposal we introduce **TiKV-CDC**, a new component for **RawKV CDC**, which captures changed data from upstream/main TiKV cluster, and replicates to downstream/recovery TiKV cluster in real time.
 
 <img src="../media/rawkv-cdc.png" alt="RawKV CDC" width="60%"/>
 
@@ -31,7 +31,7 @@ Data in downstream cluster is expected to be consistent with upstream cluster. T
 
 **2nd**, [TiKV API V2] provides causality consistence, that if two writes (of the same key) `A` [Happened Before] `B`, then `Timestamp(A)` < `Timestamp(B)`. **RawKV CDC** guarantee the same causality consistence as well.
 
-**3rd**, [TiKV API V2] does not guarantee that a **RawKV** entry with smaller timestamp must be observed first. So **TiKV-CDC** will sort entires by timestamp before send to downstream.
+**3rd**, [TiKV API V2] does not guarantee that a **RawKV** entry with smaller timestamp must be observed first. So **TiKV-CDC** will sort entries by timestamp before send to downstream.
 
 But how **TiKV-CDC** knows it will not receive any even earlier entry from TiKV after the previous batch of data had been sent to downstream ? So we need **Resolved Timestamp** (abbr. **resolved-ts**). **Resolved-ts** is similar to [Watermark], by which TiKV indicating that all entries earlier have been observed. When **TiKV-CDC** receives a `resolved-ts`, all sorted entries with `timestamp <= resolved-ts` are safe to write to downstream.
 
@@ -53,7 +53,7 @@ For availability, we utilize a **Checkpoint** mechanism. **Checkpoint** is the l
 
 **Checkpoint** will be affected by **Garbage Collection**. **Checkpoint** requires that all versions since **Checkpoint** are kept, otherwise **TiKV-CDC** would miss some changes. So **TiKV-CDC** will set a **Service Safe Point** on timestamp the same as **Checkpoint**, with **TTL** defaults to `24` hours. The **TTL** means that **TiKV-CDC** and replicate tasks should be resumed in no more than **TTL**, otherwise the **Checkpoint** will be invalid.
 
-Finally, in this proposal, one replication task will be processed in only one **Capture**, to make it right more easily. Splitting a task to sub-tasks will get better performance and scalability, but we must be caution to avoid any overlap or hole among sub-tasks, otherwise the correctness will be violated. Sub-tasks will be considered later.
+Finally, in this proposal, one replication task will be processed in only one **Capture**, to make it right more easily. Splitting a task to sub-tasks will get better performance and scalability, but we must be cautious to avoid any overlap or hole among sub-tasks, otherwise the correctness will be violated. Sub-tasks will be considered later.
 
 ### Recovery Point Objective
 
@@ -66,7 +66,7 @@ Main factors affecting **Checkpoint Lag** includes:
 - Data transmission on network:
   - **Network latency** cross cities would be `30` milliseconds or even more. But as we are using the high-performance [gRPC] as underlying implementation of networking, and writing to downstream by batch, we don't concern with network latency now.
 - **TiKV-CDC** internal:
-  - **Sorter** would be the bottleneck, as it 1) process data from all regions, 2) holds too many data if **resolved-ts** or downstream is blocked, 3) sorts data in disks when data is too big to fit in memory.
+  - **Sorter** would be the bottleneck, as it 1) process data from all regions, 2) holds too much data if **resolved-ts** or downstream is blocked, 3) sorts data in disks when data is too big to fit in memory.
   - This issue will be even more severe on initial replication. In this scenario **Sorer** must hold all existing data from starting point of replication task to current before send to downstream.
   - To address this issue, we provide an alternative: using [TiKV-BR] to complete the initial replication. [TiKV-BR] backup and restore data fully utilizing power of the whole TiKV cluster, and don't need the sorting, so is much more efficient.
 
