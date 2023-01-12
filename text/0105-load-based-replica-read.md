@@ -27,9 +27,9 @@ Therefore, we hope to enable replica read intelligently based on the load of the
 
 Traditionally, the load is ratio of the average queue length and the processing speed. But we care more about the latency and latency is a metric that is more comparable across nodes. So, we will use the wait duration to represent the load.
 
-Knowing the current queue length $L$ and the average time slice S$, we can estimate that the wait duration is $T_{waiting} =L \cdot S$.
+Knowing the current queue length $L$ and the average time slice $S$ of the read pool, we can estimate that the wait duration is $T_{waiting} =L \cdot S$.
 
-The current queue length is easily known. But we have to predict the average time slice in the short future. We can use the EWMA of the previous time slices to estimate it:
+The current queue length is easily known. But we have to predict the average time slice in the short future. We can use the EWMA of the previous time slices to estimate it. $S_{now}$ is the average time slice length of the read pool in the past second. We update the latest EWMA $S_{i}$ every second using the following formula:
 
 $$S_{i}=\alpha \cdot S_{now}+(1-\alpha) \cdot S_{i-1}$$
 
