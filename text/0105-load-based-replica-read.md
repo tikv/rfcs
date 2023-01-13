@@ -27,11 +27,17 @@ Therefore, we hope to enable replica read intelligently based on the load of the
 
 Traditionally, the load is ratio of the average queue length and the processing speed. But we care more about the latency and latency is a metric that is more comparable across nodes. So, we will use the wait duration to represent the load.
 
-Knowing the current queue length $L$ and the average time slice $S$ of the read pool, we can estimate that the wait duration is $T_{waiting} =L \cdot S$.
+Knowing the current queue length $L$ and the estimated average time slice $\hat S$ of the read pool, we can estimate that the wait duration is $T_{waiting} =L \cdot \hat S$.
 
-The current queue length is easily known. But we have to predict the average time slice in the short future. We can use the EWMA of the previous time slices to estimate it. $S_{now}$ is the average time slice length of the read pool in the past second. We update the latest EWMA $S_{i}$ every second using the following formula:
+The current queue length is easily known. We can use EWMA to predict the average time slice in the short future. We update EWMA using the following formula every 200 milliseconds (which is the unit of $t$ in the formula):
 
-$$S_{i}=\alpha \cdot S_{now}+(1-\alpha) \cdot S_{i-1}$$
+$$
+\hat S_{t+1}=\alpha \cdot Y_{t}+(1-\alpha) \cdot \hat S_{t}
+$$
+
+where $\hat S_{t+1}$ is the predicted average time slice length at $t+1$, $Y_{t}$ is the observed value at $t$ over the past 200 milliseconds, $\hat S_{t}$ is the previous predicted value, $\alpha$ is the weight and we will examine its appropriate value later.
+
+When the total time used in the read pool is very small, we will skip updating the EWMA until the accumulated execution time reaches a threshold (e.g. 100ms) to avoid EWMA being affected by a small number of unrepresentative samples.
 
 ### Rejecting request on busy
 
