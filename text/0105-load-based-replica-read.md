@@ -93,6 +93,8 @@ To make use of as many resources as possible, the load we predict should not be 
 
 We use `estimatedWait - (time.Now().Since(waitTimeUpdatedAt))` as the estimated waiting duration in the client. It's mostly certain that this estimated value is smaller than real because the TiKV accepts requests meanwhile and some queries don't finish in a single time slice.
 
+Now, `busy_threshold_ms` in the leader request may be increased to the minimum of the estimated waiting duration of all candidate TiKVs. This can reduce useless retries if all TiKVs are busy.
+
 If the estimated waiting duration is greater than the threshold we are going to set, we can skip it and select the next possible node. In this way, if we know that a node is busy recently, we won't waste effort to send RPC to it.
 
 And when selecting a node for replica read, we will sort them according to the estimated waiting duration maintained in the client. The node with shorter waiting duration will be sent first.
