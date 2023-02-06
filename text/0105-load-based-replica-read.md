@@ -1,7 +1,7 @@
 # Load-Based Replica Read
 
 - RFC PR: https://github.com/tikv/rfcs/pull/105
-- Tracking issue: (TODO)
+- Tracking issue: https://github.com/tikv/tikv/issues/14151
 
 ## Summary
 
