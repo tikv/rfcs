@@ -103,4 +103,6 @@ And when selecting a node for replica read, we will sort them according to the e
 
 This RFC only considers the case when the bottleneck is at the read pool.
 
-When load-based replica read is used, there will be many more useless RPCs. So, we will be giving more pressure to the gRPC part. We should be cautious not to enable it when gRPC is the bottleneck to avoid entering a victious circle.
+When load-based replica read is used, there will be many more useless RPCs. So, we will be giving more pressure to the gRPC part. We should be cautious not to enable it when gRPC is the bottleneck to avoid entering a vicious circle.
+
+Some users have special settings for reducing traffic fees across available zones or regions. For example, the clients may be deployed in the same available zone with the leaders. Or, the user may always choose the closest replica to read. In these cases, load-based replica read may not be a good choice because of potential extra traffic fees.
