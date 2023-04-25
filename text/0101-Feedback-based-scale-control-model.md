@@ -153,6 +153,7 @@ Since the removed peer can also be the snapshot sender, balance region scheduler
 But for the other scheduler, there may be a big log gap between the follower and leader, so the follower cannot be the snapshot sender, this may make the operator slower and complicated.
 
 ## Drawbacks
+
 Due to the need to prevent too many snapshot tasks on the instance, a new limit needs to be added, which may cause the execution priority of the scheduler to change, resulting in a small number of scheduling. 
 
 ## Question
