@@ -12,9 +12,9 @@ By optimizing hibernated regions, it is possible to reduce traffic significantly
 
 ## Detailed design
 
-The design will be described in two sections: the improvement of awake regions and a new mechanism for hibernated regions.
+The design will be described in two sections: the improvement of active regions and a new mechanism for hibernated regions.
 
-### Awake Regions
+### Active Regions
 
 ```diff
 message RegionEpoch {
@@ -24,7 +24,7 @@ message RegionEpoch {
 
 message LeaderInfo {
     uint64 region_id = 1;
--   uint64 peer_id = 2;
+    uint64 peer_id = 2;
     uint64 term = 3;
     metapb.RegionEpoch region_epoch = 4;
     ReadState read_state = 5;
@@ -38,7 +38,6 @@ message ReadState {
 message CheckLeaderRequest {
     repeated LeaderInfo regions = 1;
     uint64 ts = 2;
-+   uint64 peer_id = 3;
 }
 
 message CheckLeaderResponse {
@@ -50,28 +49,43 @@ message CheckLeaderResponse {
 
 The above code is the suggested changes for `CheckLeader` protobuf.
 
-The `peer_id` field is used to check whether the request leader is the same as the leader in the follower peer. However, `LeaderInfo.peer_id` is redundant, as the leaders in the same peer share the same `peer_id`. Therefore, we can move it to `CheckLeaderRequest.peer_id` to avoid duplicated traffic. **Unfortunately, we must keep this field even if it is unused, to maintain compatibility with protobuf.**
-
 The `CheckLeaderResponse` will respond with the regions that pass the Raft safety check. The leader can then push its `safe_ts` for those regions. Since most regions will pass the safety check, it is not necessary to respond with the IDs of all passing regions. Instead, we can respond with only the IDs of regions that fail the safety check.
 
-### Hibernated Regions
+### Inactive Regions
 
-To save traffic, we can push the safe timestamps of hibernated regions together without sending the region information list. The `ts` field in `CheckLeaderRequest` is only used to build the relationship between the request and response, although it's fetched from PD. Ideally, we can push the safe timestamps of hibernated regions using this `ts` value. Additionally, we can remove hibernated regions from `CheckLeaderRequest.regions`. Modify `CheckLeaderRequest` as follows.
+Here we name the regions without writing to inactive regions. In the future TiKV will deprecate hibernated regions and merge the small regions into dymanic regions, if so the inactive regions won't be a problem, but for users that disable dynamic regions, this optimization is still required.
+
+To save traffic, we can push the safe timestamps of inactive regions together without sending the region information list. The `ts` field in `CheckLeaderRequest` is only used to build the relationship between the request and response, although it's fetched from PD. Ideally, we can push the safe timestamps of inactive regions using this `ts` value. Additionally, we can remove inactive regions from `CheckLeaderRequest.regions`. Modify `CheckLeaderRequest` as follows.
+
+We only send the IDs for inactive regions. In the most ideal situation, both `LeaderInfo` and the region ID in the response are skipped, reducing the traffic from 64 bytes to 8 bytes per region.
 
 ```diff
 message CheckLeaderRequest {
     repeated LeaderInfo regions = 1;
     uint64 ts = 2;
     uint64 peer_id = 3;
-+   repeated uint64 hibernated_regions = 4;
++   repeated uint64 inactive_regions = 4;
 }
 ```
 
-We only send the IDs for hibernated regions. In the most ideal situation, both `LeaderInfo` and the region ID in the response are skipped, reducing the traffic from 8 bytes to 1 byte per region.
+One more phase is required to apply the safe ts, because in check leader process, the follower cannot decide whether the request is from a valid leader, so it keep the safe ts in it's memory and wait for apply safe ts request.
+
+```protobuf
+message ApplySafeTsRequest {
+    uint64 ts = 1;
+    repeated uint64 unsafe_regions = 2;
+}
+
+message ApplySafeTsResponse {
+    uint64 ts = 1;
+}
+```
+
+To save traffic, `ApplySafeTsRequest.unsafe_regions` only contains the regions whose leader may be changed. In the ideal case, this request is small because there is almost no unsafe regions.
 
 #### Safety
 
-As long as the leader remains unchanged, safety is guaranteed. Specifically, if the terms of the quorum peers are not changed, we can assume that the leader is also unchanged. The `CheckLeaderRequest` is sent from the leader to the follower. If the terms of both the leader and the follower are unchanged, the condition "terms of the quorum peers are not changed" is met, and we believe there is no new leader.
+Safety is guaranteed as long as the leader remains unchanged. By decoupling the pushing of safe ts into two phases, the leader peer can ensure that the leadership is still unchanged before safe ts is generated. Only the region IDs of inactive regions are sent, but we can still confirm that the leader has not changed for a follower if both the leader's term and the follower's term remain unchanged. Because the safe ts is applied only after the leadership is confirmed, correctness will not be compromised.
 
 #### Implementation
 
