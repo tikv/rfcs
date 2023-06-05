@@ -10,15 +10,15 @@ TiKV pushes forward resolved ts by `CheckLeader` request, the traffic it costs g
 
 By optimizing inactive regions, it is possible to reduce traffic significantly. In a large cluster, many regions are not accessed and remain in a hibernated state.
 
-Let’s review the safe ts push mechanism.
+Let's review the safe ts push mechanism.
 
-1. The leader sends a `check_leader` request to the followers with a timestamp from PD, which carries the resolved timestamp pushed in previous step 3.
+1. The leader sends a `CheckLeader` request to the followers with a timestamp from PD, which carries the resolved timestamp pushed in previous step 3.
 2. Follower response whether the leader matched.
-3. If quorum of the voters are still in the current leader’s term, update leader’s `safe_ts`.
+3. If quorum of the voters are still in the current leader's term, update leader's `safe_ts`.
 
 In step 1, the leader generates safe ts, and in the next round, the followers apply those timestamps. However, there is an "advance-ts-interval" gap between two step 1s, which results in a safe timestamp lag for the followers.
 
-Regarding our test on the hit rate for 5-second staleness, we finally achieved a nearly 100% hit rate by setting the `resolved-ts.advance-ts-interval` to 2.5 seconds. This means that if we want to achieve 100-millisecond staleness in the current mechanism, we should set `resolved-ts.advance-ts-interval` to 50 milliseconds, which doubles the traffic of pushing safe ts.
+In other words, to ensure that a read operation with a 1-second staleness works well with a high hit ratio among followers, you need to set `resolved-ts.advance-ts-interval` to 0.5 seconds. This will double the traffic of pushing safe ts.
 
 **We need a solution that applies the safe TS more efficiently.**
 
@@ -69,7 +69,7 @@ message ApplySafeTsResponse {
 
 The `CheckLeaderResponse` respond with the regions that pass the Raft safety check. The leader can then push its `safe_ts` for those regions. Since most regions will pass the safety check, it is not necessary to respond with the IDs of all passing regions. Instead, we can respond with only the IDs of regions that fail the safety check.
 
-Another optimization is that we can confirm the leadership if the leader lease is hold, by calling Raft’s read-index command. But this will involve in the Raftstore thread pool, more CPU will be used by this.
+Another optimization is that we can confirm the leadership if the leader lease is hold, by calling Raft's read-index command. But this will involve in the Raftstore thread pool, more CPU will be used by this.
 
 ### Inactive Regions
 
@@ -82,7 +82,6 @@ We only send the IDs for inactive regions. In the most ideal situation, both `Le
 One more phase is required to apply the safe ts, because in check leader process, the follower cannot decide whether the request is from a valid leader, so it keep the safe ts in it's memory and wait for apply safe ts request.
 
 ```diff
-#[derive(Clone)]
 pub struct RegionReadProgressRegistry {
     registry: Arc<Mutex<HashMap<u64, Arc<RegionReadProgress>>>>,
 +   checked_states: Arc<Mutex<HashMap<u64, CheckedState>>>,
