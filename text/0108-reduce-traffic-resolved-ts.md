@@ -73,7 +73,7 @@ Another optimization is that we can confirm the leadership if the leader lease i
 
 ### Inactive Regions
 
-Here we list the active regions without writing to inactive regions. In the future, TiKV will deprecate hibernated regions and merge small regions into dynamic ones. If this happens, inactive regions will not be a problem. However, for users who do not use dynamic regions, this optimization is still required.
+Here we list the active regions without writing to inactive regions. In the future, TiKV will deprecate hibernated regions and merge small regions into dynamic ones. If this happens, the traffic produced inactive regions will not be a problem. However, for users who do not use dynamic regions, this optimization is still required.
 
 To save traffic, we can push the safe timestamps of inactive regions together without sending the region information list. The `ts` field in `CheckLeaderRequest` is only used to build the relationship between the request and response, although it's fetched from PD. Ideally, we can push the safe timestamps of inactive regions using this `ts` value. Additionally, we can remove inactive regions from `CheckLeaderRequest.regions`. Modify `CheckLeaderRequest` as follows.
 
@@ -94,6 +94,22 @@ pub struct RegionReadProgressRegistry {
 ```
 
 To save traffic, `ApplySafeTsRequest.unsafe_regions` only contains the regions whose leader may be changed. In the ideal case, this request is small because there is almost no unsafe regions.
+
+### Transition State
+
+Note if the follower receive an inactive region info which contains region ID only, it believes it's safe to push the safe ts from the following apply safe ts request. But the applied index in followers may delay. Thus we need a transition state to ensure the safety.
+
+```mermaid
+stateDiagram-v2
+    Active --> Transition
+    Transition --> Inactive
+    Transition --> Active
+    Inactive --> Active
+```
+
+We introduce a state named `transition`, in proto, it's represented as `LeaderInfo` without `read_state`. When the follower receive a `LeaderInfo` without `read_state`, it will check the term of the region, if the term is changed, it will respond with a `CheckLeaderResponse` with the region ID in `failed_regions`, else it cache the `LeaderInfo` and wait for `ApplySafeTsRequest`.
+
+Only if the all terms of followers are not changed, the leader turn the state into `inactive`. When the follower receives a `ApplySafeTsRequest` it applies the safe ts, and will use the cached `LeaderInfo` to check the validation of inactive state.
 
 #### Safety
 
