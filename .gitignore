@@ -4,3 +4,4 @@ package-lock.json
 
 # Others
 .DS_Store
+.idea
