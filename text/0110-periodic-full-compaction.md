@@ -6,12 +6,12 @@ Reviewers: [Connor](https://github.com/Connor1996), [Tony](https://github.com/to
 
 ## Introduction
 
-**Periodic full compaction** is a scheduled task that starts at specified times of the day on each TiKV node and compacts the column families of all regions *at all levels including the bottommost (L6)*. In order to reduce to impact running such a heavy weight task would have on the cluster's ability to serve traffic, full compaction is incremental: before the next range (presently a region) is compacted, we check if the load is below a certain threshold; if the threshold is exceeded, we pause the task until the load is again below a certain threshold.
+**Periodic full compaction** is a scheduled task that starts at specified times of the day on each TiKV node and compacts the column families of all regions *at all levels including the bottommost (L6)*. In order to reduce to impact running such a heavy-weight task would have on the cluster's ability to serve traffic, full compaction is incremental: before the next range (presently a region) is compacted, we check if the load is below a certain threshold; if the threshold is exceeded, we pause the task until the load is again below a certain threshold.
 
 ## Motivation
 
 Presently, we have no way to periodically execute a RocksDB compaction across all levels.
-This has a number of implications: compaction filters (used to remove tombstones) only run when the bottom-most (L6) compaction is executed; a system with high number of deletes that experiences a heavy read-only (but little or no writes) might thus have accumulated tombstones markers that are not deleted.
+This has a number of implications: compaction filters (used to remove tombstones) only run when the bottom-most (L6) compaction is executed; a system with a high number of deletes that experiences a heavy read-only (but little or no writes) might thus have accumulated tombstones markers that are not deleted.
 
 ## Detailed design
 
@@ -19,7 +19,7 @@ This has a number of implications: compaction filters (used to remove tombstones
 
 #### Configuration
 
-To enable periodic full compaction, specify the hours during which we wish to schedule full compaction to run in tikv's configuration and a maximum CPU utilization threshold. CPU utilization is calculated by using process stats in `/proc` in over a 10 minute window. (See *Conditions for full compaction to run* below.)
+To enable periodic full compaction, specify the hours during which we wish to schedule full compaction to run in tikv's configuration and a maximum CPU utilization threshold. CPU utilization is calculated by using process stats in `/proc` over a 10-minute window. (See *Conditions for full compaction to run* below.)
 
 >
 > `tikv.toml` setting to run compaction at 03:00 and 23:00
@@ -46,7 +46,7 @@ To enable periodic full compaction, specify the hours during which we wish to sc
 
 #### Choosing ranges
 
-We use ranges defined by start and end keys of all of the store's regions as increments:
+We use ranges defined by the start and end keys of all of the store's regions as increments:
 
 > See `StoreFsmDelegate::regions_for_full_compact` in `store.rs`:
 >
@@ -146,7 +146,7 @@ Full compaction tasks are intended to be long-running and may spend up to 15 min
 
 ##### Using background worker to execute compaction
 
-Since `FullCompactController::pause` is asynchronous (see *Pausing* above), `PeriodicFullCompact` tasks are scheduled using the  background worker pool. This means that other cleanup and compaction tasks can while
+Since `FullCompactController::pause` is asynchronous (see *Pausing* above), `PeriodicFullCompact` tasks are scheduled using the background worker pool. This means that other cleanup and compaction tasks can while
 full compaction is paused.
 
 > `store.rs`
@@ -190,8 +190,8 @@ API which blocks the current thread: this is supported by `FuturePool` and happe
 ### Full compaction of a range
 
 We use `CompactExt::compact_range` to perform the compaction of each region, which calls `compact_range_cf`
-on all the column families. Note that `exclusive_manual` is false and `subcompactions` is set to 1 -
-meaning all sub compactions are executed on one RocksDb thread - to limit resource usage.
+on all the column families. Note that `exclusive_manual` is `false` and `subcompactions` is `1` -
+meaning all sub-compactions are executed on one RocksDb thread - to limit resource usage.
 
 > From `full_compact` in `compact.rs`:
 >
@@ -232,7 +232,7 @@ meaning all sub compactions are executed on one RocksDb thread - to limit resour
  | Sub-task | Status |
  | - | - |
  | Periodic schedule full compaction | **Merged** [tikv/tikv#12729](https://github.com/tikv/tikv/pull/15853)|
- | Incremental and pausable | **Merged**  [tikv/tikv#15995](https://github.com/tikv/tikv/pull/15995)|
+ | Incrementalism, pausing full | **Merged**  [tikv/tikv#15995](https://github.com/tikv/tikv/pull/15995)|
 
 #### Alternatives considered
 
@@ -240,13 +240,13 @@ meaning all sub compactions are executed on one RocksDb thread - to limit resour
 
 *Not applicable*: doing so would not guarantee that compaction filters are able to run.
 
-##### Using rate limiter to control load during full compaction
+###### Using a rate limiter to control load during full compaction
 
-*Not applicable*: compaction happens in increments of regions (`512mb` at a time), which would not work with the current token-bucket based rate limiter APIs.
+*Not applicable*: compaction happens in increments of regions (`512mb` at a time), which would not work with the current token-bucket-based rate limiter APIs.
 
 ##### Using metrics other than CPU load
 
-*Future work*. This is feasible, but would need additional implementation and tuning load. See `io_load.rs`
+*Future work*. This is feasible but would need additional implementation and tuning load. See `io_load.rs`
 
 ### Metrics
 
@@ -267,7 +267,7 @@ Possibly options:
 
 * Add a mechanism to monitor which full compactions are in progress.
 * Manually pausing: allow all or some manual compaction tasks to be paused for a specified amount of time.
-* Manually stopping: allow setting a flag for an individual full compaction task would that terminate the task as soon as possible instead of starting the next increment.
+* Manually stopping: allow setting a flag for an individual full compaction task that would terminate the task as soon as possible instead of starting the next increment.
 
 ### Manual invocation
 
