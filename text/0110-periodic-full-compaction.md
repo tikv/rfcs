@@ -19,7 +19,7 @@ This has a number of implications: compaction filters (used to remove tombstones
 
 #### Configuration
 
-To enable periodic full compaction, specify the hours during which we wish to schedule full compaction to run in tikv's configuration and a maximum CPU utilization threshold. CPU utilization is calculated by using process stats in `/proc` in over a 10 minute windoow. (See *Conditions for full compaction to run* below.)
+To enable periodic full compaction, specify the hours during which we wish to schedule full compaction to run in tikv's configuration and a maximum CPU utilization threshold. CPU utilization is calculated by using process stats in `/proc` in over a 10 minute window. (See *Conditions for full compaction to run* below.)
 
 >
 > `tikv.toml` setting to run compaction at 03:00 and 23:00
@@ -120,7 +120,7 @@ We evaluate the compaction predicate function in the following cases:
 
 ##### Pausing
 
-Full compaction tasks are intended to be long-running and may spend up to 15 minutes at a time waiting for `CompactPredicateFn` to evaluate to true. As in other places in tikv when we need pause or sleep, we call ```GLOBAL_TIMER_HANDLE.delay``` in an asychronous context.
+Full compaction tasks are intended to be long-running and may spend up to 15 minutes at a time waiting for `CompactPredicateFn` to evaluate to true. As in other places in tikv when we need pause or sleep, we call ```GLOBAL_TIMER_HANDLE.delay``` in an async context.
 
 > `compact.rs`
 >
@@ -211,14 +211,14 @@ meaning all sub compactions are executed on one RocksDb thread - to limit resour
 >    start_key: Option<&[u8]>,
 >    end_key: Option<&[u8]>,
 >    exclusive_manual: bool,
->    max_subcompactions: u32, // Controlls the number of engine worker threads.
+>    max_subcompactions: u32, // Controls the number of engine worker threads.
 >   ) -> Result<()> {
 >   for cf in self.cf_names() {
 >       self.compact_range_cf(cf, start_key, end_key, exclusive_manual, max_subcompactions)?;
 >   }
 >```
 >
-> The `RocksEngine` implementation of `compact_range_cf`. See [Manual Compaction](https://github.com/facebook/rocksdb/wiki/Manual-Compaction) in RocksDb documentaiton for more info.
+> The `RocksEngine` implementation of `compact_range_cf`. See [Manual Compaction](https://github.com/facebook/rocksdb/wiki/Manual-Compaction) in RocksDb documentation for more info.
 >
 > ```rust
 > let mut compact_opts = CompactOptions::new();
@@ -267,7 +267,7 @@ Possibly options:
 
 * Add a mechanism to monitor which full compactions are in progress.
 * Manually pausing: allow all or some manual compaction tasks to be paused for a specified amount of time.
-* Manually stopping: allo setting a flag for an individual full compaction task would that terminate the task as soon as possible instead of starting the next increment.
+* Manually stopping: allow setting a flag for an individual full compaction task would that terminate the task as soon as possible instead of starting the next increment.
 
 ### Manual invocation
 
