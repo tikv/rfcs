@@ -26,6 +26,11 @@ system with a high number of deletes that experiences a heavy read-only (but
 little or no writes) might thus have accumulated tombstones markers that are not
 deleted.
 
+Using `tikv-ctl compact-cluster` is not suitable for this goal: while it executes
+a full compaction, it may impact online user traffic which makes it non-viable
+for production usage without downtime. Periodic full compaction provides a way to
+achieve the same goal in a more controllable way.
+
 ## Detailed design
 
 ### Periodic scheduling
