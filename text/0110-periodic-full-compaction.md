@@ -292,6 +292,70 @@ tuning load. See `io_load.rs`
 
 ### Metrics
 
+| Metric | Description |
+|--------|-------------|
+| `tikv_storage_full_compact_duration_seconds` | Bucketed histogram of periodic full compaction run duration |
+| `tikv_storage_full_compact_increment_duration_seconds` | Bucketed histogram of full compaction *increments* |
+| `tikv_storage_full_compact_pause_duration_seconds` | Bucketed histogram of full compaction pauses |
+| `tikv_storage_process_stat_cpu_usage` | CPU useage over a 10 minute window |
+
+## Demonstration
+
+### Setup
+
+#### Configure periodic full compaction
+
+```toml
+[raftstore]
+periodic-full-compact-start-max-cpu = 0.33
+periodic-full-compact-start-times = ["11:00", "22:00", "23:00"]
+```
+
+> **Note:** set `periodic-full-compact-start-max-cpu` to observe pauses.
+
+#### Test periodic full compaction
+
+##### Populate a table
+
+``` sql
+create database compact_test;
+-- Query OK, 0 rows affected (0.10 sec)=
+use compact_test;
+-- Database changed
+create table t1(f1 integer primary key auto_increment, f2 integer);
+-- Query OK, 0 rows affected (0.09 sec)
+insert into t1(f2) values(1),(2),(3);
+-- Query OK, 3 rows affected (0.01 sec)
+-- 3  Duplicates: 0  Warnings: 0
+
+-- repeat below command N times
+insert into t1(f2) select f1+f2 from t1;
+-- Query OK, 3 rows affected (0.00 sec)
+-- Records: 3  Duplicates: 0  Warnings: 0
+-- ...
+--
+-- Query OK, 6291456 rows affected (36.25 sec)
+-- Records: 6291456  Duplicates: 0  Warnings: 0
+```
+
+##### Generate deletes
+
+```sql
+delete from t1 where f1 in (select f1 from t1 where mod(f2,3) = 0);
+--- Query OK, 6428311 rows affected (32.15 sec)
+```
+
+##### Observe metrics and logs
+
+```log
+[2024/01/10 11:27:07.280 -08:00] [INFO] [compact.rs:236] ["full compaction started"] [thread_id=0x5]
+[2024/01/10 11:27:45.910 -08:00] [INFO] [compact.rs:291] ["full compaction finished"] [time_takes=38.630410698s] [thread_id=0x5]
+```
+
+![Metrics showing full compaction running without a pause](../media/periodic-full-compaction-1.png)
+> **Note that** in the screenshot above, CPU usage is below 33% so that full
+> compaction ran without a pause.
+
 ## Future work
 
 ### Smarter load criteria
