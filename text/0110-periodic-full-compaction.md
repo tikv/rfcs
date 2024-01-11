@@ -353,8 +353,8 @@ delete from t1 where f1 in (select f1 from t1 where mod(f2,3) = 0);
 ```
 
 ![Metrics showing full compaction running without a pause](../media/periodic-full-compaction-1.png)
-> **Note that** in the screenshot above, CPU usage is below 33% so that full
-> compaction ran without a pause.
+> **Note that** in the screenshot above, CPU usage was below 33%: this allowed
+> full compaction to run without any pauses between increments.
 
 ## Future work
 
