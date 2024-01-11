@@ -271,7 +271,7 @@ sub-compactions are executed on one RocksDb thread - to limit resource usage.
  | Sub-task | Status |
  | - | - |
  | Periodic schedule full compaction |**Merged** [tikv/tikv#12729](https://github.com/tikv/tikv/pull/15853)|
- | Incrementalism, pausing full | **Merged**  [tikv/tikv#15995](https://github.com/tikv/tikv/pull/15995)|
+ | Incrementalism, pausing  | **Merged**  [tikv/tikv#15995](https://github.com/tikv/tikv/pull/15995)|
 
 #### Alternatives considered
 
@@ -358,9 +358,14 @@ delete from t1 where f1 in (select f1 from t1 where mod(f2,3) = 0);
 
 ## Future work
 
-### Smarter load criteria
+### Additional load criteria
 
 * Incorporate other load statistics besides the CPU such as disk or network I/O.
+  * Incorporating disk seek time, throughput, utilization, and/or file-sync
+    latency statistics specifically will further limit the impact of full
+    compaction runs on read and write latency. **Note that** the existing
+    implementation suggests using `raftstore.periodic-full-compact-start-times`
+    to configure full compaction to only start during off-peak periods.
 
 ### Smarter range selection
 
