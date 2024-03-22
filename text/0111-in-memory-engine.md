@@ -11,7 +11,7 @@ The current GC mechanism can mitigate this issue, but it's not instant.
 
 Figure 1 shows one of the metrics of this type of workload. Read amplification increases as time passed and eventually converged due to GC.
 
-![alt text](../media/in-memory-engine-1.png)
+![in-memory-engine-1](../media/in-memory-engine-1.png)
 *Figure 1: the multiplier between next and processed_keys reflects how many next will be called to read a valid key.*
 
 To optimize/enhance this type of workload, we propose an in-memory engine, which offers several benefits:
@@ -135,7 +135,7 @@ RocksDB offers a callback mechanism after the write batch has been inserted into
 In this callback, we can insert the data of the batch into `SkiplistEngine` using the sequence number given back by the callback. However, although the insert of the `SkiplistEngine` has been finished, we cannot read these data until the **sequence number has been published by the RocksDB**. This is guaranteed by that we always acquire a RocksDB snapshot regardless of which snapshots (`RegionCacheMemoryEngine` or `RocksDB`) we may use, and the sequence number in the RocksDB snapshot is used to exclude data that is not visible in the `RegionCacheMemoryEngine`.
 
 
-![alt text](../media/in-memory-engine-2.png)
+![in-memory-engine-2](../media/in-memory-engine-2.png)
 
 ## Read flow
 ```
