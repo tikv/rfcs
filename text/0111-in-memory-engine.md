@@ -1,6 +1,6 @@
 # RFC: In-memory Engine
 
-- RFC PR:
+- RFC PR: https://github.com/tikv/rfcs/pull/111
 - Tracking Issue: https://github.com/tikv/tikv/issues/16141
 
 ## Motivation
