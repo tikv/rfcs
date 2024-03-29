@@ -2,6 +2,9 @@
 
 ## Summary
 
+- RFC PR: https://github.com/tikv/rfcs/pull/112
+- Tracking Issue: https://github.com/tikv/tikv/issues/16717
+
 Allow committed raftlog to be applied before it is persisted to local storage.
 
 ## Motivation
