@@ -51,10 +51,8 @@ Regarding administrative operations, special attention needs to be given to regi
   - `PerpareMerge`. After proposing `PerpareMerge`, set raft's `apply_unpersisted_log_limit` to 0 and set `min_safe_index_for_unpersisted_apply` to the message's index.
   - `on_leader_changed`. When raft leader changes, set raft's `apply_unpersisted_log_limit` to 0 and set `min_safe_index_for_unpersisted_apply` to current `last_index`.
   - `ApplyRes`. After handling `ApplyRes`, if `applied_index >= min_safe_index_for_unpersisted_apply`, set raft's `apply_unpersisted_log_limit` to the configed value.
-- When check compact raft log, always ensure the proposed `compact_index` <= `persisted_index`. 
-- Default configurations change.
- - `raftstore.cmd-batch-concurrent-ready-max-count` controls the number of ongoing raft batch while handling a new raft batch and the default value is 1. This default value is too small for the new feature so we will change it to 32 when `Async Raft IO` is enabled(by setting `raftstore.store-io-pool-size > 0`) and `apply_unpersisted_log_limit > 0`.
-
+- When check compact raft log, always ensure the proposed `compact_index` <= `persisted_index`.
+- Change the raft propose batch wait check condition from all commands are persisted to all commands are persisted or committed. This can avoid slow disk IO blocking new proposes for too long.
 
 #### Feature Compatibility
 
