@@ -9,9 +9,13 @@ TiKV support keyspace level gc.
 
 ## Motivation
 
-Previously, TiDB has supported the deployment of multiple TiDB clusters with different keyspaces in the TiDB configuration on a single PD TiKV cluster.
+Previously, TiDB has supported the deployment of multiple TiDB clusters with different keyspaces on a single PD TiKV cluster.
 
-We've implemented multiple TiDB clusters, with one overall TiDB GC worker (TiDB without Keyspace configuration) pushing the global GC SafePoint, resolve locks, While each keyspace's TiDB depends on the global GC SafePoint, the keyspace's own TiDB gc worker only does deleteRange logic.
+We've implemented multiple TiDB clusters, with one global TiDB GC worker (A TiDB server without Keyspace configuration) to calculate the global GC SafePoint and resolve locks, While each keyspace's TiDB has their own GC Worker, keyspace GC Worker use the global GC SafePoint to do deleteRange in the sepical keyspace ranges.
+
+But old implementation causes the calculation of the global gc to depend on the oldest safe point and min start ts of all keyspaces and TiDB cluster without keyspace configured.
+
+So we propose the implementation of keyspace level gc:
 
 TiDB PR https://github.com/pingcap/tidb/pull/51300 implements: Isolation of GC SafePoint computations between keyspaces (the concept in the code is keyspace level gc). When the Keyspace GC SafePoint advancement of Keyspace with keyspace level gc is slow, it can not affect the GC SafePoint advancement of other keyspaces and clean data in time. Each keyspace TiDB cluster can initially create the keyspace if the keyspace meta config is set: gc_management_type = keyspace_level_gc, that is, the GC SafePoint that can advance its own Keyspace in the Keyspace dimension.
 
