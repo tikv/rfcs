@@ -39,3 +39,15 @@ TiKV PR https://github.com/tikv/tikv/pull/16808 implemented on TiKV side: When G
 
 3. How to determine if a keyspace uses a global gc safe point:
 ![img.png](../media/keyspace-level-gc-is-global-gc.png)
+
+4. Use GC safe point to optimize trigger timing and assert judgment
+   1. Skip GC when GC safe point is 0 in create_compaction_filter.
+   2. check_need_gc function return false in create_compaction_filter.
+   3. assert( safe_point >0 ) when new compaction filter.
+
+5. Other non-GC logic that uses GC safe point does not currently have to support keyspace level GC.
+   1. check region consistency command: 
+      1. It will check GC safe point on followers to ensure that the data to be checked on the follower is not GC. 
+      2. If user request a keyspace range region with keyspace level gc enabled, the user will get a "not supported" message.
+   2. GC safe point used in raftstore to trigger compaction when no valid split key can be found. It was introduced in PR https://github.com/tikv/tikv/pull/15284
+      1. It just use GC safe point to determine when to trigger compaction. The main PR of the Keyspace level gc will not fit this logic. It will be considered for submitting another PR for support after the keyspace level gc core PR is merged.
