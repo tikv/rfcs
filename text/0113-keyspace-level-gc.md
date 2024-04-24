@@ -21,8 +21,7 @@ TiDB PR https://github.com/pingcap/tidb/pull/51300 implements: Isolation of GC S
 
 TiKV PR https://github.com/tikv/tikv/pull/16808 implemented on TiKV side: When GC keyspace data, It parses the keyspace id from the key, combines the keyspace meta cache and the keyspace level GC safepoint cache corresponding to the keyspace id to determine whether to use this keyspace keyspace_level_gc safepoint to gc.
 
-
-## Two concepts:
+## Concepts of GC management type:
 1. Global GC:
     - Represents the previous default GC logic; there is a TiDB calculate the global gc safepoint for the whole cluster.
     - The default GC management type for keyspace is Global GC,
