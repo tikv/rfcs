@@ -2,8 +2,8 @@
 
 ## Summary
 
-- RFC PR:
-- Tracking Issue: 
+- RFC PR: https://github.com/tikv/rfcs/pull/113
+- Tracking Issue: https://github.com/tikv/tikv/issues/16896
 
 TiKV support keyspace level gc.
 
