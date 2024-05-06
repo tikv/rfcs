@@ -69,7 +69,7 @@ the GC safe point value of the data key and execute the GC logic.
    2. In the global GC, check_need_gc function return false in create_compaction_filter.
       After supporting keyspace level GC, if props.min_ts > global GC safe point and props.min_ts > all keyspace level GC safe point will return false.
    3. In the global GC, assert( safe_point > 0 ) when new compaction filter.
-      After supporting keyspace level GC, if global GC safe point > 0 or any keyspace level GC safe point has been initialized.
+      After supporting keyspace level GC, the assert condition is whether global GC safe point > 0 or any keyspace level GC safe point has been initialized.
 
 5. Other non-GC logic that uses GC safe point does not currently have to support keyspace level GC.
    1. check region consistency command: 
