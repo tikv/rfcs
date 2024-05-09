@@ -7,6 +7,17 @@
 
 TiKV support keyspace level GC.
 
+## Concepts of GC management type:
+
+1. Global GC:
+   - Represents the previous default GC logic; there is a TiDB calculate the global GC safe point for the whole cluster.
+   - The default GC management type for keyspace is Global GC.
+2. Keyspace level GC:
+   - Indicates that the keyspace will advance its own GC safe point.
+   - It is possible and only possible to set gc_management_type = keyspace_level_gc when PD creates keyspaces.
+   - The keyspace which already set gc_management_type = keyspace_level_gc, 'gc_management_type' it can not be updated to "global_gc".
+   - Keyspace GC-related data: min start ts, GC safe point, service safe point, stored in own etcd path of each keyspace in PD.
+
 ## Motivation
 
 Previously, TiDB has supported the deployment of multiple TiDB clusters with different keyspaces 
@@ -28,18 +39,6 @@ then this keyspace can calculate GC safe point by itself.
 TiKV side:
 In GC process, it parses the keyspace id from the data key, 
 combines the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine the GC safe point value of the data key and execute the GC logic.
-
-
-## Concepts of GC management type:
-
-1. Global GC:
-    - Represents the previous default GC logic; there is a TiDB calculate the global GC safe point for the whole cluster.
-    - The default GC management type for keyspace is Global GC.
-2. Keyspace level GC:
-    - Indicates that the keyspace will advance its own GC safe point.
-    - It is possible and only possible to set gc_management_type = keyspace_level_gc when PD creates keyspaces.
-    - The keyspace which already set gc_management_type = keyspace_level_gc, 'gc_management_type' it can not be updated to "global_gc".
-    - Keyspace GC-related data: min start ts, GC safe point, service safe point, stored in own etcd path of each keyspace in PD.
 
 ## Implementation in TiKV
 
