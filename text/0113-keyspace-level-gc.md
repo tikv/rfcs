@@ -25,10 +25,9 @@ it will not affect other keyspaces GC safe point calculation.
 Keyspaces can be created by setting gc_management_type = keyspace_level_gc to enable keyspace level GC,
 then this keyspace can calculate GC safe point by itself.
 
-TiKV PR https://github.com/tikv/tikv/pull/16808 implemented on TiKV side: 
+TiKV side:
 In GC process, it parses the keyspace id from the data key, 
-combines the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine
-the GC safe point value of the data key and execute the GC logic.
+combines the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine the GC safe point value of the data key and execute the GC logic.
 
 
 ## Concepts of GC management type:
@@ -39,8 +38,7 @@ the GC safe point value of the data key and execute the GC logic.
 2. Keyspace level GC:
     - Indicates that the keyspace will advance its own GC safe point.
     - It is possible and only possible to set gc_management_type = keyspace_level_gc when PD creates keyspaces.
-    - The keyspace which already set gc_management_type = keyspace_level_gc, 'gc_management_type' it can not be updated 
-      to "global_gc".
+    - The keyspace which already set gc_management_type = keyspace_level_gc, 'gc_management_type' it can not be updated to "global_gc".
     - Keyspace GC-related data: min start ts, GC safe point, service safe point, stored in own etcd path of each keyspace in PD.
 
 ## Implementation in TiKV
