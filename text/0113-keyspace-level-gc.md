@@ -14,9 +14,11 @@ TiKV support keyspace level GC.
    - The default GC management type for keyspace is Global GC.
 2. Keyspace level GC:
    - Indicates that the keyspace will advance its own GC safe point.
-   - It is possible and only possible to set gc_management_type = keyspace_level_gc when PD creates keyspaces.
-   - The keyspace which already set gc_management_type = keyspace_level_gc, 'gc_management_type' it can not be updated to "global_gc".
    - Keyspace GC-related data: min start ts, GC safe point, service safe point, stored in own etcd path of each keyspace in PD.
+
+## Usage and Compatibility
+1. The GC management type of the keyspace is set in the config of the keyspace meta. It can be set with the key "gc_management_type". 
+2. If you want to set 'gc_management_type' to 'keyspace_level_gc' for a keyspace, it can only be set when the keyspace is created. The GC management type of the keyspace cannot be changed after the keyspace has been created.
 
 ## Motivation
 
@@ -33,12 +35,10 @@ So we propose the **Keyspace Level GC**:
 TiDB side:
 Isolate of GC safe point calculations between keyspaces (the concept is 'keyspace level GC').
 it will not affect other keyspaces GC safe point calculation.
-Keyspaces can be created by setting gc_management_type = keyspace_level_gc to enable keyspace level GC,
-then this keyspace can calculate GC safe point by itself.
+Keyspaces can be created by setting gc_management_type = keyspace_level_gc to enable keyspace level GC, then this keyspace can calculate GC safe point by itself.
 
 TiKV side:
-In GC process, it parses the keyspace id from the data key, 
-combines the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine the GC safe point value of the data key and execute the GC logic.
+In GC process, it parses the keyspace id from the data key, combines the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine the GC safe point value of the data key and execute the GC logic.
 
 ## Implementation in TiKV
 
