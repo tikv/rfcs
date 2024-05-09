@@ -35,7 +35,7 @@ the GC safe point value of the data key and execute the GC logic.
 
 1. Global GC:
     - Represents the previous default GC logic; there is a TiDB calculate the global GC safe point for the whole cluster.
-    - The default GC management type for keyspace is Global GC,
+    - The default GC management type for keyspace is Global GC.
 2. Keyspace level GC:
     - Indicates that the keyspace will advance its own GC safe point.
     - It is possible and only possible to set gc_management_type = keyspace_level_gc when PD creates keyspaces.
