@@ -42,8 +42,6 @@ the GC safe point value of the data key and execute the GC logic.
     - The keyspace which already set gc_management_type = keyspace_level_gc, 'gc_management_type' it can not be updated 
       to "global_gc".
     - Keyspace GC-related data: min start ts, GC safe point, service safe point, stored in own etcd path of each keyspace in PD.
-    - Therefore, the keysapce can calculate the GC by itself.
-
 
 ## Implementation in TiKV
 
