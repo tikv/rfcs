@@ -12,18 +12,15 @@ TiKV support keyspace level GC.
 Previously, TiDB has supported the deployment of multiple TiDB clusters with different keyspaces 
 on a single PD TiKV cluster.
 
-We've implemented multiple TiDB clusters, with one global TiDB GC worker (A TiDB server without Keyspace configuration) 
-to calculate the global GC safe point and resolve locks, While each keyspace's TiDB has their own GC Worker, 
-keyspace GC Worker use the global GC safe point to do deleteRange in the sepical keyspace ranges.
+In the whole of TiDB clusters, one global TiDB GC worker (A TiDB server without Keyspace configuration) is in charge of calculating the global GC safe point and resolving locks, While each keyspace's TiDB has their own GC Worker,
+The GC Worker of each keyspace use the global GC safe point to do "delete-range" in its keyspace ranges.
 
-But old implementation causes the calculation of the global GC to depend on the oldest safe point and min start ts 
-of all keyspaces and TiDB cluster without keyspace configured.
+But in this implementation the calculation of the global GC depends on the oldest safe point and min start ts of all keyspaces. When the GC safe points of any keyspace is slow, GC of all other keyspaces will be blocked.
 
-So we propose the implementation of keyspace level GC:
+So we propose the **Keyspace Level GC**:
 
-TiDB PR https://github.com/pingcap/tidb/pull/51300 implements: 
-Isolation of GC safe point calculations between keyspaces (the concept is 'keyspace level GC'). 
-When the Keyspace GC safe point calculation of Keyspace with keyspace level GC is slow, 
+TiDB side:
+Isolate of GC safe point calculations between keyspaces (the concept is 'keyspace level GC').
 it will not affect other keyspaces GC safe point calculation.
 Keyspaces can be created by setting gc_management_type = keyspace_level_gc to enable keyspace level GC,
 then this keyspace can calculate GC safe point by itself.
@@ -44,8 +41,7 @@ the GC safe point value of the data key and execute the GC logic.
     - It is possible and only possible to set gc_management_type = keyspace_level_gc when PD creates keyspaces.
     - The keyspace which already set gc_management_type = keyspace_level_gc, 'gc_management_type' it can not be updated 
       to "global_gc".
-    - Keyspace GC-related data: min start ts, GC safe point,service safe point of keyspace have their own etcd path 
-      with keyspace prefix in PD. 
+    - Keyspace GC-related data: min start ts, GC safe point, service safe point, stored in own etcd path of each keyspace in PD.
     - Therefore, the keysapce can calculate the GC by itself.
 
 
