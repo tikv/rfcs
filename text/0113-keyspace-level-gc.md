@@ -9,16 +9,12 @@ TiKV support keyspace level GC.
 
 ## Concepts of GC management type:
 
-1. Global GC:
+1. Global GC: 
    - Represents the previous default GC logic; there is a TiDB calculate the global GC safe point for the whole cluster.
    - The default GC management type for keyspace is Global GC.
 2. Keyspace level GC:
    - Indicates that the keyspace will advance its own GC safe point.
    - Keyspace GC-related data: min start ts, GC safe point, service safe point, stored in own etcd path of each keyspace in PD.
-
-## Usage and Compatibility
-1. The GC management type of the keyspace is set in the config of the keyspace meta. It can be set with the key "gc_management_type".
-2. If you want to set 'gc_management_type' to 'keyspace_level_gc' for a keyspace, it can only be set when the keyspace is created. The GC management type of the keyspace cannot be changed after the keyspace has been created now. Because it requires a more complex update process.
 
 ## Motivation
 
@@ -35,6 +31,15 @@ Keyspaces can be created by setting gc_management_type = keyspace_level_gc to en
 
 TiKV side:
 In GC process, it parses the keyspace id from the data key, use the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine the GC safe point value of the data key and execute the GC logic.
+
+## Upgrade from `global GC` to `keyspace level GC`
+1. Firstly, the update of global GC safe points and service safe points in PD should be stopped. The global GC/Service safe point can only be read. The global GC safe point is recorded as t1.
+2. Stop the BR, CDC, Lightning, Dumpling tasks for the specified keyspace which need to enable keysapce level GC.
+3. Use t1 to update the keyspace level GC safe point and GCWorker service safe point in the etcd with the specified keyspace.
+4. Update 'gc_management_type' = 'keyspace_level_gc' of the specified keyspace meta config.
+5. TiKV and TiFlash use keyspace level GC safe point perform GC.
+6. BR, CDC, Lightning, Dumpling tasks for the specified keyspace can be started.
+7. PD can restart to update global GC/Service safe point.
 
 ## Implementation in TiKV
 
@@ -55,13 +60,3 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
       After supporting keyspace level GC, if props.min_ts > global GC safe point and props.min_ts > all keyspace level GC safe point will return false.
    3. In the global GC, assert( safe_point > 0 ) when new compaction filter.
       After supporting keyspace level GC, the assert condition is whether global GC safe point > 0 or any keyspace level GC safe point has been initialized.
-
-5. Other non-GC logic that uses GC safe point does not currently have to support keyspace level GC.
-   1. check region consistency command:
-      1. It needs check GC safe point on followers to ensure that the data to be checked on the follower is not GC.
-      2. It doesn't support which keyspace with keyspace level GC enabled yet, if user request check consistency for the keyspace range, the user will get a "not supported" message.
-   2. GC safe point used in raftstore to trigger compaction when no valid split key can be found.
-      It was introduced in PR https://github.com/tikv/tikv/pull/15284
-      1. It just uses GC safe point to determine when to trigger compaction.
-         The main PR of the Keyspace level GC will not fit this logic.
-         It will be considered for submitting another PR for support after the keyspace level GC core PR is merged.
