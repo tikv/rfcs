@@ -7,9 +7,9 @@
 
 TiKV support keyspace level GC.
 
-## Concepts of GC management type:
+## Concepts of GC management type
 
-1. Global GC: 
+1. Global GC:
    - Represents the previous default GC logic; there is a TiDB calculate the global GC safe point for the whole cluster.
    - The default GC management type for keyspace is Global GC.
 2. Keyspace level GC:
@@ -33,6 +33,7 @@ TiKV side:
 In GC process, it parses the keyspace id from the data key, use the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine the GC safe point value of the data key and execute the GC logic.
 
 ## Upgrade from `global GC` to `keyspace level GC`
+
 1. Firstly, the update of global GC safe points and service safe points in PD should be stopped. The global GC/Service safe point can only be read. The global GC safe point is recorded as t1.
 2. Stop the BR, CDC, Lightning, Dumpling tasks for the specified keyspace which need to enable keysapce level GC.
 3. Use t1 to update the keyspace level GC safe point and GCWorker service safe point in the etcd with the specified keyspace.
