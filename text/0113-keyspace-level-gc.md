@@ -1,9 +1,9 @@
 # Keyspace level GC
 
-## Summary
-
 - RFC PR: https://github.com/tikv/rfcs/pull/113
 - Tracking Issue: https://github.com/tikv/tikv/issues/16896
+
+## Summary
 
 TiKV support keyspace level GC.
 
@@ -62,6 +62,6 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
    3. In the global GC, assert( safe_point > 0 ) when new compaction filter.
       After supporting keyspace level GC, the assert condition is whether global GC safe point > 0 or any keyspace level GC safe point has been initialized.
 
-5. Data import and export
+5. Support use keyspace level GC for data import and export:
    1. When using BR, CDC, Lightning, Dumpling to import and export data specified keyspace, you need to update the service safe point for the specified keyspace. When the task starts, When the task starts, it needs to get keyspace meta first to determine whether to execute the keyspace level gc logic.
    2. For global BR, the global BR service safe point will also be required as one of the conditions of the block keyspace level GC, when the keyspace is required to update the service safe point.
