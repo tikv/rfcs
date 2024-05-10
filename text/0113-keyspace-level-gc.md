@@ -45,8 +45,8 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
 ## Implementation in TiKV
 
 1. Get keyspace meta and keyspace level GC safe point:
-    - New KeyspaceMetaWatchService : Watch keyspace meta etcd path to get the keyspace meta and put it in cache keyspace_id_meta_map<u32, keyspacepb::KeyspaceMeta>.
-    - New KeyspaceLevelGCWatchService : Watch the etcd path of the keyspace GC safe point to get the GC safe point with keyspace level GC enabled, put it in cache keyspace_level_gc_map<u32, u64>.
+    - Create a keyspace meta watch service: Watch keyspace meta etcd path to get the keyspace meta and put it in the mapping from keyspace id to keyspace meta.
+    - Create a keyspace level gc watch service : Watch the etcd path of the keyspace GC safe point to get the GC safe point with keyspace level GC enabled, put it in the mapping from keyspace id to keyspace level gc.
 
 2. How to get GC safe point by mvcc key in Compaction Filter:
 ![img.png](../media/keyspace-level-gc-get-gc-sp.png)
@@ -61,3 +61,6 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
       After supporting keyspace level GC, if props.min_ts > global GC safe point and props.min_ts > all keyspace level GC safe point will return false.
    3. In the global GC, assert( safe_point > 0 ) when new compaction filter.
       After supporting keyspace level GC, the assert condition is whether global GC safe point > 0 or any keyspace level GC safe point has been initialized.
+
+5. Data import and export
+   1. When using BR, CDC, Lightning, Dumpling to import and export data specified keyspace, you need to update the service safe point for the specified keyspace. When the task starts, When the task starts, it needs to get keyspace meta first to determine whether to execute the keyspace level gc logic.
