@@ -5,7 +5,7 @@
 
 ## Summary
 
-TiKV support keyspace level GC.
+TiKV support [keyspace][1] level GC.
 
 ## Concepts of GC management type
 
@@ -65,3 +65,5 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
 5. Support use keyspace level GC for data import and export:
    1. When using BR, CDC, Lightning, Dumpling to import and export data specified keyspace, you need to update the service safe point for the specified keyspace. When the task starts, When the task starts, it needs to get keyspace meta first to determine whether to execute the keyspace level gc logic.
    2. For global BR, the global BR service safe point will also be required as one of the conditions of the block keyspace level GC, when the keyspace is required to update the service safe point.
+
+[1]: https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md#new-key-value-codec
