@@ -20,7 +20,9 @@ TiKV support [keyspace][1] level GC (garbage collection).
 
 In order to support multi-tenat deployment of TiDB in a shared TiKV cluster, TiDB now supports keyspace feature. A global TiDB GC worker (A TiDB server without Keyspace configuration) shared by all TiDB is in charge of calculating the global GC safe point and resolving locks, While each keyspace's TiDB has their own GC Worker. The GC Worker of each keyspace use the global GC safe point to do "delete-range" in its keyspace ranges.
 
-$GCSafePoint = Min\left\{GlobalSafePoint,\forall GCSafePoint\in Keyspaces\right\}$
+```math
+GCSafePoint = Min\left\{GlobalSafePoint,\forall GCSafePoint\in Keyspaces\right\}
+```
 
 But in this implementation the calculation of the global GC depends on the oldest safe point and min start ts of all keyspaces. When the GC safe points of any keyspace is small, GC of all other keyspaces will be blocked.
 
