@@ -33,15 +33,6 @@ Keyspaces can be created by setting gc_management_type = keyspace_level_gc to en
 TiKV side:
 In GC process, it parses the keyspace id from the data key, use the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine the GC safe point value of the data key and execute the GC logic.
 
-## Upgrade from `global GC` to `keyspace level GC`
-
-1. Firstly, the update of global GC safe points and service safe points in PD should be stopped. The global GC/Service safe point can only be read. The global GC safe point is recorded as t1.
-2. Stop the BR, CDC, Lightning, Dumpling tasks for the specified keyspace which need to enable keysapce level GC.
-3. Use t1 to update the keyspace level GC safe point and GCWorker service safe point in the etcd with the specified keyspace.
-4. Update 'gc_management_type' = 'keyspace_level_gc' of the specified keyspace meta config.
-5. TiKV and TiFlash use keyspace level GC safe point perform GC.
-6. BR, CDC, Lightning, Dumpling tasks for the specified keyspace can be started.
-7. PD can restart to update global GC/Service safe point.
 
 ## Implementation in TiKV
 
@@ -65,6 +56,13 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
 
 5. Support use keyspace level GC for data import and export:
    1. When using BR, CDC, Lightning, Dumpling to import and export data specified keyspace, you need to update the service safe point for the specified keyspace. When the task starts, When the task starts, it needs to get keyspace meta first to determine whether to execute the keyspace level gc logic.
-   2. For global BR, the global BR service safe point will also be required as one of the conditions of the block keyspace level GC, when the keyspace is required to update the service safe point.
+
+## Upgrade from `global GC` to `keyspace level GC`
+It will be introduced in another RFC.
+
+
+## Global BR restore
+Specify ts to restore data for non-keyspaces and all keyspaces in the entire cluster.It will be introduced in another RFC.
+
 
 [1]: https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md#new-key-value-codec
