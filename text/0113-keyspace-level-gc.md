@@ -36,7 +36,7 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
 
 ## Implementation in TiKV
 
-1. Get keyspace meta and keyspace level GC safe point:
+1. Get [keyspace meta](https://github.com/pingcap/kvproto/blob/d9297553c9009f569eaf4350f68a908f7811ee55/proto/keyspacepb.proto#L26C1-L33C2) and keyspace level GC safe point from PD:
     - Create a keyspace meta watch service: Watch keyspace meta etcd path to get the keyspace meta and put it in the mapping from keyspace id to keyspace meta.
     - Create a keyspace level gc watch service : Watch the etcd path of the keyspace GC safe point to get the GC safe point with keyspace level GC enabled, put it in the mapping from keyspace id to keyspace level gc.
 
