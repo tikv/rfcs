@@ -28,7 +28,7 @@ So we propose the **Keyspace Level GC**:
 TiDB side:
 Isolate of GC safe point calculations between keyspaces (the concept is 'keyspace level GC').
 It will not affect other keyspaces GC safe point calculation.
-Keyspaces can be created by setting gc_management_type = keyspace_level_gc to enable keyspace level GC, then this keyspace can calculate GC safe point by itself.
+Keyspaces can be created by setting `gc_management_type = keyspace_level_gc` to enable keyspace level GC, then this keyspace can calculate GC safe point by itself.
 
 TiKV side:
 In GC process, it parses the keyspace id from the data key, use the keyspace meta config and the keyspace level GC safe point corresponding to the keyspace id to determine the GC safe point value of the data key and execute the GC logic.
