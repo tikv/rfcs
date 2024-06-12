@@ -50,18 +50,17 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
    1. In the global GC, it will skip GC when GC safe point is 0 in create_compaction_filter.
       After supporting keyspace level GC, GC is skipped if global GC safe point is 0 or if no keyspace level GC is initialized.
    2. In the global GC, check_need_gc function return false in create_compaction_filter.
-      After supporting keyspace level GC, if props.min_ts > global GC safe point and props.min_ts > all keyspace level GC safe point will return false.
+      After supporting keyspace level GC, if `props.min_ts` > global GC safe point and `props.min_ts` > all keyspace level GC safe point will return false.
    3. In the global GC, assert( safe_point > 0 ) when new compaction filter.
       After supporting keyspace level GC, the assert condition is whether global GC safe point > 0 or any keyspace level GC safe point has been initialized.
 
-2. Support use keyspace level GC for data import and export:
-   1. When using BR, CDC, Lightning, Dumpling to import and export data specified keyspace, you need to update the service safe point for the specified keyspace. When the task starts, When the task starts, it needs to get keyspace meta first to determine whether to execute the keyspace level gc logic.
-
+2. Support using keyspace level GC for data import and export:
+   1. When using BR, CDC, Lightning, Dumpling to import or export keyspace data, you need to update the service safe point for the specified keyspace. When the task starts, it needs to get keyspace meta first to determine whehter global or keysspace GC is using, then execute the GC relevant logic on the corresponding GC safe point and service safe point.
 ## Upgrade from `global GC` to `keyspace level GC`
 It will be introduced in another RFC.
 
 
-## Global BR restore
+## Global Backup
 Specify ts to restore data for non-keyspaces and all keyspaces in the entire cluster.It will be introduced in another RFC.
 
 
