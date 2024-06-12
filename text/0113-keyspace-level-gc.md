@@ -47,9 +47,9 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
  ![img.png](../media/keyspace-level-gc-is-enable-keyspace-level-gc.png)
 
 1. Use GC safe point to optimize trigger timing and assert judgment:
-   1. In the global GC, it will skip GC when GC safe point is 0 in create_compaction_filter.
+   1. In the global GC, it will skip GC when GC safe point is `0` in `create_compaction_filter`.
       After supporting keyspace level GC, GC is skipped if global GC safe point is 0 or if no keyspace level GC is initialized.
-   2. In the global GC, check_need_gc function return false in create_compaction_filter.
+   2. In the global GC, `check_need_gc` function return false in `create_compaction_filter.`
       After supporting keyspace level GC, if `props.min_ts` > global GC safe point and `props.min_ts` > all keyspace level GC safe point will return false.
    3. In the global GC, assert( safe_point > 0 ) when new compaction filter.
       After supporting keyspace level GC, the assert condition is whether global GC safe point > 0 or any keyspace level GC safe point has been initialized.
