@@ -41,12 +41,12 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
     - Create a keyspace level gc watch service : Watch the etcd path of the keyspace GC safe point to get the GC safe point with keyspace level GC enabled, put it in the mapping from keyspace id to keyspace level gc.
 
 2. How to get GC safe point by mvcc key in Compaction Filter:
- ![img.png](../media/keyspace-level-gc-get-gc-sp.png)
+ ![img.png](../media/keyspace-level-gc-get-gc-safe-point.png)
 
-3. How to determine if a keyspace uses a global GC safe point:
- ![img.png](../media/keyspace-level-gc-is-global-gc.png)
+1. How to determine if a keyspace uses a keyspace level GC safe point:
+ ![img.png](../media/keyspace-level-gc-is-enable-keyspace-level-gc.png)
 
-4. Use GC safe point to optimize trigger timing and assert judgment:
+1. Use GC safe point to optimize trigger timing and assert judgment:
    1. In the global GC, it will skip GC when GC safe point is 0 in create_compaction_filter.
       After supporting keyspace level GC, GC is skipped if global GC safe point is 0 or if no keyspace level GC is initialized.
    2. In the global GC, check_need_gc function return false in create_compaction_filter.
@@ -54,7 +54,7 @@ In GC process, it parses the keyspace id from the data key, use the keyspace met
    3. In the global GC, assert( safe_point > 0 ) when new compaction filter.
       After supporting keyspace level GC, the assert condition is whether global GC safe point > 0 or any keyspace level GC safe point has been initialized.
 
-5. Support use keyspace level GC for data import and export:
+2. Support use keyspace level GC for data import and export:
    1. When using BR, CDC, Lightning, Dumpling to import and export data specified keyspace, you need to update the service safe point for the specified keyspace. When the task starts, When the task starts, it needs to get keyspace meta first to determine whether to execute the keyspace level gc logic.
 
 ## Upgrade from `global GC` to `keyspace level GC`
