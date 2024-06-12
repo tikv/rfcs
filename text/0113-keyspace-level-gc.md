@@ -61,7 +61,7 @@ It will be introduced in another RFC.
 
 
 ## Global Backup
-Specify ts to restore data for non-keyspaces and all keyspaces in the entire cluster.It will be introduced in another RFC.
+Specify ts to backup data for non-keyspaces and all keyspaces in the entire cluster.It will be introduced in another RFC.
 
 
 [1]: https://github.com/tikv/rfcs/blob/master/text/0069-api-v2.md#new-key-value-codec
