@@ -44,10 +44,10 @@ Key objective: Maximize all TiKV nodes' awareness of large pipelined transaction
 #### 3.2.1 Coordinator
 
 **Proposed Change:** 
-- TTL manager fetches latest TSO as min_commit_ts candidate.
+- The TTL manager goroutine fetches latest TSO as min_commit_ts candidate.
 - Updates committer's inner state and PK in TiKV.
-- Broadcasts `start_ts` and new `min_commit_ts` to all TiKV stores.
 - PK update piggybacked on `heartbeat` request.
+- Broadcasts `start_ts` and new `min_commit_ts` to all TiKV stores.
 - Optional: Batch broadcast messages to reduce RPC overhead.
 
 Atomic variables or locks may be needed for synchronization between TTL manager and committer.
@@ -134,7 +134,7 @@ Refactoring work needed, as documented in [Large Transactions Don't Block Waterm
 
 ## 5. Cost Analysis
 
-- Memory: ~33 bytes per cache entry. TiKV instances can hold millions of entries.
+- Memory: the minimum memory for each entry is 8(start_ts) + 8(min_commit_ts) + 1(status) + 8(TTL) = 33 bytes. TiKV instances can hold millions of entries.
 - Latency: Minimal impact due to asynchronous execution of additional operations.
 - RPCs: Increased RPC count, could be mitigated by batching.
 - CPU: Slight increase, expected to be negligible.
