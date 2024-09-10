@@ -46,8 +46,8 @@ Key objective: Maximize all TiKV nodes' awareness of large pipelined transaction
 **Proposed Change:** 
 - The TTL manager goroutine fetches latest TSO as min_commit_ts candidate.
 - Updates committer's inner state and PK in TiKV.
-- PK update piggybacked on `heartbeat` request.
-- Broadcasts `start_ts` and new `min_commit_ts` to all TiKV stores.
+- `min_commit_ts` updates are piggybacked on `heartbeat` request.
+- Broadcasts `start_ts` and new `min_commit_ts` to all TiKV stores. A new type of message will be introduced in kvproto.
 - Optional: Batch broadcast messages to reduce RPC overhead.
 
 Atomic variables or locks may be needed for synchronization between TTL manager and committer.
