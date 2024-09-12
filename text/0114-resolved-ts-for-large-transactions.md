@@ -48,6 +48,7 @@ Key objective: Maximize all TiKV nodes' awareness of large pipelined transaction
 - Updates committer's inner state and PK in TiKV.
 - `min_commit_ts` updates are piggybacked on `heartbeat` request.
 - Broadcasts `start_ts` and new `min_commit_ts` to all TiKV stores. A new type of message will be introduced in kvproto.
+- Broadcasts transaction status when (1) all locks resolved (2) transaction is rolled back (3) transaction rollback finished (all locks resolved)
 - Optional: Batch broadcast messages to reduce RPC overhead.
 
 Atomic variables or locks may be needed for synchronization between TTL manager and committer.
@@ -91,8 +92,9 @@ Given the condition that given the condition that the number of concurrent pipel
 1. Standard lock handling remains unchanged.
 2. For large pipelined transaction locks:
    - Identify by "generation" field.
-   - Track only `start_ts` of locks.
+   - Track only `start_ts` and 1 representative key of a pipelined transaction.
 3. Stop tracking `start_ts` for large pipelined transactions upon LOCK DELETION event.
+   - When `start_ts` is unknown, use the representative key to find the transaction.
 
 **Proposed Resolved-ts calculation:**
 - Primary Method:
