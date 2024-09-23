@@ -10,7 +10,7 @@ TiKV support [keyspace][1] level GC (garbage collection).
 ## Concepts of GC management type
 
 1. Global GC:
-   - It represents the previous default GC logic, in which TiDB calculates the global GC safe point for the entire cluster.
+   - It represents the previous default GC logic, All TiDB clusters (including those without keyspace configuration and those with keyspace configuration) use the GC safe point calculated by the GC worker owner without keyspace configuration.
    - The default GC management type for keyspaces is the Global GC.
 2. Keyspace Level GC:
    - This indicates that each keyspace will advance its own GC safe point.
@@ -18,7 +18,7 @@ TiKV support [keyspace][1] level GC (garbage collection).
 
 ## Motivation
 
-In order to facilitate multi-tenant deployment of TiDB in a shared TiKV cluster, TiDB now supports the keyspace feature. Currently, a TiDB cluster with keyspace can only utilize the GC calculated by the global GC worker. A global TiDB GC worker (a TiDB server without keyspace configuration) shared by all TiDB instances is responsible for calculating the global GC safe point and resolving locks, while each keyspace's TiDB instance has its own GC worker. The GC worker for each keyspace performs only one operation: utilizing the global GC safe point to execute "delete-range" operations within its keyspace ranges.
+In order to facilitate multi-tenant deployment of TiDB in a shared TiKV cluster, TiDB now supports the keyspace feature. Currently, a TiDB cluster with keyspace can only utilize the GC safe point calculated by the global GC worker. A global TiDB GC worker (a TiDB server without keyspace configuration) shared by all TiDB instances is responsible for calculating the global GC safe point and resolving locks, while each keyspace's TiDB instance has its own GC worker. The GC worker for each keyspace performs only one operation: utilizing the global GC safe point to execute "delete-range" operations within its keyspace ranges.
 
 However, in this implementation, the calculation of the global GC safe point depends on the oldest timestamp (minStartTS, service safe point, etc.) used to calculate the GC safe point for all TiDB clusters (including those with keyspace configured and those without keyspace configured). When any factor affecting the GC safe point is blocked, the GC of all TiDB clusters will also be blocked.
 
