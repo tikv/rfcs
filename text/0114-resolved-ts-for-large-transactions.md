@@ -73,7 +73,7 @@ An alternative solution is to let PD push the full store list to TiDBs when the 
 1. Provides `min_commit_ts` information for resolved-ts resolver.
 2. Offers optimized path for read requests, reducing PK queries for transaction status.
 
-Given the condition that given the condition that the number of concurrent pipelined transactions is limited, we want the cache to satisfy the following requirements:
+Given the condition that the number of concurrent pipelined transactions is limited, we want the cache to satisfy the following requirements:
   - Maximize retention of useful information.
   - Entries should be discarded based on coordinator directives, not due to TTL expiration or cache capacity limits.
   - Maximize hit rate, i.e. the eviction of an transaction entry should happen after lock release, especially for follower peers.
