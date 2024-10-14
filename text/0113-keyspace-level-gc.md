@@ -51,7 +51,7 @@ In the GC process, it parses the keyspace ID from the data key, uses the keyspac
       After supporting keyspace level GC, the assert condition is whether global GC safe point > 0 or any keyspace level GC safe point has been initialized.
 
 5. Support the use of keyspace level GC for data import and export:
-   - When using BR, CDC, Lightning, or Dumpling to import or export keyspace data, you need to update the service safe point for the specified keyspace. When the task starts, it needs to get the keyspace metadata first to determine whether global or keyspace GC is being used, and then execute the relevant GC logic on the corresponding GC safe point and service safe point.
+   - When using `BR`, `CDC`, `Lightning`, or `Dumpling` to import or export keyspace data, you need to update the service safe point for the specified keyspace. When the task starts, it needs to get the keyspace metadata first to determine whether global or keyspace GC is being used, and then execute the relevant GC logic on the corresponding GC safe point and service safe point.
 
 ## Global Backup
 
