@@ -44,7 +44,7 @@ In order to limit number of system variables, we will use a single system variab
 * Unit: integer
 ---
 * `cooldown_interval`
-* Defines how long to wait after circuit breaker is open before go to half-open state to send a probe request. This interval always equally jittered in the `[value/2, value]` interval.
+* Defines how long to wait after circuit breaker is open before go to half-open state to send a probe request. The actual wait time is always equally jittered in the `[value/2, value]` interval.
 * Default: 60
 * Unit: seconds
 ---
@@ -61,10 +61,17 @@ All configs described above will be encapsulated in a `Settings` struct with abi
 
 ```go
 type Settings struct {
-	Type                  string
+	// Name of circuit breaker for configuration and logging purposes
+	Name                  string
+	// Defines the error rate threshold to trip the circuit breaker.
 	ErrorRateThresholdPct uint32
+	// Defines the average qps over the `error_rate_window` that must be met before evaluating the error rate threshold.
+	MinQPSForOpen          uint32
+	// Defines how long to track errors before evaluating error_rate_threshold.
 	ErrorRateWindow       time.Duration
+	// Defines how long to wait after circuit breaker is open before go to half-open state to send a probe request.
 	CoolDownInterval      time.Duration
+	// Defines how many subsequent requests to test after cooldown period before fully close the circuit.
 	HalfOpenSuccessCount  uint32
 }
 
