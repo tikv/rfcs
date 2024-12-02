@@ -6,7 +6,7 @@ The purpose of this design is to minimize the CPU load on the leader by caching 
 ## Motivation
 
 In a cloud environment, customers often prefer to perform follower reads within the same AZ to avoid incurring cross-AZ network costs. However, each follower read requires sending a read index request to the leader to check for any pending write locks in memory. These RPC calls can be quite expensive and can significantly increase CPU utilization, especially in read-heavy traffic scenarios. This increase in CPU cost eliminates the cost savings achieved by avoiding cross-AZ traffic.
-To mitigate this issue in read-heavy environments, it is not necessary to send a read index request for every single follower read request. This is because, in 90% of cases, there are no pending locks. Instead, we can advance the safe TS if there are no locks present in the leader at that particular timestamp. Therefore, online reads can first check for the safe TS before sending a read index request to the leader.
+To mitigate this issue in read-heavy environments, it is not necessary to send a read index request for every single follower read request. This is because, in 99% of cases, there are no pending locks. 
 
 ## Detailed design
 
@@ -37,5 +37,5 @@ Based on the experiements it helps in reducing the read index requests by 70% if
 
 ## Alternatives
 
-An alternative approach would be to use batching to send fewer read index requests to the replica. However, batching can increase the p50 latency and result in higher network traffic compared to caching. Caching can tolerate smaller blips on leader unavailable depending on ```tidb_low_resolution_tso_update_interval``` , while batching may not be as reliable.
+An alternative approach would be to use batching to send fewer read index requests to the replica. However, batching can increase the p50 latency and result in higher network traffic compared to caching. Caching can tolerate smaller blips on leader availability depending on ```tidb_low_resolution_tso_update_interval``` , while batching may not be as reliable.
 
