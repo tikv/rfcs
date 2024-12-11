@@ -10,12 +10,12 @@ To mitigate this issue in read-heavy environments, it is not necessary to send a
 
 ## Detailed design
 
-Safe TS in follower is used to determine the minimum timestamp that guarantees the consistent reads from replica. Currently, safe TS is advanced by advance-ts message from the leader. In this proposal, response of read index messsages can also be used to advance safeTS in follower if there are no pending pre writes on leader. 
-Changes to advance safe ts from raft read index response is pretty straightforward and most of the existing logic in the stale read path will be reused. 
+safe-ts in follower is used to determine the minimum timestamp that guarantees the consistent reads from replica. Currently, safe-ts is advanced by advance-ts message from the leader. In this proposal, response of read index messsages can also be used to advance safe-ts in follower if there are no pending pre writes on leader. 
+Changes to advance safe-ts from raft read index response is pretty straightforward and most of the existing logic in the stale read path will be reused. 
 Ref counters per region need to be added in the leader to keep track of total number of pending locks and lock status need to be included in a raft read index response. These are the detailed steps
 - Read index request check the lock reference counter and send its status through raft message in read index response
-- Update safe ts if there are no locks at this timestamp in replica.
-- Follower reads will initially compare the Safe TS with the timestamp in the request, and only if the request timestamp is greater than the Safe TS, a read index request will be sent.
+- Follower read response call update safe-ts if there are no locks at this timestamp in leader.
+- Follower reads will initially compare the safe-ts with the timestamp in the request, and only if the request timestamp is greater than the safe-ts, a read index request will be sent.
 
 This feature would be enabled by default and no new configuration will be added. 
 
@@ -31,11 +31,53 @@ pub struct ReadIndexContext {
     pub memory_lock: Option<u64>,
 }
 ```
+### Code changes
+
+Changes on follower
+```
+fn propose_raft_command {
+    RequestPolicy::ReadIndex => {
+        // try_local_stale_read
+        // if time stamp > safe-ts than send read index message to leader
+    }
+}
+
+fn apply_reads {
+    let read_index_ctx = ReadIndexContext::parse(state.request_ctx.as_slice()).unwrap();
+    if read_index_ctx.memory_lock == Some(1) {
+        // there are no pending locks on leader update safe-ts
+        self.read_progress.update_safe_ts(apply_indx, ts)
+    }
+}
+```
+
+Changes on leader
+```
+impl ReadIndexObserver for ReplicaReadLockChecker {
+    fn on_step(&self, msg: &mut eraftpb::Message, role: StateRole) {
+        // set memory lock to false if in memory lock on a region is false
+    }
+
+impl<EK, ER> Peer<EK, ER>
+where
+    EK: KvEngine,
+        ER: RaftEngine,
+        {
+            pub fn step<T>() -> Res {
+                // if memory lock is set to false in on_step()
+                rctx.memory_lock = Some(1)
+        }
+```
 
 ## Drawback
 Based on the experiements it helps in reducing the read index requests by 70% if ```tidb_low_resolution_tso``` is set to true and ```tidb_low_resolution_tso_update_interval``` is set to 100 ms. However, there can be no cache hit if ```tidb_low_resolution_tso``` is set to false. Cache hit is proportional to ```tidb_low_resolution_tso_update_interval``` setting. 
 
 ## Alternatives
 
+<<<<<<< HEAD
 An alternative approach would be to use batching to send fewer read index requests to the replica. However, batching can increase the p50 latency and result in higher network traffic compared to caching. Caching can tolerate smaller blips on leader availability depending on ```tidb_low_resolution_tso_update_interval``` , while batching may not be as reliable.
 
+=======
+- An alternative approach would be to use batching to send fewer read index requests to the replica. However, batching can increase the p50 latency and result in higher network traffic compared to caching. Caching can tolerate smaller blips on leader unavailable depending on ```tidb_low_resolution_tso_update_interval``` , while batching may not be as reliable.
+- Another alternate approach in design is to introduce new timestamp (raftReadIndex-ts) instead of safe-ts. It will unnecessarily complicates the design. 
+>>>>>>> e500e31 (update review comments)
