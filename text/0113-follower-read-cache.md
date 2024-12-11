@@ -44,7 +44,7 @@ fn propose_raft_command {
 
 fn apply_reads {
     let read_index_ctx = ReadIndexContext::parse(state.request_ctx.as_slice()).unwrap();
-    if read_index_ctx.memory_lock == Some(1) {
+    if read_index_ctx.memory_lock == false {
         // there are no pending locks on leader update safe-ts
         self.read_progress.update_safe_ts(apply_indx, ts)
     }
