@@ -74,10 +74,5 @@ Based on the experiements it helps in reducing the read index requests by 70% if
 
 ## Alternatives
 
-<<<<<<< HEAD
-An alternative approach would be to use batching to send fewer read index requests to the replica. However, batching can increase the p50 latency and result in higher network traffic compared to caching. Caching can tolerate smaller blips on leader availability depending on ```tidb_low_resolution_tso_update_interval``` , while batching may not be as reliable.
-
-=======
 - An alternative approach would be to use batching to send fewer read index requests to the replica. However, batching can increase the p50 latency and result in higher network traffic compared to caching. Caching can tolerate smaller blips on leader unavailable depending on ```tidb_low_resolution_tso_update_interval``` , while batching may not be as reliable.
 - Another alternate approach in design is to introduce new timestamp (raftReadIndex-ts) instead of safe-ts. It will unnecessarily complicates the design. 
->>>>>>> e500e31 (update review comments)
