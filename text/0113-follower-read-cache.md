@@ -46,6 +46,7 @@ fn apply_reads {
     let read_index_ctx = ReadIndexContext::parse(state.request_ctx.as_slice()).unwrap();
     if read_index_ctx.memory_lock == false {
         // there are no pending locks on leader update safe-ts
+        // No need to take core lock as it is happening in raft thread
         self.read_progress.update_safe_ts(apply_indx, ts)
     }
 }
