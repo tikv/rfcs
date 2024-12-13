@@ -1,7 +1,7 @@
 # Cache read index resposnses
 
 ## Summary
-The purpose of this design is to minimize the CPU load on the leader by caching the response of read index requests from followers. By avoiding the need to send these requests when there are no pending writes on the leader at a specific read timestamp, we can significantly reduce the CPU overhead caused by expensive read index RPCs.
+The purpose of this design is to reduce the CPU uitlization on the leader by caching the response of read index requests from followers. By avoiding the need to send these requests when there are no pending writes on the leader at a specific read timestamp, we can significantly reduce the CPU overhead caused by expensive read index RPCs.
 
 ## Motivation
 
@@ -12,10 +12,10 @@ To mitigate this issue in read-heavy environments, it is not necessary to send a
 
 safe-ts in follower is used to determine the minimum timestamp that guarantees the consistent reads from replica. Currently, safe-ts is advanced by advance-ts message from the leader. In this proposal, response of read index messsages can also be used to advance safe-ts in follower if there are no pending pre writes on leader. 
 Changes to advance safe-ts from raft read index response is pretty straightforward and most of the existing logic in the stale read path will be reused. 
-Ref counters per region need to be added in the leader to keep track of total number of pending locks and lock status need to be included in a raft read index response. These are the detailed steps
-- Read index request check the lock reference counter and send its status through raft message in read index response
-- Follower read response call update safe-ts if there are no locks at this timestamp in leader.
+Ref counters per region need to be added in the leader to keep track of total number of pending locks and lock status need to be included in a raft read index response. These are the detailed steps on how a follower read works
 - Follower reads will initially compare the safe-ts with the timestamp in the request, and only if the request timestamp is greater than the safe-ts, a read index request will be sent.
+- Read index request on leader check the lock reference counter and send its status through raft message in read index response
+- Follower read response call update safe-ts if there are no locks at this timestamp in leader.
 
 This feature would be enabled by default and no new configuration will be added. 
 
@@ -66,7 +66,7 @@ where
         {
             pub fn step<T>() -> Res {
                 // if memory lock is set to false in on_step()
-                rctx.memory_lock = Some(1)
+                rctx.memory_lock = false
         }
 ```
 
