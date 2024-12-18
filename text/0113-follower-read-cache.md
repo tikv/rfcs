@@ -10,7 +10,7 @@ To mitigate this issue in read-heavy environments, it is not necessary to send a
 
 ## Detailed design
 
-We introduce a new concept last-read-index-ts. last-read-index-ts is updated with the read-ts when there are no memory locks in the regions and apply_index is greated than commit_index of leader.  
+We introduce a new concept last-read-index-ts. last-read-index-ts is updated with the read-ts when there is no memory lock in that region and apply_index is greated than commit_index of leader.  
 In this proposal, response of read index messsages can be used to advance last-read-index-ts in follower if there are no pending pre writes on leader. 
 Ref counters per region need to be added in the leader to keep track of total number of pending locks and lock status need to be included in a raft read index response. These are the detailed steps on how a follower read works
 - Follower reads will initially compare the last-read-index-ts with the timestamp in the request, and only if the request timestamp is greater than the last-read-index-ts, a read index request will be sent.
