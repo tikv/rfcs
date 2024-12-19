@@ -36,6 +36,12 @@ pub struct ReadIndexContext {
 
 Changes in follower
 ```
+impl RegionReadProgress {
+    last_read_indx_ts: AtomicU64::from(0),
+    pub fn safe_read_indx_ts(&self) -> u64 {
+        self.last_read_indx_ts.load(AtomicOrdering::Acquire)
+    }
+}
 fn propose_raft_command {
     RequestPolicy::ReadIndex => {
         // if read-ts > last-read_index-ts than send read index message to leader
