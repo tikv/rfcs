@@ -18,6 +18,11 @@ In this proposal, response of read index messsages can be used to advance last-r
 - Read index request on leader check the lock reference counter and send its status through raft message in read index response
 - read index response update last-read-index-ts if there are no locks at this timestamp in leader.
 
+When a read index message is sent to the leader, it first checks the memory lock for the region and the read index keys. If there is no lock on the keys, it updates the maximum read timestamp before responding with the read index. The response includes the in-memory or key lock status and the commit index. 
+- Once the maximum read timestamp is updated (let's say to ts1) at commit index (x1), and if there is no memory lock in a region on any key, there will be no pre-commit write requests with a timestamp lower than ts1.
+- Once the follower confirms that it has applied data up to commit index x1, it will have consistent data locally to serve reads with timestamps less than or equal to ts1.
+Above two points ensure the linearizability and consistent snapshot reads for request with timestamp < ts1.
+
 This feature would be enabled by default and no new configuration will be added. 
 
 ### Protocol
