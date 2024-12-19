@@ -36,24 +36,38 @@ pub struct ReadIndexContext {
 
 Changes in follower
 ```
+// placeholder to store last_read_index_ts
 impl RegionReadProgress {
-    last_read_indx_ts: AtomicU64::from(0),
-    pub fn safe_read_indx_ts(&self) -> u64 {
-        self.last_read_indx_ts.load(AtomicOrdering::Acquire)
-    }
-}
-fn propose_raft_command {
-    RequestPolicy::ReadIndex => {
-        // if read-ts > last-read_index-ts than send read index message to leader
+    last_read_index_ts: AtomicU64::from(0),
+    pub fn safe_read_index_ts(&self) -> u64 {
+        self.last_read_index_ts.load(AtomicOrdering::Acquire)
     }
 }
 
+// placeholder to read last_read_index_ts
+impl ReadDelegate {
+    pub fn check_last_read_index(&self, read_ts: u64) -> std::result::Result<()> {
+            if self.read_progress.last_read_index_ts() >= read_ts) {
+                return Ok(());
+            }
+    }
+}
+
+// when read_index is called from read thread pool
+fn propose_raft_command {
+    RequestPolicy::ReadIndex => {
+        // if read-ts > last-read_index-ts than send read index message to leader
+        check_last_read_index(read_ts)
+    }
+}
+
+// when read index response is received. 
 fn apply_reads {
     let read_index_ctx = ReadIndexContext::parse(state.request_ctx.as_slice()).unwrap();
-    // update last_read_indx_ts if apply_index > leader commit_index and there are no memory locks
+    // update last_read_index_ts if apply_index > leader commit_index and there are no memory locks
     if read_index_ctx.memory_lock == false && 
         self.ready_to_handle_unsafe_replica_read(state.index) && 
-        self.read_progress.last_read_indx_ts.load(Ordering::SeqCst) < start_ts {
+        self.read_progress.last_read_index_ts.load(Ordering::SeqCst) < start_ts {
         
         self.read_progress
             .last_read_index_ts
