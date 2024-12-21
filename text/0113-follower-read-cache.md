@@ -36,6 +36,43 @@ pub struct ReadIndexContext {
     pub locked: Option<LockInfo>,
     pub memory_lock: Option<u64>,
 }
+
+const REQUEST_FLAG: u8 = b'r';
+const LOCKED_FLAG: u8 = b'l';
+const MEMORY_LOCKED_FLAG: u8 = b'm'; // new memory lock flag. its appended at the end. Old and new versions are compatible with each other.
+
+// encode : convert it into bytes
+pub fn fields_to_bytes(
+        id: Uuid,
+        request: Option<&raft_cmdpb::ReadIndexRequest>,
+        locked: Option<&LockInfo>,
+        memory_locked: Option<u64>,
+    ) -> Vec<u8> {
+    if let Some(memory_locked) = memory_locked {
+            b.push(MEMORY_LOCKED_FLAG);
+            b.encode_var_u64(memory_lock_size.unwrap() as u64).unwrap();
+            b.extend_from_slice(&memory_locked.to_le_bytes());
+    }
+}
+ // decode
+pub fn parse(bytes: &[u8]) -> Result<ReadIndexContext> {
+    while !bytes.is_empty() {
+            match read_u8(&mut bytes).unwrap() {
+                REQUEST_FLAG => {
+                        ..
+                }
+                LOCKED_FLAG => {
+                        ..
+                }
+                MEMORY_LOCKED_FLAG => {
+                    let len = decode_var_u64(&mut bytes)? as usize;
+                    let memory_locked = u64::from_le_bytes(bytes[..len].try_into().unwrap());
+                    bytes = &bytes[len..];
+                    res.memory_lock = Some(memory_locked);
+                }
+    }       }
+}
+
 ```
 ### Code changes
 
