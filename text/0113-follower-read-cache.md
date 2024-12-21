@@ -70,7 +70,8 @@ pub fn parse(bytes: &[u8]) -> Result<ReadIndexContext> {
                     bytes = &bytes[len..];
                     res.memory_lock = Some(memory_locked);
                 }
-    }       }
+           }
+    }
 }
 
 ```
