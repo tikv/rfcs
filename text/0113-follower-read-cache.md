@@ -21,7 +21,7 @@ In this proposal, response of read index messsages can be used to advance last-r
 When a read index message is sent to the leader, it first checks the memory lock for the region and the read index keys. If there is no lock on the keys, it updates the maximum read timestamp before responding with the read index. The response includes the in-memory or key lock status and the commit index. 
 - Once the maximum read timestamp is updated (let's say to ts1) at commit index (x1), and if there is no memory lock in a region on any key, there will be no pre-commit write requests with a timestamp lower than ts1. Since `ReadIndexObserver` updates `max_ts` before checking the current region's memory lock count, and newly added memory locks acquire the lock first and then attempt to read `max_ts`, any memory lock acquired after the check is guaranteed to observe the `max_ts` updated by `read_ts`.
 - Once the follower confirms that it has applied data up to commit index x1, it will have consistent data locally to serve reads with timestamps less than or equal to ts1.
-Above two points ensure the linearizability and consistent snapshot reads for request with timestamp < ts1.
+Above two points ensure the linearizability and consistent snapshot reads for request with timestamp <= ts1.
 
 This feature would be enabled by default and no new configuration will be added. 
 
