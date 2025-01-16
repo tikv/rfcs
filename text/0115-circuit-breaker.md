@@ -1,4 +1,4 @@
-# Title
+# Circuit breaker
 
 - RFC PR: https://github.com/tikv/rfcs/pull/115
 - Tracking Issue: https://github.com/tikv/pd/issues/8678
