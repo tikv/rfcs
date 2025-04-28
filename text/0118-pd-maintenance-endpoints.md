@@ -1,6 +1,6 @@
 # **RFC: PD Endpoints to Serialize TiKV Maintenance Operations**
 
-- Tracking Issue: https://github.com/tikv/pd/issues/9401
+- Tracking Issue: https://github.com/tikv/pd/issues/9041
 
 ## **Summary**
 
