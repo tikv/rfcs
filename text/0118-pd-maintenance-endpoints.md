@@ -109,11 +109,11 @@ PD will store a key-value entry in etcd to act as a lock. The value will be a JS
   * Return `200`.  
   * Respond with a JSON body, for example
 
-      `{`••
-      `"id": "123",`••
-      `"start_timestamp": 1712676600,`••
-      `"description": "Upgrade rolling restart for TiKV store-1"`••
-      `}`
+     `{`  
+       `"id": "123",`  
+       `"start_timestamp": 1712676600,`  
+       `"description": "Upgrade rolling restart for TiKV store-1"`  
+     `}`
 
 * Else:  
   * Return `404`.
