@@ -18,7 +18,7 @@ To address this, we propose a unified mechanism to serialize TiDB maintenance op
 
 ## **Goals**
 
-* Introduce PD endpoints that allow operators to coordinate and serialize maintenance operations of the same type.  
+* Introduce PD endpoints that allow Kubernetes operators to coordinate and serialize maintenance operations of the same type.  
 * Provide a mechanism to:  
   * Mark the start of a task.  
   * Mark the completion of a task.  
@@ -33,6 +33,12 @@ To address this, we propose a unified mechanism to serialize TiDB maintenance op
 ---
 
 ## **Proposal**
+
+In this proposed design, PD serves as a system of record for tracking ongoing destructive tasks, leveraging embedded etcd transactions to ensure atomic updates. However, the responsibility for enforcing constraints and serializing tasks remains with the orchestrator (e.g., the Kubernetes operator). PD itself does not enforce these policies—by design—allowing for maximum flexibility in task scheduling.
+
+Maintenance tasks can differ significantly in behavior and duration. For instance, a single node restart might require interleaving after running for more than 30 minutes, whereas a full AZ-wide TiKV rolling restart could take several hours. By delegating control to the orchestrator, the PD-side endpoint design remains extensible and versatile, making it compatible with various orchestrators and a wide range of task types.
+
+Please see the proposed new PD endpoints below.
 
 ### **New PD Endpoints**
 
@@ -56,8 +62,8 @@ To address this, we propose a unified mechanism to serialize TiDB maintenance op
 
 ### **Error Handling**
 
-1. If a task appears to be stuck (e.g., due to operator crash), the current lock can be queried using `GET`.  
-2. The operator can then decide to override the lock via `DELETE` (based on policy).
+1. If a task appears to be stuck (e.g., due to Kubernetes operator crash), the current lock can be queried using `GET`.  
+2. The Kubernetes operator can then decide to override the lock via `DELETE` (based on policy).
 
 ---
 
@@ -100,7 +106,14 @@ PD will store a key-value entry in etcd to act as a lock. The value will be a JS
 #### **Func 2 – `GET /maintenance/{task_type}`**
 
 * If the key exists:  
-  * Return `200` with the task JSON.  
+  * Return `200`.  
+  * Respond with a JSON body, for example
+    `{`••
+    `"id": "123",`••
+    `"start_timestamp": 1712676600,`••
+    `"description": "Upgrade rolling restart for TiKV store-1"`••
+    `}`
+
 * Else:  
   * Return `404`.
 
@@ -145,10 +158,10 @@ Define Prometheus metrics to track the state of ongoing tasks:
 To complement the HTTP endpoints, we will extend **`pd-ctl`** to support the following subcommands for interacting with maintenance tasks:
 
 * `pd-ctl maintenance set <task_type> <task_id> --desc="<description>"`  
-* `pd-ctl maintenance get <task_type>`  
+* `pd-ctl maintenance show <task_type>`  
 * `pd-ctl maintenance delete <task_type> <task_id>`
 
-This allows users and operators to manually coordinate maintenance tasks or script basic workflows, improving observability and flexibility during cluster operations.
+This allows users and Kubernetes operators to manually coordinate maintenance tasks or script basic workflows, improving observability and flexibility during cluster operations.
 
 ---
 
@@ -158,12 +171,12 @@ This allows users and operators to manually coordinate maintenance tasks or scri
 
 **Pros:**
 
-* Automatically cleans up stale tasks if operators crash or fail.  
+* Automatically cleans up stale tasks if Kubernetes operators crash or fail.  
 * Prevents indefinite blocking.
 
 **Cons:**
 
-* Less flexible for operator-defined policies.  
+* Less flexible for Kubernetes operator-defined policies.  
 * TTL tuning introduces complexity and edge cases.
 
 ### **Option 2: Explicit Start Timestamp (Chosen)**
