@@ -1,11 +1,11 @@
 # Enhance Slow Store Scheduler
 
-- RFC PR: 
-- Track issue:
+- RFC PR: https://github.com/tikv/rfcs/pull/119
+- Track issue: https://github.com/tikv/pd/issues/9359
 
 ## Summary
 
-
+Added network status check in [Slow Store Scheduler](https://github.com/tikv/pd/blob/master/pkg/schedule/schedulers/evict_slow_store.go).
 
 ## Motivation
 
