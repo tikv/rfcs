@@ -44,7 +44,7 @@ Please see the proposed new PD endpoints below.
 
 | Function | Endpoint | Method | Description |
 | ----- | ----- | ----- | ----- |
-| **Func 1** | `/maintenance/{task_type}/{task_id}` | `POST` | Marks the beginning of a maintenance task. Accepts an optional description in the request body. |
+| **Func 1** | `/maintenance/{task_type}/{task_id}` | `PUT` | Marks the beginning of a maintenance task. Accepts an optional description in the request body. |
 | **Func 2** | `/maintenance/{task_type}` | `GET` | Retrieves information about the ongoing maintenance task for the specified type. |
 | **Func 3** | `/maintenance/{task_type}/{task_id}` | `DELETE` | Marks the completion of a task if the specified ID matches the current task owner. |
 
@@ -54,7 +54,7 @@ Please see the proposed new PD endpoints below.
 
 ### **Happy Path**
 
-1. Before performing a maintenance operation, the orchestrator issues a `POST` to register the start of the task.  
+1. Before performing a maintenance operation, the orchestrator issues a `PUT` to register the start of the task.  
 2. If a `2XX` response is returned, the operation proceeds.  
 3. If a `409` response is returned, another task is already running; retry later.  
 4. Use `GET` to inspect ongoing tasks.  
@@ -75,7 +75,7 @@ PD will store a key-value entry in etcd to act as a lock. The value will be a JS
 
 ### **Request**
 
-`POST /maintenance/task_tikv/123`
+`PUT /maintenance/task_tikv/123`
 
 **Body:**
 
@@ -95,7 +95,7 @@ PD will store a key-value entry in etcd to act as a lock. The value will be a JS
 
 ### **Endpoint Handler Logic**
 
-#### **Func 1 – `POST /maintenance/{task_type}/{task_id}`**
+#### **Func 1 – `PUT /maintenance/{task_type}/{task_id}`**
 
 * If `/lock/maintenance/{task_type}` does **not** exist:  
   * Write the key-value to etcd.  
