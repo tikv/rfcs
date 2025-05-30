@@ -38,15 +38,18 @@ In this proposed design, PD serves as a system of record for tracking ongoing de
 
 Maintenance tasks can differ significantly in behavior and duration. For instance, a single node restart might require interleaving after running for more than 30 minutes, whereas a full AZ-wide TiKV rolling restart could take several hours. By delegating control to the orchestrator, the PD-side endpoint design remains extensible and versatile, making it compatible with various orchestrators and a wide range of task types.
 
-Please see the proposed new PD endpoints below.
+To ensure strict serialization of maintenance tasks, only one type of maintenance task may be in progress at any given time. This restriction helps preserve operational consistency and reduce complexity. We may consider relaxing this limitation in the future if compelling use cases arise.
+
+The proposed new PD endpoints are outlined below. Note that the task_id is a logical and opaque identifier, serving solely as a unique reference to the current maintenance task.
 
 ### **New PD Endpoints**
 
 | Function | Endpoint | Method | Description |
 | ----- | ----- | ----- | ----- |
 | **Func 1** | `/maintenance/{task_type}/{task_id}` | `PUT` | Marks the beginning of a maintenance task. Accepts an optional description in the request body. |
-| **Func 2** | `/maintenance/{task_type}` | `GET` | Retrieves information about the ongoing maintenance task for the specified type. |
-| **Func 3** | `/maintenance/{task_type}/{task_id}` | `DELETE` | Marks the completion of a task if the specified ID matches the current task owner. |
+| **Func 2** | `/maintenance` | `GET` | Retrieves information about the ongoing maintenance task type. |
+| **Func 3** | `/maintenance/{task_type}` | `GET` | Retrieves information about the ongoing maintenance task for the specified type. |
+| **Func 4** | `/maintenance/{task_type}/{task_id}` | `DELETE` | Marks the completion of a task if the specified ID matches the current task owner. |
 
 ---
 
@@ -75,7 +78,7 @@ PD will store a key-value entry in etcd to act as a lock. The value will be a JS
 
 ### **Request**
 
-`PUT /maintenance/task_tikv/123`
+`PUT /maintenance/task_tikv/task_123`
 
 **Body:**
 
@@ -85,10 +88,11 @@ PD will store a key-value entry in etcd to act as a lock. The value will be a JS
 
 **Key**: `/lock/maintenance/task_tikv`
 
-**Value**:
+**Value(Serialized JSON object)**:
 
 `{`  
-  `"id": "123",`  
+  `"type": "task_tikv",`  
+  `"id": "task_123",`  
   `"start_timestamp": 1712676600,`  
   `"description": "Upgrade rolling restart for TiKV store-1"`  
 `}`
@@ -103,14 +107,15 @@ PD will store a key-value entry in etcd to act as a lock. The value will be a JS
 * Else:  
   * Return `409 Conflict`.
 
-#### **Func 2 – `GET /maintenance/{task_type}`**
+#### **Func 2 – `GET /maintenance`**
 
-* If the key exists:  
+* If the key exists(etcd prefix search):  
   * Return `200`.  
-  * Respond with a JSON body, for example
+  * Respond with a JSON body containing a single task object, as only one maintenance task type can be in progress at any given time due to current design constraints. For example:
 
      `{`  
-       `"id": "123",`  
+       `"type": "task_tikv",`  
+       `"id": "task_123",`  
        `"start_timestamp": 1712676600,`  
        `"description": "Upgrade rolling restart for TiKV store-1"`  
      `}`
@@ -118,7 +123,23 @@ PD will store a key-value entry in etcd to act as a lock. The value will be a JS
 * Else:  
   * Return `404`.
 
-#### **Func 3 – `DELETE /maintenance/{task_type}/{task_id}`**
+#### **Func 3 – `GET /maintenance/{task_type}`**
+
+* If the key exists:  
+  * Return `200`.  
+  * Respond with a JSON body, for example
+
+     `{`  
+       `"type": "task_tikv",`  
+       `"id": "task_123",`  
+       `"start_timestamp": 1712676600,`  
+       `"description": "Upgrade rolling restart for TiKV store-1"`  
+     `}`
+
+* Else:  
+  * Return `404`.
+
+#### **Func 4 – `DELETE /maintenance/{task_type}/{task_id}`**
 
 * If the key exists:  
   * Parse and verify the `task_id`.  
@@ -146,11 +167,11 @@ Define Prometheus metrics to track the state of ongoing tasks:
 
 * When a task starts:
 
-`maintenanceTaskInfo.WithLabelValues("task_tikv", "store-123").Set(1)`
+`maintenanceTaskInfo.WithLabelValues("task_tikv", "task_123").Set(1)`
 
 * When a task ends:
 
-`maintenanceTaskInfo.WithLabelValues("task_tikv", "store-123").Set(0)`
+`maintenanceTaskInfo.WithLabelValues("task_tikv", "task_123").Set(0)`
 
 ---
 
