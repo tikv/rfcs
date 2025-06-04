@@ -119,7 +119,7 @@ Since the first method can quickly and effectively solve most scenarios, we will
 
 `growth-factor` is not exposed as it is difficult to understand and quantify.
 
-`network-inspect-interval` is a parameter in tikv-server, which is similar with [`inspect-interval`](https://docs.pingcap.com/tidb/dev/tikv-configuration-file/#inspect-interval) and `network-recovery-duration` will be set via `pd-ctl scheduler config evict-slow-store-scheduler set`
+`network-inspect-interval` is a parameter in tikv-server, which is similar with [`inspect-interval`](https://docs.pingcap.com/tidb/dev/tikv-configuration-file/#inspect-interval). `network-inspect-interval` and `network-recovery-duration` can be set via `pd-ctl scheduler config evict-slow-store-scheduler set`
 
 ## Drawbacks
 
