@@ -75,14 +75,14 @@ $$NetworkSlowScore = NetworkSlowScore - (100 * (InspectInterval / MinTTR))$$
 
 There are two ways to collect TimeoutRatio:
 
-- Create a PD -> TiKV health check mechanism. Directly use the information obtained by PD to determine the network status of TiKV. 
+- Create a PD <-> TiKV health check mechanism. Directly use the information obtained by PD to determine the network status of TiKV. 
 - Establish TiKV <-> TiKV health check mechanism. Each TiKV still uploads the health information obtained by the health check through store heartbeat.
 
-#### PD -> TiKV health check
+#### PD <-> TiKV health check
 
-PD -> TiKV health check is equivalent to a higher-frequency store heartbeat. However, it is only responsible for health checks and does not mix other functions.
+PD <-> TiKV health check is equivalent to a higher-frequency store heartbeat. However, it is only responsible for health checks and does not mix other functions.
 
-PD -> TiKV health check is a very simple framework. However, it can't handle this situation that the problematic tikv is only experiencing network problems with other tikv nodes, but the network is normal with the pd nodes.
+PD <-> TiKV health check is a very simple framework. However, it can't handle this situation that the problematic tikv is only experiencing network problems with other tikv nodes, but the network is normal with the pd nodes.
 
 #### TiKV <-> TiKV health check
 
@@ -104,20 +104,28 @@ Since the first method can quickly and effectively solve most scenarios, we will
 - Range: [0, +∞]
 - This parameter is used to set the inspect interval in the health check. Zero represents network inspect is disabled. It also represents the sensitivity and growth rate. When the `network-inspect-interval` is smaller, the more data is detected per unit time, and the score is likely to grow faster.
 
-`network-min-ttr`
+`network-recovery-duration`
 - Type: Integer
 - Default value: 5
 - Unit: min
 - Range: (0, +∞]
-- This parameter is used to set the minimun recovery time.
+- This parameter is used to set the network recovery duration. 
+
+`max-network-slow-stores`
+- Type: integer
+- Default value: 1
+- Range: [0, +∞]
+- This parameter indicates how many slow stores can exist in the cluster at the same time. When the NetworkSlowScore of more than n tikvs reaches 100, tikvs in excess of `max-network-slow-stores` will not be considered as slow stores.
 
 `growth-factor` is not exposed as it is difficult to understand and quantify.
 
-Both `network-inspect-interval` and `network-min-ttr` will be set via `pd-ctl scheduler config slow-store-scheduler set`
+`network-inspect-interval` is a parameter in tikv-server, which is similar with [`inspect-interval`](https://docs.pingcap.com/tidb/dev/tikv-configuration-file/#inspect-interval) and `network-recovery-duration` will be set via `pd-ctl scheduler config evict-slow-store-scheduler set`
 
 ## Drawbacks
 
-PD -> TiKV health check can't handle the situation that the problematic tikv is only experiencing network problems with other tikv nodes, but the network is normal with the pd nodes. TiKV <-> TiKV health check will resolve this problem.
+PD <-> TiKV health check can't handle the situation that the problematic tikv is only experiencing network problems with other tikv nodes, but the network is normal with the pd nodes. TiKV <-> TiKV health check will resolve this problem.
+
+All tikv scores go up when PD has network problems.
 
 ## Alternatives
 
