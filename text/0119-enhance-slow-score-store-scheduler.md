@@ -101,14 +101,14 @@ Since the first method can quickly and effectively solve most scenarios, we will
 - Type: Integer
 - Default value: 100
 - Unit: ms
-- Range: [0, +∞]
+- Range: [10, +∞]
 - This parameter is used to set the inspect interval in the health check. Zero represents network inspect is disabled. It also represents the sensitivity and growth rate. When the `network-inspect-interval` is smaller, the more data is detected per unit time, and the score is likely to grow faster.
 
 `network-recovery-duration`
 - Type: Integer
 - Default value: 5
 - Unit: min
-- Range: (0, +∞]
+- Range: [1, +∞]
 - This parameter is used to set the network recovery duration. 
 
 `max-network-slow-stores`
