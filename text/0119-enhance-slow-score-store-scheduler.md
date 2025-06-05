@@ -99,12 +99,12 @@ Since the first method can quickly and effectively solve most scenarios, we will
 
 > The final default value may change with the test results.
 
-`network-inspect-interval`:
+`inspect-network-interval`:
 - Type: Integer
 - Default value: 100
 - Unit: ms
 - Range: [10, +∞]
-- This parameter is used to set the inspect interval in the health check. Zero represents network inspect is disabled. It also represents the sensitivity and growth rate. When the `network-inspect-interval` is smaller, the more data is detected per unit time, and the score is likely to grow faster.
+- This parameter is used to set the inspect interval in the health check. Zero represents network inspect is disabled. It also represents the sensitivity and growth rate. When the `inspect-network-interval` is smaller, the more data is detected per unit time, and the score is likely to grow faster.
 
 `network-recovery-duration`
 - Type: Integer
@@ -121,7 +121,7 @@ Since the first method can quickly and effectively solve most scenarios, we will
 
 `growth-factor` is not exposed as it is difficult to understand and quantify.
 
-`network-inspect-interval` is a parameter in tikv-server, which is similar with [`inspect-interval`](https://docs.pingcap.com/tidb/dev/tikv-configuration-file/#inspect-interval). `network-inspect-interval` and `network-recovery-duration` can be set via `pd-ctl scheduler config evict-slow-store-scheduler set`.
+`inspect-network-interval` is a parameter in tikv-server, which is similar with [`inspect-interval`](https://docs.pingcap.com/tidb/dev/tikv-configuration-file/#inspect-interval). And `network-recovery-duration` can be set via `pd-ctl scheduler config evict-slow-store-scheduler set`.
 
 The timeout for the health check is 1s.
 
