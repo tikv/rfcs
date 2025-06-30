@@ -1,4 +1,4 @@
-# Cache read index resposnses
+# cpu-threshold on unified read-pool
 
 ## Summary
 The purpose of this design is to have upper bound on CPU utilization of read pool threads
