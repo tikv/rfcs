@@ -24,11 +24,11 @@ TiKV scale down thread count when all the following conditions are met:
 TiKV will monitor cpu stats of the read pool threads to scale up/down the number of threads.
 TiKV scale down the thread count when all the following conditions are met:
 - CPU usage of unified read pool is more than the readpool.unified.cpu-threshold
-- It can bring the total number of threads less than readpool.unified.optimal-thread-count. 
+- It can bring the total number of threads less than readpool.unified.min-thread-count. 
 
 TiKV scale up the thread count when all the following conditions are met
 - CPU usage of unified read pool is less than the readpool.unified.cpu-threshold
-- Total number of threads less than readpool.unified.optimal-thread-count
+- Total number of threads less than readpool.unified.min-thread-count
 
 ### Code changes
 
@@ -44,25 +44,41 @@ get_unified_read_pool_cpu() {
 adjust pool size
 
 ```
-READ_POOL_THREAD_CHECK_DURATION 5 sec // old value 10 seconds
+READ_POOL_THREAD_CHECK_DURATION 10 sec
 adjust_pool_size() {
     if !self.auto_adjust {
         return
     }
 
-    if unifiedReadPoolCPU > CPUTHreshold {
-        // scale down exponentially upto CPUThreshold * total cores
+    leeway = .01; // 10%
+    if unifiedReadPoolCPU > (leeway + 1) * CPUTHreshold  {
+        target_threads = max(cur_threads * (CPUThreshold * num_cores) / unifiedReadPoolCPU, CPUThreshold * num_cores);
+        // scale down incrementally by target_threads;
+        return
     }
 
-    if unifiedReadPoolCPU < CPUTHreshold && activeThreads < optimalThreadCnt {
+    if unifiedReadPoolCPU < (leeway - 1) * CPUTHreshold && activeThreads < minThreadCnt {
         // scale up incrementally
+        return
+    }
+
+    if (unifiedReadPoolCPU > (leeway - 1) * CPUTHreshold && activeThreads >= minThreadCnt {
+        // existing code to scale up/down decided by busy thread and running tasks
     }
 }
 ```
 
+### Scenarios
+On Cloud, EBS env It is 10 cores machine
+1. min_thread is 20
+2. max_thread is 10 * 5 = 50
+3. CPUTHreshold is 80%
+4. current active thread count is 20
+
+We will scale down the thread until cpu utilization of unified read pool reaches less than 8.8 cores. We will start doing scale up if CPU utilization is less than 7.2 cores and number of threads is less then 20.
+
 ## Configuration
 readpool.unified.cpu-threshold : It represents the maximum cpu used by unified read pool. Its default config is set to 0 which indicates that there is no threshold.
-readpool.unified.optimal-threads : It represents the optimal number of threads required in a system. By default it is set to readpool.unified.min-thread-cnt. In cloud scenarios users want to run with optimal number of threads to maximize the throughput from a instance and want threads to be less than the optimal thread count if CPU usage is high
 
 ## Benefit
 This design could able to mitigate the high cpu usage due to hot reads in READ_POOL_THREAD_CHECK_DURATION * log(number_of_active_threads) 
