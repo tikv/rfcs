@@ -51,7 +51,7 @@ adjust_pool_size() {
     }
 
     leeway = .1; // 10%
-    if unifiedReadPoolCPU > (leeway + 1) * CPUTHreshold  {
+    if unifiedReadPoolCPU > (leeway + 1) * CPUThreshold  {
         target_threads = max(cur_threads * (CPUThreshold * num_cores) / unifiedReadPoolCPU, CPUThreshold * num_cores);
         // scale down incrementally by target_threads;
         return
