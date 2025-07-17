@@ -57,7 +57,7 @@ adjust_pool_size() {
         return
     }
 
-    if unifiedReadPoolCPU < (leeway - 1) * CPUTHreshold && activeThreads < minThreadCnt {
+    if unifiedReadPoolCPU < (leeway - 1) * CPUThreshold && activeThreads < minThreadCnt {
         // scale up incrementally
         return
     }
